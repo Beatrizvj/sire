@@ -25,6 +25,11 @@ class AppShell extends StatelessWidget {
         onDestinationSelected: _onDestinationSelected,
         destinations: const [
           NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.sos_outlined),
             selectedIcon: Icon(Icons.sos),
             label: 'SOS',
@@ -38,11 +43,6 @@ class AppShell extends StatelessWidget {
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
             label: 'Perfil',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.admin_panel_settings_outlined),
-            selectedIcon: Icon(Icons.admin_panel_settings),
-            label: 'Admin',
           ),
         ],
       ),

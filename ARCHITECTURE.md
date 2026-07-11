@@ -1,90 +1,97 @@
 # Arquitectura de SIRE (app móvil)
 
-Proyecto Flutter organizado con **Clean Architecture** (orientada a *features*) y
-**Riverpod** para la gestión de estado e inyección de dependencias.
+Proyecto Flutter con **Clean Architecture** (orientada a *features*), **Riverpod**
+para estado e inyección de dependencias, **GoRouter** con guard de sesión, y
+soporte para **Firebase** (Auth, Firestore, FCM) mediante un patrón de
+repositorios intercambiables.
 
-## Capas
-
-Cada *feature* se divide en tres capas con dependencias **hacia adentro**
-(presentation → domain ← data):
+## Capas por feature
 
 ```
 features/<feature>/
-├── domain/          Reglas de negocio puras (sin Flutter ni paquetes externos)
-│   ├── entities/        Objetos del negocio (SosAlert, LocationReading)
-│   ├── repositories/    Contratos (interfaces) que la capa de datos implementa
-│   └── usecases/        Casos de uso (TriggerSos)
-├── data/            Implementaciones concretas
-│   ├── datasources/     Fuentes externas
-│   ├── models/          Serialización (JSON/Firestore)
-│   └── repositories/    Implementan los contratos del dominio
+├── domain/          Reglas de negocio puras (sin Flutter ni Firebase)
+│   ├── entities/        Objetos del negocio
+│   ├── repositories/    Contratos (interfaces)
+│   └── usecases/        Casos de uso
+├── data/            Implementaciones
+│   ├── models/          Serialización (JSON / Firestore)
+│   └── repositories/    Implementaciones de los contratos (local y Firebase)
 └── presentation/    UI
-    ├── providers/       Estado con Riverpod (Notifier) + inyección de dependencias
+    ├── providers/       Estado con Riverpod (Notifier) + DI
     ├── pages/           Pantallas
-    └── widgets/         Componentes reutilizables de la feature
+    └── widgets/         Componentes de la feature
 ```
 
-El código transversal vive en `core/` (tema, router, servicios, red, errores, config).
+`core/` = infraestructura transversal · `shared/` = widgets compartidos.
 
-## Regla de oro
-`domain` **no importa** `data` ni `flutter`. Los casos de uso dependen de
-*interfaces* (`AlertRepository`, `LocationRepository`); las implementaciones
-concretas se inyectan con Riverpod en `presentation/providers`. Así, al pasar de
-almacenamiento local a Firestore (Hito 3) **solo cambia la capa `data`**.
+## Patrón local ↔ Firebase (clave)
 
-## Estructura actual
+Cada repositorio tiene **dos implementaciones** con la misma interfaz de dominio;
+el provider elige según `AppConfig.firebaseEnabled`:
+
+```dart
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  if (AppConfig.firebaseEnabled) return AuthRepositoryFirebase(FirebaseAuth.instance);
+  return AuthRepositoryLocal(ref.watch(sharedPreferencesProvider));
+});
+```
+
+Hoy el flag es `false` → la app corre **100% local** (sin credenciales). Al
+conectar Firebase (ver [docs/CONNECT_FIREBASE.md](docs/CONNECT_FIREBASE.md)) se
+pone en `true` y **no cambia ni el dominio ni la UI**.
+
+## Estructura
 
 ```
 lib/
-├── main.dart                     Arranque (ProviderScope + SharedPreferences)
-├── app.dart                      MaterialApp.router + tema Material 3
+├── main.dart · app.dart
 ├── core/
-│   ├── config/app_config.dart    Constantes y feature flags (Firebase off en v1)
-│   ├── theme/                    Tema Material 3 (rojo emergencia)
-│   ├── router/                   GoRouter + AppShell (navegación por pestañas)
-│   ├── di/app_providers.dart     sharedPreferencesProvider
-│   ├── network/dio_client.dart   Cliente HTTP (para hitos con backend)
-│   ├── error/                    Failure / Exceptions
-│   ├── services/                 logger, permisos, power_button_bridge (nativo)
-│   └── widgets/                  PlaceholderPage
+│   ├── config/      app_config (flags) · firestore_collections
+│   ├── theme/ · router/ (GoRouter + guard + AppShell) · di/ · network/ · error/
+│   └── services/    logger · permisos · power_button_bridge · messaging (FCM)
+├── shared/widgets/  PlaceholderPage
 └── features/
-    ├── alerts/                   ← núcleo SOS (las 3 capas implementadas)
-    ├── auth/                     login placeholder (Firebase Auth en Hito 3)
-    ├── maps/                     placeholder (Google Maps en Hito 5)
-    ├── profile/                  perfil demo
-    └── admin/                    placeholder (panel web en Hito 7)
+    ├── auth/         login + registro · AuthRepository {Firebase, Local}
+    ├── users/        AppUser + roles · UserRepository {Firestore, Local}
+    ├── alerts/       SOS · AlertRepository {Firestore, Local} · TriggerSos
+    ├── location/     LocationRepository (geolocator + geocoding)
+    ├── dashboard/    inicio con indicadores
+    ├── maps/         placeholder (Hito 5)
+    └── profile/      perfil + cierre de sesión
 ```
+
+## Flujo de autenticación
+
+```
+LoginPage / RegisterPage → AuthController (Riverpod)
+      │                          │
+      │                    AuthRepository (Firebase | Local)
+      ▼                          │
+GoRouter.redirect  ◄── refreshListenable(isLoggedIn)
+  sin sesión → /login   ·   con sesión → /dashboard
+```
+El registro además crea el perfil `AppUser` en la colección `usuarios`.
 
 ## Flujo del SOS
 
 ```
 Botón SOS en pantalla ──┐
-                        ├─► AlertsController.triggerSos(source)
+                        ├─► AlertsController.triggerSos(source, userId)
 Botón de encendido ×3 ──┘        │
- (servicio nativo Kotlin)        ▼
-                          TriggerSos (usecase)
+ (servicio nativo Kotlin)   TriggerSos (usecase)
                                  │
-              LocationRepository (GPS + dirección, geolocator/geocoding)
-                                 │
-                          AlertRepository.saveAlert
-                                 │
-                     shared_preferences (v1)  →  Firestore (Hito 3)
+        LocationRepository (GPS + dirección)  →  AlertRepository.saveAlert
+                                                     │
+                              shared_preferences (v1)  ó  Firestore (`alertas`)
 ```
 
 ## Puente nativo del botón de encendido
 
-Android no permite interceptar `KEYCODE_POWER` sin ser app de sistema/root. Se
-cuentan las alternancias de pantalla (`ACTION_SCREEN_ON` / `ACTION_SCREEN_OFF`)
-que produce cada pulsación.
+Android no permite interceptar `KEYCODE_POWER` sin ser app de sistema/root; se
+cuentan las alternancias de pantalla (`ACTION_SCREEN_ON/OFF`). Ver
+`android/.../PowerButtonService.kt`, `PowerButtonEvents.kt`, `MainActivity.kt` y
+`lib/core/services/power_button_bridge.dart`.
 
-- `android/.../PowerButtonService.kt` — foreground service + BroadcastReceiver;
-  detecta 3 alternancias en ≤ 5 s.
-- `android/.../PowerButtonEvents.kt` — publica el evento al `EventChannel`.
-- `android/.../MainActivity.kt` — `MethodChannel sire/power_control` (iniciar/
-  detener) y `EventChannel sire/power_events` (recibe `sos_triggered`).
-- `lib/core/services/power_button_bridge.dart` — lado Dart del puente.
-
-**Límites conocidos (a endurecer):** con la pantalla bloqueada/apagada o en OEMs
-que matan procesos (Xiaomi/Samsung) la fiabilidad baja; Android 12+ tiene su
-propio "SOS de emergencia" en el botón; se recomienda exentar de optimización de
-batería.
+**Límites conocidos:** con pantalla bloqueada o en OEMs que matan procesos la
+fiabilidad baja; Android 12+ tiene su propio "SOS" en ese botón. Área de
+endurecimiento en hitos posteriores.

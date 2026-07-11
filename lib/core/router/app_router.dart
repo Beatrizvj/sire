@@ -1,26 +1,50 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/admin/presentation/pages/admin_page.dart';
 import '../../features/alerts/presentation/pages/home_sos_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/presentation/pages/register_page.dart';
+import '../../features/auth/presentation/providers/auth_providers.dart';
+import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/maps/presentation/pages/map_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
 
-/// Configuración de navegación de SIRE.
+/// Configuración de navegación de SIRE, con guard de autenticación.
 ///
-/// La app abre directamente en la pantalla SOS (`/home`) para facilitar las
-/// pruebas. El login es un placeholder alcanzable desde Perfil; se conectará a
-/// Firebase Auth en el Hito 3.
+/// Sin sesión → `/login`. Con sesión → app (dashboard/SOS/mapa/perfil).
+/// El `refreshListenable` re-evalúa el `redirect` en cada cambio de sesión.
 final goRouterProvider = Provider<GoRouter>((ref) {
+  final authNotifier =
+      ValueNotifier<bool>(ref.read(authControllerProvider).isLoggedIn);
+  ref.listen(authControllerProvider, (previous, next) {
+    authNotifier.value = next.isLoggedIn;
+  });
+  ref.onDispose(authNotifier.dispose);
+
   return GoRouter(
-    initialLocation: AppRoutes.home,
+    initialLocation: AppRoutes.dashboard,
+    refreshListenable: authNotifier,
+    redirect: (context, state) {
+      final loggedIn = ref.read(authControllerProvider).isLoggedIn;
+      final location = state.matchedLocation;
+      final onAuthPage =
+          location == AppRoutes.login || location == AppRoutes.register;
+
+      if (!loggedIn) return onAuthPage ? null : AppRoutes.login;
+      if (onAuthPage) return AppRoutes.dashboard;
+      return null;
+    },
     routes: [
       GoRoute(
         path: AppRoutes.login,
         builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        builder: (context, state) => const RegisterPage(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -29,7 +53,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.home,
+                path: AppRoutes.dashboard,
+                builder: (context, state) => const DashboardPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.sos,
                 builder: (context, state) => const HomeSosPage(),
               ),
             ],
@@ -47,14 +79,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.profile,
                 builder: (context, state) => const ProfilePage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.admin,
-                builder: (context, state) => const AdminPage(),
               ),
             ],
           ),
