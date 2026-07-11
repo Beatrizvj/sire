@@ -1,25 +1,30 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/error/exceptions.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../location/presentation/providers/location_providers.dart';
+import '../../data/repositories/alert_repository_firestore.dart';
 import '../../data/repositories/alert_repository_local.dart';
-import '../../data/repositories/location_repository_geolocator.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../../domain/entities/sos_source.dart';
 import '../../domain/repositories/alert_repository.dart';
-import '../../domain/repositories/location_repository.dart';
 import '../../domain/usecases/trigger_sos.dart';
 
-// --- Inyección de dependencias (Clean Architecture) ---
-
-final locationRepositoryProvider = Provider<LocationRepository>(
-  (ref) => const LocationRepositoryGeolocator(),
-);
-
-final alertRepositoryProvider = Provider<AlertRepository>(
-  (ref) => AlertRepositoryLocal(ref.watch(sharedPreferencesProvider)),
-);
+/// Repositorio de alertas. Cambia local ↔ Firestore con [AppConfig.firebaseEnabled].
+final alertRepositoryProvider = Provider<AlertRepository>((ref) {
+  if (AppConfig.firebaseEnabled) {
+    return AlertRepositoryFirestore(
+      FirebaseFirestore.instance,
+      FirebaseAuth.instance,
+    );
+  }
+  return AlertRepositoryLocal(ref.watch(sharedPreferencesProvider));
+});
 
 final triggerSosProvider = Provider<TriggerSos>(
   (ref) => TriggerSos(
@@ -27,8 +32,6 @@ final triggerSosProvider = Provider<TriggerSos>(
     alertRepository: ref.watch(alertRepositoryProvider),
   ),
 );
-
-// --- Estado de la UI de alertas ---
 
 class AlertsState extends Equatable {
   const AlertsState({
@@ -49,8 +52,7 @@ class AlertsState extends Equatable {
     return AlertsState(
       alerts: alerts ?? this.alerts,
       isSending: isSending ?? this.isSending,
-      // El error es transitorio: si no se pasa, se limpia.
-      lastError: lastError,
+      lastError: lastError, // transitorio
     );
   }
 
@@ -83,7 +85,8 @@ class AlertsController extends Notifier<AlertsState> {
     if (state.isSending) return null;
     state = state.copyWith(isSending: true);
     try {
-      final alert = await ref.read(triggerSosProvider).call(source);
+      final userId = ref.read(authControllerProvider).user?.uid;
+      final alert = await ref.read(triggerSosProvider).call(source, userId: userId);
       state = state.copyWith(isSending: false, alerts: [alert, ...state.alerts]);
       return alert;
     } on LocationServiceDisabledException {

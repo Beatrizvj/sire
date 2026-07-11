@@ -1,4 +1,4 @@
-// Prueba de humo: verifica que la app arranca y muestra la pantalla SOS.
+// Prueba de humo: sin sesión, la app debe mostrar la pantalla de login.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +9,7 @@ import 'package:sire/app.dart';
 import 'package:sire/core/di/app_providers.dart';
 
 void main() {
-  testWidgets('La app arranca y muestra la pantalla SOS', (tester) async {
+  testWidgets('Sin sesión, la app muestra el login', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
 
@@ -19,10 +19,9 @@ void main() {
         child: const SireApp(),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
 
     expect(find.byType(MaterialApp), findsOneWidget);
-    // El texto "SOS" aparece en el botón y en la barra de navegación.
-    expect(find.text('SOS'), findsWidgets);
+    expect(find.text('Ingresar'), findsOneWidget);
   });
 }

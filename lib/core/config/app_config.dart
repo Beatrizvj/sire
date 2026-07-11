@@ -17,9 +17,13 @@ class AppConfig {
   static const Duration sosDetectionWindow = Duration(seconds: 5);
 
   // --- Feature flags (se activan en hitos posteriores) ---
-  /// Hito 3: al conectar Firebase se pondrá en true.
-  static const bool firebaseEnabled = false;
+  /// Hito 3: al conectar Firebase, cambiar a `true`.
+  ///
+  /// Es un getter (no `const`) a propósito: permite el patrón de repositorios
+  /// local ↔ Firebase sin que el analizador marque las ramas de Firebase como
+  /// código muerto mientras el valor es `false`.
+  static bool get firebaseEnabled => false;
 
   /// Hito 6: mensajería por WhatsApp vía Cloud Functions.
-  static const bool whatsappEnabled = false;
+  static bool get whatsappEnabled => false;
 }

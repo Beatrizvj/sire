@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/placeholder_page.dart';
+import '../../../../shared/widgets/placeholder_page.dart';
 
 class MapPage extends StatelessWidget {
   const MapPage({super.key});
