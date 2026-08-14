@@ -1,0 +1,150 @@
+rules_version = '2';
+
+// Reglas de seguridad de SIRE — acceso por rol CON aprobación (R1).
+// Roles: ciudadano · cocode · municipalidad (campo `rol` en usuarios/{uid}).
+// Estado de cuenta: pendiente_revision · aprobado · rechazado · suspendido
+//   (campo `estadoCuenta`). Los documentos ANTIGUOS sin ese campo se consideran
+//   'aprobado' para no bloquear a los usuarios que ya existían antes de R1.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Perfil del usuario autenticado (lectura privilegiada, no recursiva).
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    // Compatibilidad: si el doc no tiene `estadoCuenta`, se asume 'aprobado'.
+    function estadoActual() {
+      return perfil().get('estadoCuenta', 'aprobado');
+    }
+    function aprobado() {
+      return signedIn() && estadoActual() == 'aprobado';
+    }
+    // El rol solo cuenta si la cuenta está aprobada.
+    function esMunicipalidad() {
+      return aprobado() && perfil().rol == 'municipalidad';
+    }
+    function esCocode() {
+      return aprobado() && perfil().rol == 'cocode';
+    }
+    function miAldea() {
+      return perfil().get('aldea', '');
+    }
+    // R2: verificador de identidad = autoridad aprobada con la capacidad
+    // `puedeVerIdentidad` que otorga la Municipalidad.
+    function esVerificador() {
+      return aprobado() && perfil().get('puedeVerIdentidad', false) == true;
+    }
+    // R4 (capa servidor): nombre 2-60 caracteres, solo letras (Unicode),
+    // espacios, apóstrofo y guion. La lista negra se aplica en el cliente.
+    function nombreValido(n) {
+      return n is string
+             && n.size() >= 2 && n.size() <= 60
+             && n.matches("[\\p{L}]+([ '\\-][\\p{L}]+)*");
+    }
+
+    // ── Perfiles de usuario ──
+    match /usuarios/{userId} {
+      // Al registrarse, cada quien crea SU propio perfil y OBLIGATORIAMENTE
+      // 'pendiente_revision'. Nadie puede auto-crearse ya aprobado.
+      allow create: if signedIn() && request.auth.uid == userId
+                       && request.resource.data.get('estadoCuenta', '') == 'pendiente_revision'
+                       && nombreValido(request.resource.data.nombre);
+
+      // Lo lee su dueño; COCODE y Municipalidad (aprobados) pueden consultarlo.
+      allow read:   if signedIn() && (request.auth.uid == userId
+                       || esMunicipalidad() || esCocode());
+
+      // El dueño edita SUS datos, pero NO su rol, su estado, la capacidad de
+      // ver identidad ni sus contactos de confianza (RF-11): esos grupos solo
+      // los arma una autoridad, no el propio ciudadano.
+      allow update: if request.auth.uid == userId
+                       && request.resource.data.get('rol', 'ciudadano')
+                            == resource.data.get('rol', 'ciudadano')
+                       && request.resource.data.get('estadoCuenta', 'aprobado')
+                            == resource.data.get('estadoCuenta', 'aprobado')
+                       && request.resource.data.get('puedeVerIdentidad', false)
+                            == resource.data.get('puedeVerIdentidad', false)
+                       && request.resource.data.get('contactosConfianza', [])
+                            == resource.data.get('contactosConfianza', [])
+                       && nombreValido(request.resource.data.nombre);
+
+      // La Municipalidad puede aprobar/editar cualquier cuenta y asignar rol.
+      allow update: if esMunicipalidad();
+
+      // El COCODE solo aprueba/rechaza CIUDADANOS de su misma aldea declarada.
+      allow update: if esCocode()
+                       && resource.data.get('aldeaSolicitada', '') == miAldea()
+                       && request.resource.data.get('rol', 'ciudadano') == 'ciudadano';
+
+      allow delete: if esMunicipalidad();
+    }
+
+    // ── Auditoría (R1): bitácora inmutable ──
+    match /auditoria/{id} {
+      // Solo autoridades aprobadas registran acciones; el actor debe ser quien firma.
+      allow create: if (esMunicipalidad() || esCocode())
+                       && request.resource.data.actorUid == request.auth.uid;
+      // Solo la Municipalidad puede leer la bitácora.
+      allow read:   if esMunicipalidad();
+      // Inmutable: nunca se edita ni se borra.
+      allow update, delete: if false;
+    }
+
+    // ── Identidad (R2): fotos del DPI, privadas ──
+    // Cada lado en su propio documento: identidad/{uid}/fotos/{lado}.
+    match /identidad/{uid} {
+      allow read: if esVerificador();
+      allow write, delete: if request.auth.uid == uid || esMunicipalidad();
+
+      match /fotos/{lado} {
+        // El dueño sube/actualiza SUS propias fotos (durante el registro).
+        allow write:  if signedIn() && request.auth.uid == uid;
+        // Solo verificadores autorizados por la Municipalidad pueden verlas.
+        allow read:   if esVerificador();
+        // La Municipalidad (o el dueño) pueden eliminarlas.
+        allow delete: if esMunicipalidad() || request.auth.uid == uid;
+      }
+    }
+
+    // ── Categorías de incidente (R3): catálogo configurable ──
+    match /categorias_incidente/{id} {
+      // Cualquier usuario aprobado las lee (para el selector del ciudadano).
+      allow read: if aprobado();
+      // Solo la Municipalidad las administra.
+      allow create, update, delete: if esMunicipalidad();
+    }
+
+    // ── Alertas de emergencia ──
+    match /alertas/{alertaId} {
+      // El ciudadano (aprobado) crea su propia alerta (idUsuario debe ser el suyo).
+      allow create: if aprobado()
+                       && request.resource.data.idUsuario == request.auth.uid;
+      // La lee su dueño; COCODE y Municipalidad las ven para atenderlas.
+      // RF-11: un ciudadano aprobado también puede leer las alertas de los
+      // contactos de confianza que UNA AUTORIDAD le asignó (para que le suene
+      // la alarma). Solo esos; nadie más.
+      allow read:   if signedIn() && (
+                       resource.data.idUsuario == request.auth.uid
+                       || esCocode() || esMunicipalidad()
+                       || (aprobado()
+                           && resource.data.idUsuario
+                                in perfil().get('contactosConfianza', []))
+                    );
+      // COCODE y Municipalidad cambian el estado; además el ciudadano puede
+      // cancelar (marcar falsa alarma) su propia alerta.
+      allow update: if esCocode() || esMunicipalidad()
+                       || (aprobado()
+                           && resource.data.idUsuario == request.auth.uid);
+      allow delete: if esMunicipalidad();
+    }
+
+    // ── Todo lo demás: denegado por defecto ──
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

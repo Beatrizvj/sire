@@ -98,4 +98,26 @@ class AuthRepositoryLocal implements AuthRepository {
 
   @override
   Future<void> signOut() => _persist(null);
+
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    // Modo local (demo): no hay servidor de correo; solo valida el formato.
+    if (email.trim().isEmpty || !email.contains('@')) {
+      throw Exception('Ingresa un correo válido.');
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    // Modo local (demo): no hay backend de credenciales; solo valida el formato.
+    if (_current == null) {
+      throw Exception('No hay una sesión activa.');
+    }
+    if (newPassword.length < 6) {
+      throw Exception('La nueva contraseña debe tener al menos 6 caracteres.');
+    }
+  }
 }

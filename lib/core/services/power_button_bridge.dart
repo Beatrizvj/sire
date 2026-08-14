@@ -28,9 +28,16 @@ class PowerButtonBridge {
     return _stream!;
   }
 
-  Future<bool> startDetection() => _invokeBool('startDetection');
+  /// Inicia la detección nativa. Pasa el [uid] para que el servicio pueda
+  /// etiquetar la alerta (idUsuario) al guardarla en Firestore por su cuenta.
+  Future<bool> startDetection(String uid, String nombre) =>
+      _invokeBool('startDetection', {'uid': uid, 'nombre': nombre});
 
   Future<bool> stopDetection() => _invokeBool('stopDetection');
+
+  /// Consulta si el servicio de detección está corriendo ahora mismo, para que
+  /// el switch refleje el estado real al abrir o volver a la app.
+  Future<bool> isDetectionRunning() => _invokeBool('isDetectionRunning');
 
   Future<bool> isIgnoringBatteryOptimizations() =>
       _invokeBool('isIgnoringBatteryOptimizations');
@@ -43,9 +50,9 @@ class PowerButtonBridge {
     }
   }
 
-  Future<bool> _invokeBool(String method) async {
+  Future<bool> _invokeBool(String method, [Map<String, dynamic>? args]) async {
     try {
-      final result = await _control.invokeMethod<bool>(method);
+      final result = await _control.invokeMethod<bool>(method, args);
       return result ?? false;
     } on PlatformException {
       return false;

@@ -4,13 +4,36 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/app_routes.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
+import '../../../alerts/presentation/pages/bandeja_page.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
 import '../../../alerts/presentation/widgets/alert_tile.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../users/domain/entities/user_role.dart';
 
-/// Pantalla de inicio: saludo, indicadores y accesos rápidos.
+/// Pantalla de la pestaña "Inicio". Según el rol muestra:
+/// ciudadano → su tablero con el SOS · COCODE/Municipalidad → la Bandeja.
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(currentUserProfileProvider);
+    return profile.when(
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, _) => const _CitizenDashboard(),
+      data: (user) {
+        final esAutoridad = user?.rol == UserRole.cocode ||
+            user?.rol == UserRole.municipalidad;
+        return esAutoridad ? const BandejaPage() : const _CitizenDashboard();
+      },
+    );
+  }
+}
+
+/// Tablero del ciudadano: saludo, indicadores y acceso rápido al SOS.
+class _CitizenDashboard extends ConsumerWidget {
+  const _CitizenDashboard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

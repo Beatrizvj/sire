@@ -15,16 +15,21 @@ class SosAlert extends Equatable {
     required this.timestamp,
     required this.source,
     this.userId,
+    this.userName,
     this.status = AlertStatus.pendiente,
     this.type = 'SOS',
     this.address,
     this.accuracy,
+    this.categoria,
   });
 
   final String id;
 
   /// idUsuario (uid). Nulo en modo local sin sesión.
   final String? userId;
+
+  /// Nombre del ciudadano (nombreUsuario), para que la autoridad lo identifique.
+  final String? userName;
   final double latitude;
   final double longitude;
   final DateTime timestamp;
@@ -38,9 +43,14 @@ class SosAlert extends Equatable {
   /// Precisión del GPS en metros.
   final double? accuracy;
 
-  SosAlert copyWith({AlertStatus? status}) => SosAlert(
+  /// R3: categoría del incidente (Robo, Asalto, Persona sospechosa). Nula =
+  /// "sin especificar" (p. ej. SOS por botón de encendido, a clasificar después).
+  final String? categoria;
+
+  SosAlert copyWith({AlertStatus? status, String? categoria}) => SosAlert(
         id: id,
         userId: userId,
+        userName: userName,
         latitude: latitude,
         longitude: longitude,
         timestamp: timestamp,
@@ -49,12 +59,14 @@ class SosAlert extends Equatable {
         type: type,
         address: address,
         accuracy: accuracy,
+        categoria: categoria ?? this.categoria,
       );
 
   @override
   List<Object?> get props => [
         id,
         userId,
+        userName,
         latitude,
         longitude,
         timestamp,
@@ -63,5 +75,6 @@ class SosAlert extends Equatable {
         type,
         address,
         accuracy,
+        categoria,
       ];
 }

@@ -18,4 +18,14 @@ abstract interface class AuthRepository {
   });
 
   Future<void> signOut();
+
+  /// Envía un correo para restablecer la contraseña.
+  Future<void> sendPasswordReset(String email);
+
+  /// Cambia la contraseña del usuario en sesión. Reautentica con la contraseña
+  /// actual antes de aplicar la nueva (requisito de seguridad de Firebase).
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
 }

@@ -28,6 +28,15 @@ class MainActivity : FlutterActivity() {
         MethodChannel(messenger, CONTROL_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startDetection" -> {
+                    // Guarda el uid del usuario en sesión para que el servicio nativo
+                    // pueda etiquetar la alerta (idUsuario) al escribir en Firestore.
+                    val uid = call.argument<String>("uid") ?: ""
+                    val nombre = call.argument<String>("nombre") ?: ""
+                    getSharedPreferences(PowerButtonService.PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putString(PowerButtonService.KEY_UID, uid)
+                        .putString(PowerButtonService.KEY_NOMBRE, nombre)
+                        .apply()
                     startPowerService()
                     result.success(true)
                 }
@@ -37,6 +46,8 @@ class MainActivity : FlutterActivity() {
                 }
                 "isIgnoringBatteryOptimizations" ->
                     result.success(isIgnoringBatteryOptimizations())
+                "isDetectionRunning" ->
+                    result.success(PowerButtonService.isRunning)
                 "requestIgnoreBatteryOptimizations" -> {
                     requestIgnoreBatteryOptimizations()
                     result.success(null)
@@ -56,6 +67,36 @@ class MainActivity : FlutterActivity() {
                 }
             },
         )
+
+        // Monitoreo de alertas para autoridades (COCODE / Municipalidad):
+        // arranca al iniciar sesión una autoridad, se detiene al cerrarla.
+        MethodChannel(messenger, MONITOR_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startMonitor" -> {
+                    // RF-11: guarda el filtro del monitoreo (autoridad = todas las
+                    // alertas; ciudadano = solo los uids de sus contactos de
+                    // confianza) para que el servicio arme la consulta correcta.
+                    val todos = call.argument<Boolean>("todos") ?: true
+                    val contactos =
+                        call.argument<List<String>>("contactos") ?: emptyList()
+                    getSharedPreferences(AlertMonitorService.PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(AlertMonitorService.KEY_TODOS, todos)
+                        .putStringSet(
+                            AlertMonitorService.KEY_CONTACTOS,
+                            contactos.toSet(),
+                        )
+                        .apply()
+                    startMonitorService()
+                    result.success(true)
+                }
+                "stopMonitor" -> {
+                    stopMonitorService()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     private fun startPowerService() {
@@ -69,6 +110,19 @@ class MainActivity : FlutterActivity() {
 
     private fun stopPowerService() {
         stopService(Intent(this, PowerButtonService::class.java))
+    }
+
+    private fun startMonitorService() {
+        val intent = Intent(this, AlertMonitorService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun stopMonitorService() {
+        stopService(Intent(this, AlertMonitorService::class.java))
     }
 
     private fun isIgnoringBatteryOptimizations(): Boolean {
@@ -87,5 +141,6 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val CONTROL_CHANNEL = "sire/power_control"
         private const val EVENT_CHANNEL = "sire/power_events"
+        private const val MONITOR_CHANNEL = "sire/alert_monitor"
     }
 }

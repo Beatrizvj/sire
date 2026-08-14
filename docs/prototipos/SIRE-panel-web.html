@@ -1,0 +1,748 @@
+<title>SIRE — Prototipo del Panel Web Municipal</title>
+<style>
+  /* ── Tokens de la PÁGINA (documentación) ─────────────────────── */
+  :root {
+    --paper: #F7F3F2; --paper-2: #FFFFFF;
+    --ink: #1B1211; --ink-soft: #6E5B58; --ink-faint: #9C8A87;
+    --rule: #E2D8D6; --accent: #C62828;
+
+    /* ── Tokens del PANEL (fijos: Material 3 light · seed #C62828) ─
+       El panel se opera de día en oficina → tema claro.
+       La app se usa de noche en emergencia → tema oscuro.
+       Misma semilla, distinto contexto de uso. */
+    --w-bg:       #FFF8F6;
+    --w-card:     #FFFFFF;
+    --w-side:     #2B1917;
+    --w-side-2:   #3D2624;
+    --w-ink:      #231918;
+    --w-var:      #534341;
+    --w-line:     #EADFDD;
+    --w-brand:    #C62828;
+
+    /* Color semántico de estado (independiente del acento) */
+    --crit: #BA1A1A;  --crit-bg: #FFDAD6;
+    --warn: #8A5A00;  --warn-bg: #FFE7B8;
+    --good: #2E6B32;  --good-bg: #CFEBD0;
+    --neut: #6B5A57;  --neut-bg: #EDE5E3;
+
+    --font-doc: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-mono: "Cascadia Mono", "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper:#120E0E; --paper-2:#1A1414; --ink:#F2EAE9; --ink-soft:#AD9895;
+            --ink-faint:#7C6A67; --rule:#2C2220; --accent:#FF8A80; }
+  }
+  :root[data-theme="dark"] {
+    --paper:#120E0E; --paper-2:#1A1414; --ink:#F2EAE9; --ink-soft:#AD9895;
+    --ink-faint:#7C6A67; --rule:#2C2220; --accent:#FF8A80;
+  }
+  :root[data-theme="light"] {
+    --paper:#F7F3F2; --paper-2:#FFFFFF; --ink:#1B1211; --ink-soft:#6E5B58;
+    --ink-faint:#9C8A87; --rule:#E2D8D6; --accent:#C62828;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+         font-family:var(--font-doc); line-height:1.5; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 24px 72px; }
+
+  .eyebrow { font-size:11px; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+             color:var(--accent); margin:0 0 10px; }
+  h1 { margin:0; font-size:clamp(28px,4vw,40px); font-weight:700; letter-spacing:-.02em; text-wrap:balance; }
+  .lede { margin:12px 0 0; max-width:64ch; color:var(--ink-soft); font-size:15px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px 28px; margin-top:22px; padding-top:20px;
+          border-top:1px solid var(--rule); font-size:12.5px; color:var(--ink-soft); }
+  .meta b { color:var(--ink); font-weight:600; }
+
+  .screens { display:flex; flex-direction:column; gap:52px; margin-top:44px; }
+  figure.screen { margin:0; display:flex; flex-direction:column; gap:14px; }
+  figcaption { display:flex; flex-direction:column; gap:5px; max-width:74ch; }
+  .cap-id { font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.08em;
+            color:var(--accent); font-variant-numeric:tabular-nums; }
+  .cap-name { font-size:16px; font-weight:650; letter-spacing:-.01em; }
+  .cap-desc { font-size:13px; color:var(--ink-soft); line-height:1.5; }
+
+  /* ── Marco de navegador ──────────────────────────────────────── */
+  .browser { border:1px solid var(--rule); border-radius:12px; overflow:hidden;
+             box-shadow:0 1px 2px rgba(0,0,0,.08), 0 16px 36px -18px rgba(0,0,0,.30);
+             background:var(--w-bg); }
+  .chrome { display:flex; align-items:center; gap:10px; padding:9px 12px;
+            background:#EDE4E2; border-bottom:1px solid var(--rule); }
+  .dots { display:flex; gap:5px; }
+  .dots i { width:9px; height:9px; border-radius:50%; background:#C9BBB8; }
+  .url { flex:1; background:#FFF; border-radius:999px; padding:3px 11px; font-size:10.5px;
+         color:#7A6764; font-family:var(--font-mono); }
+
+  .panel { display:flex; min-height:420px; color:var(--w-ink); }
+  .side { width:172px; flex:none; background:var(--w-side); color:#F0DFDC; padding:14px 0; }
+  .brand { display:flex; align-items:center; gap:8px; padding:0 14px 14px; }
+  .brand-mk { width:22px; height:22px; border-radius:6px; background:var(--w-brand);
+              display:grid; place-items:center; font-size:9px; font-weight:800; color:#fff; }
+  .brand b { font-size:12.5px; letter-spacing:-.01em; }
+  .brand span { display:block; font-size:8px; opacity:.6; font-weight:400; letter-spacing:.04em; }
+  .nav { display:flex; flex-direction:column; gap:1px; padding:0 8px; }
+  .nav a { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:7px;
+           font-size:11px; color:#D9C6C3; text-decoration:none; }
+  .nav a.on { background:var(--w-side-2); color:#FFF; font-weight:600; }
+  .nav .badge { margin-left:auto; background:var(--crit); color:#fff; font-size:8px;
+                font-weight:700; border-radius:999px; padding:1px 6px; }
+  .side-foot { margin-top:auto; padding:12px 14px 0; font-size:9px; opacity:.65; }
+
+  .main { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar { display:flex; align-items:center; gap:12px; padding:12px 16px;
+            border-bottom:1px solid var(--w-line); background:var(--w-card); }
+  .topbar h3 { margin:0; font-size:14px; font-weight:650; letter-spacing:-.01em; }
+  .live { display:flex; align-items:center; gap:5px; margin-left:auto; font-size:9.5px;
+          color:var(--good); font-weight:600; }
+  .live i { width:6px; height:6px; border-radius:50%; background:var(--good); }
+  .content { padding:14px 16px; display:flex; flex-direction:column; gap:12px; flex:1; }
+
+  /* Componentes del panel */
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .kpi { background:var(--w-card); border:1px solid var(--w-line); border-radius:10px; padding:10px 11px; }
+  .kpi span { font-size:8.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--w-var); font-weight:600; }
+  .kpi b { display:block; font-size:22px; font-weight:700; letter-spacing:-.02em; margin-top:3px;
+           font-variant-numeric:tabular-nums; }
+  .kpi em { font-style:normal; font-size:8.5px; color:var(--w-var); }
+  .kpi.crit { border-left:3px solid var(--crit); }
+  .kpi.crit b { color:var(--crit); }
+
+  .row2 { display:grid; grid-template-columns:1.35fr 1fr; gap:12px; flex:1; }
+  .box { background:var(--w-card); border:1px solid var(--w-line); border-radius:10px;
+         padding:11px; display:flex; flex-direction:column; gap:9px; min-width:0; }
+  .box h4 { margin:0; font-size:11px; font-weight:650; }
+  .box h4 small { font-weight:400; color:var(--w-var); font-size:9px; margin-left:5px; }
+
+  table { border-collapse:collapse; width:100%; font-size:10px; }
+  th { text-align:left; font-size:8px; letter-spacing:.1em; text-transform:uppercase;
+       color:var(--w-var); font-weight:600; padding:5px 6px; border-bottom:1px solid var(--w-line); }
+  td { padding:6px; border-bottom:1px solid var(--w-line); font-variant-numeric:tabular-nums; }
+  tr:last-child td { border-bottom:none; }
+  .st { display:inline-flex; align-items:center; gap:4px; border-radius:6px; padding:2px 6px;
+        font-size:8px; font-weight:700; white-space:nowrap; }
+  .st-crit { background:var(--crit-bg); color:var(--crit); }
+  .st-warn { background:var(--warn-bg); color:var(--warn); }
+  .st-good { background:var(--good-bg); color:var(--good); }
+  .st-neut { background:var(--neut-bg); color:var(--neut); }
+  .btn { display:inline-flex; align-items:center; gap:5px; border-radius:7px; padding:5px 9px;
+         font-size:9px; font-weight:600; border:1px solid var(--w-line); background:var(--w-card);
+         color:var(--w-ink); }
+  .btn-p { background:var(--w-brand); border-color:var(--w-brand); color:#fff; }
+
+  /* Gráfico de barras */
+  .bars { display:flex; align-items:flex-end; gap:4px; height:78px; padding-top:4px; }
+  .bars div { flex:1; background:#F0D6D3; border-radius:2px 2px 0 0; position:relative; }
+  .bars div.hot { background:var(--crit); }
+  .axis { display:flex; gap:4px; font-size:7px; color:var(--w-var); }
+  .axis span { flex:1; text-align:center; }
+
+  /* Mapa */
+  .map { border-radius:8px; overflow:hidden; background:#F2EBE4; flex:1; min-height:150px; position:relative; }
+  .map svg { display:block; width:100%; height:100%; }
+  .legend { display:flex; gap:10px; font-size:8px; color:var(--w-var); }
+  .legend b { display:inline-flex; align-items:center; gap:4px; font-weight:500; }
+  .legend i { width:7px; height:7px; border-radius:50%; }
+
+  .filters { display:flex; gap:6px; flex-wrap:wrap; }
+  .fil { border:1px solid var(--w-line); border-radius:7px; padding:4px 8px; font-size:9px;
+         color:var(--w-var); background:var(--w-card); display:inline-flex; gap:5px; align-items:center; }
+  .fil.on { border-color:var(--w-brand); color:var(--w-brand); font-weight:600; background:#FFF1EF; }
+
+  .tl { display:flex; flex-direction:column; gap:0; }
+  .tl div { display:flex; gap:8px; font-size:9px; padding:5px 0; }
+  .tl i { width:7px; height:7px; border-radius:50%; margin-top:4px; flex:none; }
+  .tl b { font-weight:600; }
+  .tl span { color:var(--w-var); margin-left:auto; font-variant-numeric:tabular-nums; }
+
+  /* ── Sistema / notas ─────────────────────────────────────────── */
+  .system { margin-top:64px; padding-top:30px; border-top:1px solid var(--rule); }
+  h2 { font-size:19px; font-weight:650; letter-spacing:-.01em; margin:0 0 6px; }
+  .sub { color:var(--ink-soft); font-size:13.5px; margin:0 0 22px; max-width:64ch; }
+  .tbl-wrap { overflow-x:auto; }
+  .doc-tbl { border-collapse:collapse; width:100%; min-width:520px; font-size:13px; }
+  .doc-tbl th, .doc-tbl td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule); }
+  .doc-tbl th { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase;
+                color:var(--ink-faint); font-weight:600; }
+  .doc-tbl td:first-child { font-weight:600; white-space:nowrap; }
+  .doc-tbl code { font-family:var(--font-mono); font-size:12px; }
+  .note { margin-top:26px; padding:14px 16px; border-left:2px solid var(--accent);
+          background:var(--paper-2); border-radius:0 8px 8px 0; font-size:13px; color:var(--ink-soft); }
+  .note b { color:var(--ink); }
+
+  @media (max-width: 820px) {
+    .side { display:none; }
+    .kpis { grid-template-columns:repeat(2,1fr); }
+    .row2 { grid-template-columns:1fr; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Prototipo de interfaz · Panel web municipal</p>
+    <h1>SIRE — Consola de monitoreo y respuesta</h1>
+    <p class="lede">
+      Maquetas del panel administrativo (Flutter Web) que usarán la municipalidad,
+      los COCODE y los monitores para recibir, atender y analizar las alertas que
+      envían los ciudadanos desde la aplicación móvil. Módulo aún no implementado:
+      corresponde a los Hitos 7 y 8.
+    </p>
+    <div class="meta">
+      <span><b>Plataforma</b> · Flutter Web</span>
+      <span><b>Usuarios</b> · COCODE · Monitor · Administrador</span>
+      <span><b>Fuente de datos</b> · Cloud Firestore (tiempo real)</span>
+      <span><b>Pantallas</b> · 6</span>
+    </div>
+  </header>
+
+  <section class="screens">
+
+    <!-- W-01 · DASHBOARD -->
+    <figure class="screen">
+      <div class="browser">
+        <div class="chrome">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="url">panel.sire.gob.gt/dashboard</div>
+        </div>
+        <div class="panel">
+          <aside class="side" style="display:flex;flex-direction:column;">
+            <div class="brand">
+              <div class="brand-mk">S</div>
+              <div><b>SIRE</b><span>PANEL MUNICIPAL</span></div>
+            </div>
+            <nav class="nav">
+              <a class="on">▦ Dashboard</a>
+              <a>◉ Mapa en vivo</a>
+              <a>🔔 Alertas <span class="badge">3</span></a>
+              <a>👥 Usuarios</a>
+              <a>🏘 Comunidades</a>
+              <a>📊 Reportes</a>
+              <a>⚙ Configuración</a>
+            </nav>
+            <div class="side-foot">San Miguel Sigüilá<br>Administrador</div>
+          </aside>
+          <div class="main">
+            <div class="topbar">
+              <h3>Dashboard</h3>
+              <div class="live"><i></i> EN VIVO</div>
+            </div>
+            <div class="content">
+              <div class="kpis">
+                <div class="kpi crit"><span>Pendientes</span><b>3</b><em>requieren atención</em></div>
+                <div class="kpi"><span>Alertas hoy</span><b>12</b><em>+4 vs. ayer</em></div>
+                <div class="kpi"><span>Tiempo de respuesta</span><b>4:12</b><em>media (min:seg)</em></div>
+                <div class="kpi"><span>Ciudadanos</span><b>248</b><em>registrados</em></div>
+              </div>
+              <div class="row2">
+                <div class="box">
+                  <h4>Alertas por hora <small>últimas 24 h</small></h4>
+                  <div class="bars">
+                    <div style="height:18%"></div><div style="height:10%"></div><div style="height:24%"></div>
+                    <div style="height:14%"></div><div style="height:30%"></div><div style="height:46%"></div>
+                    <div style="height:38%"></div><div style="height:56%"></div><div style="height:72%"></div>
+                    <div class="hot" style="height:100%"></div><div class="hot" style="height:88%"></div>
+                    <div style="height:52%"></div>
+                  </div>
+                  <div class="axis"><span>00</span><span>02</span><span>04</span><span>06</span><span>08</span><span>10</span><span>12</span><span>14</span><span>16</span><span>18</span><span>20</span><span>22</span></div>
+                  <h4 style="margin-top:4px;">Últimas alertas</h4>
+                  <table>
+                    <tr><th>Ciudadano</th><th>Comunidad</th><th>Origen</th><th>Estado</th></tr>
+                    <tr><td>Ashly L. Vicente</td><td>San Miguel Sigüilá</td><td>Botón encendido</td><td><span class="st st-crit">Pendiente</span></td></tr>
+                    <tr><td>Carlos Ramos</td><td>La Emboscada</td><td>Botón en pantalla</td><td><span class="st st-crit">Pendiente</span></td></tr>
+                    <tr><td>María Chávez</td><td>Xecaracoj</td><td>Botón encendido</td><td><span class="st st-warn">Atendida</span></td></tr>
+                    <tr><td>Julio Pérez</td><td>San Miguel Sigüilá</td><td>Botón en pantalla</td><td><span class="st st-good">Resuelta</span></td></tr>
+                  </table>
+                </div>
+                <div class="box">
+                  <h4>Alertas activas</h4>
+                  <div class="map">
+                    <svg viewBox="0 0 240 200" preserveAspectRatio="xMidYMid slice" aria-label="Mapa con alertas activas">
+                      <rect width="240" height="200" fill="#F2EBE4"/>
+                      <path d="M0 130 Q60 118 120 132 T240 124" stroke="#CFE0EC" stroke-width="7" fill="none"/>
+                      <g stroke="#E2D6CE" stroke-width="3" fill="none">
+                        <path d="M20 0 L46 200"/><path d="M120 0 L104 200"/><path d="M200 0 L188 200"/>
+                        <path d="M0 60 L240 52"/><path d="M0 168 L240 176"/>
+                      </g>
+                      <g fill="#DCE8D6"><circle cx="60" cy="30" r="18"/><circle cx="200" cy="150" r="22"/></g>
+                      <g>
+                        <circle cx="104" cy="92" r="16" fill="#BA1A1A" opacity=".16"/>
+                        <circle cx="104" cy="92" r="6" fill="#BA1A1A" stroke="#fff" stroke-width="2"/>
+                        <circle cx="62" cy="150" r="14" fill="#BA1A1A" opacity=".14"/>
+                        <circle cx="62" cy="150" r="6" fill="#BA1A1A" stroke="#fff" stroke-width="2"/>
+                        <circle cx="176" cy="66" r="6" fill="#8A5A00" stroke="#fff" stroke-width="2"/>
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="legend">
+                    <b><i style="background:#BA1A1A"></i> Pendiente</b>
+                    <b><i style="background:#8A5A00"></i> Atendida</b>
+                    <b><i style="background:#2E6B32"></i> Resuelta</b>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">W-01</span>
+        <span class="cap-name">Dashboard · Vista general</span>
+        <span class="cap-desc">Primera pantalla del operador. Lo que exige acción va primero: el contador de pendientes lleva franja roja y se lee antes que cualquier otro dato. La curva por hora revela el horario crítico y el mapa ubica las alertas activas sin abrir otro módulo.</span>
+      </figcaption>
+    </figure>
+
+    <!-- W-02 · MAPA EN VIVO -->
+    <figure class="screen">
+      <div class="browser">
+        <div class="chrome">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="url">panel.sire.gob.gt/mapa</div>
+        </div>
+        <div class="panel">
+          <aside class="side" style="display:flex;flex-direction:column;">
+            <div class="brand"><div class="brand-mk">S</div><div><b>SIRE</b><span>PANEL MUNICIPAL</span></div></div>
+            <nav class="nav">
+              <a>▦ Dashboard</a><a class="on">◉ Mapa en vivo</a>
+              <a>🔔 Alertas <span class="badge">3</span></a><a>👥 Usuarios</a>
+              <a>🏘 Comunidades</a><a>📊 Reportes</a><a>⚙ Configuración</a>
+            </nav>
+            <div class="side-foot">San Miguel Sigüilá<br>Administrador</div>
+          </aside>
+          <div class="main">
+            <div class="topbar">
+              <h3>Mapa en vivo</h3>
+              <div class="live"><i></i> 3 ALERTAS ACTIVAS</div>
+            </div>
+            <div class="content">
+              <div class="filters">
+                <span class="fil on">● Pendientes (3)</span>
+                <span class="fil">● Atendidas (2)</span>
+                <span class="fil">Comunidad: Todas ▾</span>
+                <span class="fil">Origen: Todos ▾</span>
+                <span class="fil">Hoy ▾</span>
+              </div>
+              <div class="row2" style="grid-template-columns:1.6fr 1fr;">
+                <div class="box" style="padding:0;overflow:hidden;">
+                  <div class="map" style="border-radius:0;">
+                    <svg viewBox="0 0 300 220" preserveAspectRatio="xMidYMid slice" aria-label="Mapa en vivo de alertas">
+                      <rect width="300" height="220" fill="#F2EBE4"/>
+                      <path d="M0 140 Q80 126 150 142 T300 132" stroke="#CFE0EC" stroke-width="9" fill="none"/>
+                      <g stroke="#E2D6CE" stroke-width="3.5" fill="none">
+                        <path d="M30 0 L58 220"/><path d="M150 0 L132 220"/><path d="M250 0 L236 220"/>
+                        <path d="M0 66 L300 56"/><path d="M0 184 L300 194"/>
+                      </g>
+                      <g fill="#DCE8D6"><circle cx="70" cy="34" r="22"/><circle cx="256" cy="168" r="26"/></g>
+                      <g font-size="6" fill="#8C7A76" font-family="sans-serif">
+                        <text x="76" y="36">Centro</text><text x="238" y="170">La Emboscada</text>
+                      </g>
+                      <g>
+                        <circle cx="132" cy="100" r="26" fill="#BA1A1A" opacity=".12"/>
+                        <circle cx="132" cy="100" r="7.5" fill="#BA1A1A" stroke="#fff" stroke-width="2.5"/>
+                        <circle cx="76" cy="166" r="22" fill="#BA1A1A" opacity=".12"/>
+                        <circle cx="76" cy="166" r="7.5" fill="#BA1A1A" stroke="#fff" stroke-width="2.5"/>
+                        <circle cx="222" cy="74" r="22" fill="#BA1A1A" opacity=".12"/>
+                        <circle cx="222" cy="74" r="7.5" fill="#BA1A1A" stroke="#fff" stroke-width="2.5"/>
+                        <circle cx="188" cy="150" r="7.5" fill="#8A5A00" stroke="#fff" stroke-width="2.5"/>
+                      </g>
+                    </svg>
+                  </div>
+                </div>
+                <div class="box">
+                  <h4>Cola de atención <small>por antigüedad</small></h4>
+                  <div style="display:flex;flex-direction:column;gap:7px;">
+                    <div style="border:1px solid var(--crit);border-radius:8px;padding:8px;background:#FFF6F5;">
+                      <div style="display:flex;gap:6px;align-items:center;">
+                        <span class="st st-crit">Pendiente</span>
+                        <span style="font-size:8px;color:var(--w-var);margin-left:auto;">hace 2 min</span>
+                      </div>
+                      <div style="font-size:10px;font-weight:600;margin-top:5px;">Ashly Lopez Vicente</div>
+                      <div style="font-size:8.5px;color:var(--w-var);">San Miguel Sigüilá · ⏻ botón de encendido</div>
+                      <div style="font-size:8px;color:var(--w-var);font-family:var(--font-mono);margin-top:2px;">14.90134, −91.61375</div>
+                      <div style="display:flex;gap:5px;margin-top:7px;">
+                        <span class="btn btn-p">Atender</span><span class="btn">📞 Llamar</span>
+                      </div>
+                    </div>
+                    <div style="border:1px solid var(--w-line);border-radius:8px;padding:8px;">
+                      <div style="display:flex;gap:6px;align-items:center;">
+                        <span class="st st-crit">Pendiente</span>
+                        <span style="font-size:8px;color:var(--w-var);margin-left:auto;">hace 9 min</span>
+                      </div>
+                      <div style="font-size:10px;font-weight:600;margin-top:5px;">Carlos Ramos</div>
+                      <div style="font-size:8.5px;color:var(--w-var);">La Emboscada · 🆘 botón en pantalla</div>
+                    </div>
+                    <div style="border:1px solid var(--w-line);border-radius:8px;padding:8px;">
+                      <div style="display:flex;gap:6px;align-items:center;">
+                        <span class="st st-warn">Atendida</span>
+                        <span style="font-size:8px;color:var(--w-var);margin-left:auto;">hace 21 min</span>
+                      </div>
+                      <div style="font-size:10px;font-weight:600;margin-top:5px;">María Chávez</div>
+                      <div style="font-size:8.5px;color:var(--w-var);">Xecaracoj · monitor asignado</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">W-02</span>
+        <span class="cap-name">Mapa en vivo · Alertas activas</span>
+        <span class="cap-desc">El módulo de operación. El mapa y la cola comparten pantalla: se ve dónde ocurre y a quién atender primero, ordenado por antigüedad. Cada alerta ofrece la acción inmediata (atender, llamar) sin cambiar de pantalla.</span>
+      </figcaption>
+    </figure>
+
+    <!-- W-03 · GESTIÓN DE ALERTAS -->
+    <figure class="screen">
+      <div class="browser">
+        <div class="chrome">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="url">panel.sire.gob.gt/alertas</div>
+        </div>
+        <div class="panel">
+          <aside class="side" style="display:flex;flex-direction:column;">
+            <div class="brand"><div class="brand-mk">S</div><div><b>SIRE</b><span>PANEL MUNICIPAL</span></div></div>
+            <nav class="nav">
+              <a>▦ Dashboard</a><a>◉ Mapa en vivo</a>
+              <a class="on">🔔 Alertas <span class="badge">3</span></a><a>👥 Usuarios</a>
+              <a>🏘 Comunidades</a><a>📊 Reportes</a><a>⚙ Configuración</a>
+            </nav>
+            <div class="side-foot">San Miguel Sigüilá<br>Administrador</div>
+          </aside>
+          <div class="main">
+            <div class="topbar">
+              <h3>Alertas</h3>
+              <span style="font-size:10px;color:var(--w-var);">142 registros</span>
+              <div style="margin-left:auto;display:flex;gap:6px;">
+                <span class="btn">⭳ Exportar CSV</span>
+              </div>
+            </div>
+            <div class="content">
+              <div class="filters">
+                <span class="fil on">Estado: Pendiente ▾</span>
+                <span class="fil">Comunidad: Todas ▾</span>
+                <span class="fil">Origen: Todos ▾</span>
+                <span class="fil">Rango: Últimos 7 días ▾</span>
+                <span class="fil">🔎 Buscar ciudadano</span>
+              </div>
+              <div class="box" style="padding:0;">
+                <table>
+                  <tr>
+                    <th>ID</th><th>Ciudadano</th><th>Comunidad</th><th>Origen</th>
+                    <th>Coordenadas</th><th>Fecha</th><th>Estado</th><th></th>
+                  </tr>
+                  <tr>
+                    <td><code style="font-family:var(--font-mono);font-size:8px;">OJBRyZN3</code></td>
+                    <td>Ashly Lopez Vicente</td><td>San Miguel Sigüilá</td><td>⏻ Encendido</td>
+                    <td style="font-size:8.5px;">14.90134, −91.61375</td><td>13/07 12:41</td>
+                    <td><span class="st st-crit">Pendiente</span></td>
+                    <td><span class="btn btn-p">Atender</span></td>
+                  </tr>
+                  <tr>
+                    <td><code style="font-family:var(--font-mono);font-size:8px;">p2YhlwA3</code></td>
+                    <td>Carlos Ramos</td><td>La Emboscada</td><td>🆘 Pantalla</td>
+                    <td style="font-size:8.5px;">14.89802, −91.60914</td><td>13/07 12:34</td>
+                    <td><span class="st st-crit">Pendiente</span></td>
+                    <td><span class="btn btn-p">Atender</span></td>
+                  </tr>
+                  <tr>
+                    <td><code style="font-family:var(--font-mono);font-size:8px;">sTzySR13</code></td>
+                    <td>Lucía Tzoc</td><td>Xecaracoj</td><td>⏻ Encendido</td>
+                    <td style="font-size:8.5px;">14.91055, −91.62480</td><td>13/07 12:12</td>
+                    <td><span class="st st-crit">Pendiente</span></td>
+                    <td><span class="btn btn-p">Atender</span></td>
+                  </tr>
+                  <tr>
+                    <td><code style="font-family:var(--font-mono);font-size:8px;">k9QmT4xz</code></td>
+                    <td>María Chávez</td><td>Xecaracoj</td><td>⏻ Encendido</td>
+                    <td style="font-size:8.5px;">14.90921, −91.62103</td><td>13/07 11:58</td>
+                    <td><span class="st st-warn">Atendida</span></td>
+                    <td><span class="btn">Ver</span></td>
+                  </tr>
+                  <tr>
+                    <td><code style="font-family:var(--font-mono);font-size:8px;">b7RnW2pd</code></td>
+                    <td>Julio Pérez</td><td>San Miguel Sigüilá</td><td>🆘 Pantalla</td>
+                    <td style="font-size:8.5px;">14.90210, −91.61002</td><td>13/07 10:23</td>
+                    <td><span class="st st-good">Resuelta</span></td>
+                    <td><span class="btn">Ver</span></td>
+                  </tr>
+                  <tr>
+                    <td><code style="font-family:var(--font-mono);font-size:8px;">x3VbN8qe</code></td>
+                    <td>Ana Sicajau</td><td>La Emboscada</td><td>🆘 Pantalla</td>
+                    <td style="font-size:8.5px;">14.89744, −91.60550</td><td>12/07 22:07</td>
+                    <td><span class="st st-neut">Falsa alarma</span></td>
+                    <td><span class="btn">Ver</span></td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">W-03</span>
+        <span class="cap-name">Alertas · Gestión y trazabilidad</span>
+        <span class="cap-desc">Registro histórico completo con filtros por estado, comunidad, origen y rango de fechas. Cada fila conserva las coordenadas exactas y el origen de activación; la exportación a CSV alimenta el análisis del Capítulo V.</span>
+      </figcaption>
+    </figure>
+
+    <!-- W-04 · DETALLE DE ALERTA -->
+    <figure class="screen">
+      <div class="browser">
+        <div class="chrome">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="url">panel.sire.gob.gt/alertas/OJBRyZN3S9n33SowEzPF</div>
+        </div>
+        <div class="panel">
+          <aside class="side" style="display:flex;flex-direction:column;">
+            <div class="brand"><div class="brand-mk">S</div><div><b>SIRE</b><span>PANEL MUNICIPAL</span></div></div>
+            <nav class="nav">
+              <a>▦ Dashboard</a><a>◉ Mapa en vivo</a>
+              <a class="on">🔔 Alertas <span class="badge">3</span></a><a>👥 Usuarios</a>
+              <a>🏘 Comunidades</a><a>📊 Reportes</a><a>⚙ Configuración</a>
+            </nav>
+            <div class="side-foot">San Miguel Sigüilá<br>Administrador</div>
+          </aside>
+          <div class="main">
+            <div class="topbar">
+              <h3>Alerta · OJBRyZN3</h3>
+              <span class="st st-crit" style="font-size:9px;">Pendiente</span>
+              <span style="font-size:9.5px;color:var(--w-var);margin-left:auto;">Recibida hace 2 min</span>
+            </div>
+            <div class="content">
+              <div class="row2" style="grid-template-columns:1.3fr 1fr;">
+                <div class="box" style="padding:0;overflow:hidden;">
+                  <div class="map" style="border-radius:0;">
+                    <svg viewBox="0 0 260 200" preserveAspectRatio="xMidYMid slice" aria-label="Ubicación exacta de la alerta">
+                      <rect width="260" height="200" fill="#F2EBE4"/>
+                      <path d="M0 128 Q70 116 130 130 T260 122" stroke="#CFE0EC" stroke-width="8" fill="none"/>
+                      <g stroke="#E2D6CE" stroke-width="3.5" fill="none">
+                        <path d="M40 0 L64 200"/><path d="M160 0 L146 200"/><path d="M0 62 L260 54"/>
+                      </g>
+                      <circle cx="128" cy="96" r="34" fill="#BA1A1A" opacity=".10"/>
+                      <circle cx="128" cy="96" r="18" fill="#BA1A1A" opacity=".14"/>
+                      <circle cx="128" cy="96" r="8" fill="#BA1A1A" stroke="#fff" stroke-width="3"/>
+                      <text x="128" y="128" font-size="7" fill="#6B5A57" text-anchor="middle" font-family="sans-serif">±20 m de precisión</text>
+                    </svg>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px;min-width:0;">
+                  <div class="box">
+                    <h4>Ciudadano</h4>
+                    <div style="font-size:12px;font-weight:650;">Ashly Lopez Vicente</div>
+                    <table style="margin-top:-2px;">
+                      <tr><td style="color:var(--w-var);border:none;padding:3px 0;">Teléfono</td><td style="border:none;padding:3px 0;text-align:right;font-weight:600;">4929 1301</td></tr>
+                      <tr><td style="color:var(--w-var);border:none;padding:3px 0;">Comunidad</td><td style="border:none;padding:3px 0;text-align:right;">San Miguel Sigüilá</td></tr>
+                      <tr><td style="color:var(--w-var);border:none;padding:3px 0;">Rol</td><td style="border:none;padding:3px 0;text-align:right;">Ciudadano</td></tr>
+                      <tr><td style="color:var(--w-var);border:none;padding:3px 0;">Activación</td><td style="border:none;padding:3px 0;text-align:right;font-weight:600;">⏻ Botón de encendido</td></tr>
+                    </table>
+                    <div style="display:flex;gap:5px;">
+                      <span class="btn btn-p" style="flex:1;justify-content:center;">📞 Llamar</span>
+                      <span class="btn" style="flex:1;justify-content:center;">💬 WhatsApp</span>
+                    </div>
+                  </div>
+                  <div class="box">
+                    <h4>Seguimiento</h4>
+                    <div class="tl">
+                      <div><i style="background:var(--crit)"></i><b>Alerta recibida</b><span>12:41:15</span></div>
+                      <div><i style="background:var(--w-line)"></i><span style="color:var(--w-var);margin-left:0;">Notificado a COCODE</span><span>12:41:18</span></div>
+                      <div><i style="background:var(--w-line)"></i><span style="color:var(--w-var);margin-left:0;">Pendiente de asignar monitor</span><span>—</span></div>
+                    </div>
+                    <div style="display:flex;gap:5px;margin-top:2px;">
+                      <span class="btn btn-p" style="flex:1;justify-content:center;">Atender</span>
+                      <span class="btn" style="flex:1;justify-content:center;">Falsa alarma</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">W-04</span>
+        <span class="cap-name">Detalle de alerta · Atención</span>
+        <span class="cap-desc">Todo lo que el operador necesita para actuar en una sola vista: ubicación con radio de precisión, identidad y teléfono del ciudadano, medio de activación y la bitácora de seguimiento. El contacto directo (llamada o WhatsApp) está a un clic.</span>
+      </figcaption>
+    </figure>
+
+    <!-- W-05 · REPORTES / MAPA DE CALOR -->
+    <figure class="screen">
+      <div class="browser">
+        <div class="chrome">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="url">panel.sire.gob.gt/reportes</div>
+        </div>
+        <div class="panel">
+          <aside class="side" style="display:flex;flex-direction:column;">
+            <div class="brand"><div class="brand-mk">S</div><div><b>SIRE</b><span>PANEL MUNICIPAL</span></div></div>
+            <nav class="nav">
+              <a>▦ Dashboard</a><a>◉ Mapa en vivo</a>
+              <a>🔔 Alertas <span class="badge">3</span></a><a>👥 Usuarios</a>
+              <a>🏘 Comunidades</a><a class="on">📊 Reportes</a><a>⚙ Configuración</a>
+            </nav>
+            <div class="side-foot">San Miguel Sigüilá<br>Administrador</div>
+          </aside>
+          <div class="main">
+            <div class="topbar">
+              <h3>Reportes · Mapa de calor</h3>
+              <div style="margin-left:auto;display:flex;gap:6px;">
+                <span class="fil">Rango: Últimos 30 días ▾</span>
+                <span class="btn">⭳ Exportar PDF</span>
+              </div>
+            </div>
+            <div class="content">
+              <div class="kpis" style="grid-template-columns:repeat(3,1fr);">
+                <div class="kpi crit"><span>Zona más crítica</span><b style="font-size:14px;">Xecaracoj</b><em>38 % de las alertas</em></div>
+                <div class="kpi"><span>Horario pico</span><b style="font-size:14px;">18:00 – 21:00</b><em>44 % de los casos</em></div>
+                <div class="kpi"><span>Total del período</span><b>142</b><em>alertas · 6 % falsas</em></div>
+              </div>
+              <div class="row2">
+                <div class="box" style="padding:0;overflow:hidden;">
+                  <div class="map" style="border-radius:0;">
+                    <svg viewBox="0 0 300 210" preserveAspectRatio="xMidYMid slice" aria-label="Mapa de calor de alertas por zona">
+                      <defs>
+                        <radialGradient id="h1"><stop offset="0" stop-color="#BA1A1A" stop-opacity=".72"/><stop offset="1" stop-color="#BA1A1A" stop-opacity="0"/></radialGradient>
+                        <radialGradient id="h2"><stop offset="0" stop-color="#E8590C" stop-opacity=".55"/><stop offset="1" stop-color="#E8590C" stop-opacity="0"/></radialGradient>
+                        <radialGradient id="h3"><stop offset="0" stop-color="#F5A524" stop-opacity=".45"/><stop offset="1" stop-color="#F5A524" stop-opacity="0"/></radialGradient>
+                      </defs>
+                      <rect width="300" height="210" fill="#F2EBE4"/>
+                      <path d="M0 136 Q80 122 150 138 T300 128" stroke="#CFE0EC" stroke-width="8" fill="none"/>
+                      <g stroke="#E2D6CE" stroke-width="3" fill="none">
+                        <path d="M34 0 L60 210"/><path d="M152 0 L136 210"/><path d="M248 0 L234 210"/>
+                        <path d="M0 64 L300 54"/><path d="M0 176 L300 186"/>
+                      </g>
+                      <circle cx="212" cy="78" r="62" fill="url(#h1)"/>
+                      <circle cx="112" cy="128" r="52" fill="url(#h2)"/>
+                      <circle cx="62" cy="46" r="40" fill="url(#h3)"/>
+                      <g font-size="7" fill="#4A3B38" font-family="sans-serif" font-weight="600">
+                        <text x="212" y="80" text-anchor="middle">Xecaracoj</text>
+                        <text x="112" y="130" text-anchor="middle">Centro</text>
+                        <text x="62" y="48" text-anchor="middle">La Emboscada</text>
+                      </g>
+                    </svg>
+                  </div>
+                </div>
+                <div class="box">
+                  <h4>Alertas por comunidad</h4>
+                  <table>
+                    <tr><th>Comunidad</th><th style="text-align:right">Alertas</th><th style="text-align:right">%</th></tr>
+                    <tr><td>Xecaracoj</td><td style="text-align:right;font-weight:700;color:var(--crit)">54</td><td style="text-align:right">38 %</td></tr>
+                    <tr><td>San Miguel Sigüilá</td><td style="text-align:right;font-weight:600">41</td><td style="text-align:right">29 %</td></tr>
+                    <tr><td>La Emboscada</td><td style="text-align:right;font-weight:600">32</td><td style="text-align:right">23 %</td></tr>
+                    <tr><td>Otras</td><td style="text-align:right">15</td><td style="text-align:right">10 %</td></tr>
+                  </table>
+                  <h4 style="margin-top:4px;">Origen de activación</h4>
+                  <table>
+                    <tr><td style="border:none;padding:4px 6px;">⏻ Botón de encendido</td><td style="border:none;padding:4px 6px;text-align:right;font-weight:700;">61 %</td></tr>
+                    <tr><td style="border:none;padding:4px 6px;">🆘 Botón en pantalla</td><td style="border:none;padding:4px 6px;text-align:right;font-weight:600;">39 %</td></tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">W-05</span>
+        <span class="cap-name">Reportes · Mapa de calor y analítica</span>
+        <span class="cap-desc">Insumo directo del Capítulo V. Traduce el histórico en decisiones: qué zona concentra las alertas, en qué horario y por cuál medio se activan. La intensidad del calor codifica densidad, no solo posición.</span>
+      </figcaption>
+    </figure>
+
+    <!-- W-06 · USUARIOS -->
+    <figure class="screen">
+      <div class="browser">
+        <div class="chrome">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="url">panel.sire.gob.gt/usuarios</div>
+        </div>
+        <div class="panel">
+          <aside class="side" style="display:flex;flex-direction:column;">
+            <div class="brand"><div class="brand-mk">S</div><div><b>SIRE</b><span>PANEL MUNICIPAL</span></div></div>
+            <nav class="nav">
+              <a>▦ Dashboard</a><a>◉ Mapa en vivo</a>
+              <a>🔔 Alertas <span class="badge">3</span></a><a class="on">👥 Usuarios</a>
+              <a>🏘 Comunidades</a><a>📊 Reportes</a><a>⚙ Configuración</a>
+            </nav>
+            <div class="side-foot">San Miguel Sigüilá<br>Administrador</div>
+          </aside>
+          <div class="main">
+            <div class="topbar">
+              <h3>Usuarios</h3>
+              <span style="font-size:10px;color:var(--w-var);">248 registrados</span>
+              <div style="margin-left:auto;"><span class="btn btn-p">+ Nuevo usuario</span></div>
+            </div>
+            <div class="content">
+              <div class="filters">
+                <span class="fil on">Rol: Todos ▾</span>
+                <span class="fil">Comunidad: Todas ▾</span>
+                <span class="fil">Estado: Activos ▾</span>
+                <span class="fil">🔎 Buscar</span>
+              </div>
+              <div class="box" style="padding:0;">
+                <table>
+                  <tr><th>Nombre</th><th>Teléfono</th><th>Comunidad</th><th>Rol</th><th>Alertas</th><th>Estado</th><th></th></tr>
+                  <tr><td>Ashly Lopez Vicente</td><td>4929 1301</td><td>San Miguel Sigüilá</td><td><span class="st st-neut">Ciudadano</span></td><td>5</td><td><span class="st st-good">Activo</span></td><td><span class="btn">Editar</span></td></tr>
+                  <tr><td>Manuel Xicará</td><td>5512 8890</td><td>Xecaracoj</td><td><span class="st st-warn">COCODE</span></td><td>—</td><td><span class="st st-good">Activo</span></td><td><span class="btn">Editar</span></td></tr>
+                  <tr><td>Rosa Ixcoy</td><td>4477 2019</td><td>La Emboscada</td><td><span class="st st-warn">Monitor</span></td><td>—</td><td><span class="st st-good">Activo</span></td><td><span class="btn">Editar</span></td></tr>
+                  <tr><td>Beatriz Vicente</td><td>3021 7744</td><td>Municipalidad</td><td><span class="st st-crit">Administrador</span></td><td>—</td><td><span class="st st-good">Activo</span></td><td><span class="btn">Editar</span></td></tr>
+                  <tr><td>Carlos Ramos</td><td>5890 1122</td><td>La Emboscada</td><td><span class="st st-neut">Ciudadano</span></td><td>2</td><td><span class="st st-neut">Inactivo</span></td><td><span class="btn">Editar</span></td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">W-06</span>
+        <span class="cap-name">Usuarios · Roles y comunidades</span>
+        <span class="cap-desc">Administración de los cinco roles del sistema y su comunidad asignada. El rol determina qué alertas ve cada quien: el COCODE solo las de su comunidad, el administrador todas — la base de las reglas de seguridad de Firestore.</span>
+      </figcaption>
+    </figure>
+
+  </section>
+
+  <!-- ── DECISIONES DE DISEÑO ── -->
+  <section class="system">
+    <h2>Decisiones de diseño</h2>
+    <p class="sub">
+      El panel comparte el color semilla de la aplicación móvil, pero no su tema:
+      cada uno responde a su contexto de uso real.
+    </p>
+
+    <div class="tbl-wrap">
+      <table class="doc-tbl">
+        <thead><tr><th>Decisión</th><th>Aplicación móvil</th><th>Panel web</th><th>Razón</th></tr></thead>
+        <tbody>
+          <tr><td>Tema</td><td>Oscuro</td><td>Claro</td><td>La app se usa de noche en emergencia; el panel, de día en oficina.</td></tr>
+          <tr><td>Color semilla</td><td colspan="2"><code>#C62828</code> — compartido</td><td>Un solo sistema visual: se reconocen como el mismo producto.</td></tr>
+          <tr><td>Rojo</td><td>Acción (botón SOS)</td><td>Estado (pendiente)</td><td>En la app se pulsa; en el panel se atiende.</td></tr>
+          <tr><td>Barra lateral</td><td>—</td><td>Oscura</td><td>Ancla la consola y enlaza visualmente con la app.</td></tr>
+          <tr><td>Jerarquía</td><td>Botón SOS dominante</td><td>Pendientes primero</td><td>Cada rol ve primero lo que debe hacer.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tbl-wrap" style="margin-top:26px;">
+      <table class="doc-tbl">
+        <thead><tr><th>Estado</th><th>Color</th><th>Significado operativo</th></tr></thead>
+        <tbody>
+          <tr><td><span class="st st-crit">Pendiente</span></td><td><code>#BA1A1A</code></td><td>Recibida, sin atender. Exige acción inmediata.</td></tr>
+          <tr><td><span class="st st-warn">Atendida</span></td><td><code>#8A5A00</code></td><td>Monitor asignado, en proceso.</td></tr>
+          <tr><td><span class="st st-good">Resuelta</span></td><td><code>#2E6B32</code></td><td>Emergencia cerrada.</td></tr>
+          <tr><td><span class="st st-neut">Falsa alarma</span></td><td><code>#6B5A57</code></td><td>Descartada. Se excluye de las métricas de respuesta.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note">
+      <b>Alcance.</b> El panel web corresponde a los <b>Hitos 7 y 8</b> y todavía no está
+      implementado: estas maquetas son la propuesta de diseño. Los datos mostrados son
+      <b>simulados</b> para ilustrar la operación a escala municipal — a diferencia de las
+      maquetas de la app móvil, que reproducen registros reales de Cloud Firestore.
+      Los estados (<code>pendiente</code>, <code>atendida</code>, <code>resuelta</code>,
+      <code>falsa_alarma</code>) y los cinco roles ya existen en el modelo de datos
+      implementado, de modo que el panel se construiría sobre la estructura actual.
+    </p>
+  </section>
+</div>

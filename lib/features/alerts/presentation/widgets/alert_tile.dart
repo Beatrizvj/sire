@@ -7,9 +7,10 @@ import '../../domain/entities/sos_source.dart';
 
 /// Fila del historial de alertas.
 class AlertTile extends StatelessWidget {
-  const AlertTile({super.key, required this.alert});
+  const AlertTile({super.key, required this.alert, this.onTap});
 
   final SosAlert alert;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +24,7 @@ class AlertTile extends StatelessWidget {
 
     return Card(
       child: ListTile(
+        onTap: onTap,
         leading: CircleAvatar(
           backgroundColor: scheme.errorContainer,
           child: Icon(
@@ -35,7 +37,8 @@ class AlertTile extends StatelessWidget {
         title: Text(alert.address ?? coords),
         subtitle: Text(
           '${dateFormat.format(alert.timestamp)}\n'
-          '${alert.source.label} · $coords$accuracy',
+          '${alert.source.label} · $coords$accuracy\n'
+          'Incidente: ${alert.categoria ?? 'Sin especificar'}',
         ),
         trailing: _StatusChip(status: alert.status),
         isThreeLine: true,

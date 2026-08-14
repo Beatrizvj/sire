@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/config/firestore_collections.dart';
 import '../../domain/entities/alert_status.dart';
@@ -24,6 +27,7 @@ class AlertRepositoryFirestore implements AlertRepository {
 
   Map<String, dynamic> _toFirestore(SosAlert alert) => {
         'idUsuario': alert.userId ?? _uid,
+        'nombreUsuario': _auth.currentUser?.displayName ?? '',
         'fecha': Timestamp.fromDate(alert.timestamp),
         'latitud': alert.latitude,
         'longitud': alert.longitude,
@@ -32,6 +36,7 @@ class AlertRepositoryFirestore implements AlertRepository {
         'origen': alert.source.name,
         'direccion': alert.address,
         'precision': alert.accuracy,
+        'categoria': alert.categoria,
         'creadoEn': FieldValue.serverTimestamp(),
       };
 
@@ -41,8 +46,9 @@ class AlertRepositoryFirestore implements AlertRepository {
     return SosAlert(
       id: doc.id,
       userId: data['idUsuario'] as String?,
-      latitude: (data['latitud'] as num).toDouble(),
-      longitude: (data['longitud'] as num).toDouble(),
+      userName: data['nombreUsuario'] as String?,
+      latitude: (data['latitud'] as num?)?.toDouble() ?? 0.0,
+      longitude: (data['longitud'] as num?)?.toDouble() ?? 0.0,
       timestamp: fecha is Timestamp ? fecha.toDate() : DateTime.now(),
       source: SosSource.values.firstWhere(
         (s) => s.name == data['origen'],
@@ -52,6 +58,7 @@ class AlertRepositoryFirestore implements AlertRepository {
       type: data['tipo'] as String? ?? 'SOS',
       address: data['direccion'] as String?,
       accuracy: (data['precision'] as num?)?.toDouble(),
+      categoria: data['categoria'] as String?,
     );
   }
 
@@ -59,15 +66,25 @@ class AlertRepositoryFirestore implements AlertRepository {
   Future<List<SosAlert>> getAlerts() async {
     final uid = _uid;
     if (uid == null) return const [];
-    final snapshot = await _alertas
-        .where('idUsuario', isEqualTo: uid)
-        .orderBy('fecha', descending: true)
-        .get();
-    return snapshot.docs.map(_fromDoc).toList(growable: false);
+    // Sin orderBy en el servidor para NO requerir un índice compuesto
+    // (idUsuario + fecha). Se ordena en el cliente por fecha descendente.
+    final snapshot =
+        await _alertas.where('idUsuario', isEqualTo: uid).get();
+    final alertas = snapshot.docs.map(_fromDoc).toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return alertas;
   }
 
   @override
-  Future<void> saveAlert(SosAlert alert) => _alertas.add(_toFirestore(alert));
+  Future<void> saveAlert(SosAlert alert) =>
+      _alertas.doc(_buildDocId(alert.timestamp)).set(_toFirestore(alert));
+
+  /// ID legible y ordenable por fecha: p. ej. 20260722-065701-3f2a.
+  String _buildDocId(DateTime when) {
+    final stamp = DateFormat('yyyyMMdd-HHmmss').format(when);
+    final suffix = (Random().nextInt(9000) + 1000).toString();
+    return '$stamp-$suffix';
+  }
 
   @override
   Future<void> clear() async {
@@ -80,4 +97,18 @@ class AlertRepositoryFirestore implements AlertRepository {
     }
     await batch.commit();
   }
+
+  @override
+  Stream<List<SosAlert>> watchAllAlerts() => _alertas
+      .orderBy('fecha', descending: true)
+      .snapshots()
+      .map((snap) => snap.docs.map(_fromDoc).toList(growable: false));
+
+  @override
+  Future<void> updateStatus(String id, AlertStatus status) =>
+      _alertas.doc(id).update({'estado': status.value});
+
+  @override
+  Future<void> updateCategoria(String id, String categoria) =>
+      _alertas.doc(id).update({'categoria': categoria});
 }

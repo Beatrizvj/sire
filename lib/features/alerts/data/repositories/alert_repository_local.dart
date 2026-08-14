@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../domain/entities/alert_status.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../../domain/repositories/alert_repository.dart';
 import '../models/sos_alert_model.dart';
@@ -35,4 +36,28 @@ class AlertRepositoryLocal implements AlertRepository {
 
   @override
   Future<void> clear() => _prefs.remove(_key);
+
+  @override
+  Stream<List<SosAlert>> watchAllAlerts() async* {
+    yield await getAlerts();
+  }
+
+  @override
+  Future<void> updateStatus(String id, AlertStatus status) async {
+    final current = await getAlerts();
+    final updated = [
+      for (final a in current) a.id == id ? a.copyWith(status: status) : a,
+    ];
+    await _prefs.setString(_key, SosAlertModel.encodeList(updated));
+  }
+
+  @override
+  Future<void> updateCategoria(String id, String categoria) async {
+    final current = await getAlerts();
+    final updated = [
+      for (final a in current)
+        a.id == id ? a.copyWith(categoria: categoria) : a,
+    ];
+    await _prefs.setString(_key, SosAlertModel.encodeList(updated));
+  }
 }

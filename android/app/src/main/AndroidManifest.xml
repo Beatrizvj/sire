@@ -11,12 +11,14 @@
     <!-- Servicio en primer plano que detecta el botón de encendido -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-        android:label="sire"
+        android:label="SIRE"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -51,11 +53,29 @@
         <service
             android:name=".PowerButtonService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="location|specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Deteccion del patron de emergencia (3 pulsaciones del boton de encendido) para enviar un SOS con ubicacion." />
         </service>
+
+        <!-- Servicio que escucha las alertas entrantes para las autoridades
+             (COCODE / Municipalidad) y hace sonar la alarma en segundo plano -->
+        <service
+            android:name=".AlertMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Monitoreo de alertas SOS entrantes para autoridades comunitarias (COCODE y Municipalidad) con aviso sonoro cuando la app esta en segundo plano." />
+        </service>
+
+        <!-- Recorte de imágenes (image_cropper / uCrop): pantalla para ajustar
+             la foto del DPI antes de subirla. -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
