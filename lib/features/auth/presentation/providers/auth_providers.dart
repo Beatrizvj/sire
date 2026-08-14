@@ -240,6 +240,10 @@ class AuthController extends Notifier<AuthState> {
         'requires-recent-login' =>
           'Por seguridad, vuelve a iniciar sesión y reintenta.',
         'network-request-failed' => 'Sin conexión. Revisa tu internet.',
+        // Firebase bloquea temporalmente tras varios intentos fallidos
+        // (protección contra fuerza bruta). El usuario debe esperar unos minutos.
+        'too-many-requests' =>
+          'Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo.',
         _ => error.message ?? 'Error de autenticación.',
       };
     }
