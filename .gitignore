@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Gradle/Android build output (fuera de /build/)
+/android/build/
+/android/.gradle/
+
+# Firebase deploy cache
+.firebase/
