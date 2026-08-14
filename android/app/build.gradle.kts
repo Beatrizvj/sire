@@ -1,5 +1,8 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -7,6 +10,8 @@ plugins {
 android {
     namespace = "gt.edu.miumg.sire"
     compileSdk = flutter.compileSdkVersion
+    // AGP exige este NDK en la fase de configuración. Se instaló manualmente en
+    // el SDK con descarga reanudable (tools/install_ndk.ps1) por la conexión lenta.
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -44,6 +49,14 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // SOS nativo del botón de encendido: el servicio en Kotlin escribe la alerta
+    // directamente en Firestore. Usa la MISMA BoM que firebase_core (34.15.0),
+    // así que reutiliza los artefactos ya descargados (no baja nada nuevo).
+    implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
+    implementation("com.google.firebase:firebase-firestore")
 }
 
 dependencies {

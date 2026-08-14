@@ -6,15 +6,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/config/app_config.dart';
 import 'core/di/app_providers.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase queda desactivado hasta el Hito 3 (ver docs/CONNECT_FIREBASE.md).
-  // Tras `flutterfire configure`, usar:
-  //   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Firebase conectado (Hito 3). Config generada por `flutterfire configure`.
   if (AppConfig.firebaseEnabled) {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   }
 
   // SharedPreferences se crea de forma asíncrona y se inyecta vía override.

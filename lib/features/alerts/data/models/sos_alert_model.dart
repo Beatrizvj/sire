@@ -14,6 +14,7 @@ class SosAlertModel {
   static Map<String, dynamic> toMap(SosAlert alert) => {
         'id': alert.id,
         'userId': alert.userId,
+        'userName': alert.userName,
         'latitude': alert.latitude,
         'longitude': alert.longitude,
         'timestamp': alert.timestamp.toIso8601String(),
@@ -22,11 +23,13 @@ class SosAlertModel {
         'type': alert.type,
         'address': alert.address,
         'accuracy': alert.accuracy,
+        'categoria': alert.categoria,
       };
 
   static SosAlert fromMap(Map<String, dynamic> map) => SosAlert(
         id: map['id'] as String,
         userId: map['userId'] as String?,
+        userName: map['userName'] as String?,
         latitude: (map['latitude'] as num).toDouble(),
         longitude: (map['longitude'] as num).toDouble(),
         timestamp: DateTime.parse(map['timestamp'] as String),
@@ -35,6 +38,7 @@ class SosAlertModel {
         type: map['type'] as String? ?? 'SOS',
         address: map['address'] as String?,
         accuracy: (map['accuracy'] as num?)?.toDouble(),
+        categoria: map['categoria'] as String?,
       );
 
   static String encodeList(List<SosAlert> alerts) =>

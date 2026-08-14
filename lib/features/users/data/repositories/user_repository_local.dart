@@ -24,6 +24,19 @@ class UserRepositoryLocal implements UserRepository {
   }
 
   @override
+  Stream<AppUser?> watchUser(String id) async* {
+    yield await getUser(id);
+  }
+
+  @override
   Future<void> saveUser(AppUser user) =>
       _prefs.setString(_key(user.id), AppUserModel.encode(user));
+
+  @override
+  Future<void> deleteUser(String id) => _prefs.remove(_key(id));
+
+  @override
+  Stream<List<AppUser>> watchAllUsers() async* {
+    yield const [];
+  }
 }

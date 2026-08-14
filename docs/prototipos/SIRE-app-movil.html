@@ -1,0 +1,484 @@
+<title>SIRE — Prototipo de interfaz</title>
+<style>
+  /* ── Tokens de la PÁGINA (documentación) ───────────────────────── */
+  :root {
+    --paper:      #F7F3F2;
+    --paper-2:    #FFFFFF;
+    --ink:        #1B1211;
+    --ink-soft:   #6E5B58;
+    --ink-faint:  #9C8A87;
+    --rule:       #E2D8D6;
+    --accent:     #C62828;
+
+    /* ── Tokens de la APP (fijos: reflejan el tema real de SIRE) ──
+       Material 3 · dark · seed #C62828 — NO cambian con el tema de la
+       página porque son el producto documentado, no la documentación. */
+    --app-surface:     #1A1110;
+    --app-container:   #271D1C;
+    --app-high:        #382A28;
+    --app-primary:     #FFB4AB;
+    --app-on-primary:  #601410;
+    --app-on-surface:  #F1DEDC;
+    --app-on-var:      #D8C2BF;
+    --app-outline:     #8F7B79;
+    --app-err-cont:    #93000A;
+    --app-on-err-cont: #FFDAD6;
+
+    --font-doc: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-app: Roboto, "Segoe UI", system-ui, sans-serif;
+    --font-mono: "Cascadia Mono", "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #120E0E; --paper-2: #1A1414; --ink: #F2EAE9;
+      --ink-soft: #AD9895; --ink-faint: #7C6A67; --rule: #2C2220;
+      --accent: #FF8A80;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #120E0E; --paper-2: #1A1414; --ink: #F2EAE9;
+    --ink-soft: #AD9895; --ink-faint: #7C6A67; --rule: #2C2220;
+    --accent: #FF8A80;
+  }
+  :root[data-theme="light"] {
+    --paper: #F7F3F2; --paper-2: #FFFFFF; --ink: #1B1211;
+    --ink-soft: #6E5B58; --ink-faint: #9C8A87; --rule: #E2D8D6;
+    --accent: #C62828;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--font-doc); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 24px 72px; }
+
+  /* ── Cabecera ─────────────────────────────────────────────────── */
+  .eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 10px;
+  }
+  h1 {
+    margin: 0; font-size: clamp(28px, 4vw, 40px); font-weight: 700;
+    letter-spacing: -.02em; text-wrap: balance;
+  }
+  .lede {
+    margin: 12px 0 0; max-width: 62ch; color: var(--ink-soft); font-size: 15px;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 22px;
+    padding-top: 20px; border-top: 1px solid var(--rule);
+    font-size: 12.5px; color: var(--ink-soft);
+  }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  /* ── Rejilla de pantallas ─────────────────────────────────────── */
+  .screens {
+    display: grid; gap: 44px 32px; margin-top: 44px;
+    grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
+  }
+  figure.screen { margin: 0; display: flex; flex-direction: column; gap: 14px; }
+  figcaption { display: flex; flex-direction: column; gap: 5px; }
+  .cap-id {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .08em; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .cap-name { font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+  .cap-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+
+  /* ── Marco del teléfono ───────────────────────────────────────── */
+  .phone {
+    width: 100%; max-width: 292px; aspect-ratio: 9 / 19.2;
+    background: var(--app-surface); border-radius: 26px;
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 2px rgba(0,0,0,.10), 0 12px 28px -12px rgba(0,0,0,.30);
+    overflow: hidden; position: relative;
+    font-family: var(--font-app); color: var(--app-on-surface);
+    display: flex; flex-direction: column;
+  }
+  .status {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px 2px; font-size: 9.5px; color: var(--app-on-var);
+    font-variant-numeric: tabular-nums; flex: none;
+  }
+  .appbar {
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px 12px 10px; font-size: 13px; font-weight: 500; flex: none;
+    position: relative;
+  }
+  .appbar .trail { position: absolute; right: 12px; opacity: .8; }
+  .body { flex: 1; overflow: hidden; padding: 0 14px; }
+  .navbar {
+    display: flex; flex: none; background: var(--app-container);
+    padding: 6px 4px 8px;
+  }
+  .navbar div {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 8.5px; color: var(--app-on-var);
+  }
+  .navbar div.on { color: var(--app-on-surface); }
+  .navbar div.on .pill {
+    background: var(--app-high); border-radius: 999px; padding: 2px 12px;
+  }
+  .pill { padding: 2px 12px; }
+
+  /* Componentes de la app */
+  .field {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--app-outline); border-radius: 5px;
+    padding: 9px 10px; font-size: 11px; color: var(--app-on-var);
+    margin-bottom: 11px;
+  }
+  .btn-filled {
+    background: var(--app-primary); color: var(--app-on-primary);
+    border-radius: 14px; text-align: center; padding: 11px;
+    font-size: 12px; font-weight: 600;
+  }
+  .btn-text {
+    text-align: center; color: var(--app-primary); font-size: 11px;
+    padding: 9px; font-weight: 500;
+  }
+  .btn-outline {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    border: 1px solid var(--app-outline); border-radius: 14px;
+    padding: 10px; font-size: 11.5px; color: var(--app-primary); font-weight: 500;
+  }
+  .card {
+    background: var(--app-container); border-radius: 12px; padding: 11px;
+    margin-bottom: 9px;
+  }
+  .chip {
+    background: var(--app-err-cont); color: var(--app-on-err-cont);
+    border-radius: 7px; padding: 3px 7px; font-size: 8px; font-weight: 700;
+    white-space: nowrap;
+  }
+  .alert-row { display: flex; align-items: center; gap: 9px; }
+  .dot-sos {
+    width: 27px; height: 27px; border-radius: 50%; flex: none;
+    background: var(--app-err-cont); color: var(--app-on-err-cont);
+    display: grid; place-items: center; font-size: 8px; font-weight: 800;
+  }
+  .muted { color: var(--app-on-var); }
+  .sos-circle {
+    width: 128px; height: 128px; border-radius: 50%; margin: 6px auto 0;
+    background: var(--app-primary); color: var(--app-on-primary);
+    display: grid; place-items: center; gap: 0;
+    box-shadow: 0 0 0 12px rgba(255,180,171,.10);
+  }
+  .switch {
+    width: 30px; height: 17px; border-radius: 999px; flex: none;
+    background: var(--app-primary); position: relative;
+  }
+  .switch::after {
+    content: ""; position: absolute; right: 3px; top: 3px;
+    width: 11px; height: 11px; border-radius: 50%; background: var(--app-on-primary);
+  }
+  .stat {
+    background: var(--app-container); border-radius: 12px; padding: 10px;
+    flex: 1;
+  }
+  .stat b { display: block; font-size: 21px; font-weight: 700; line-height: 1.2; }
+  .stat span { font-size: 9px; color: var(--app-on-var); }
+  .ph-center {
+    height: 100%; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 13px; text-align: center; padding: 0 8px;
+  }
+  .ico { display: block; }
+
+  /* ── Sistema de diseño ────────────────────────────────────────── */
+  .system { margin-top: 64px; padding-top: 30px; border-top: 1px solid var(--rule); }
+  h2 { font-size: 19px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 6px; }
+  .sub { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 22px; max-width: 62ch; }
+  .swatches {
+    display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  }
+  .sw {
+    background: var(--paper-2); border: 1px solid var(--rule); border-radius: 10px;
+    overflow: hidden;
+  }
+  .sw i { display: block; height: 52px; }
+  .sw div { padding: 9px 10px; }
+  .sw code {
+    font-family: var(--font-mono); font-size: 11px; color: var(--ink);
+    text-transform: uppercase;
+  }
+  .sw span { display: block; font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+  .tbl-wrap { overflow-x: auto; margin-top: 26px; }
+  table { border-collapse: collapse; width: 100%; min-width: 460px; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+  th {
+    font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600;
+  }
+  td code { font-family: var(--font-mono); font-size: 12px; }
+  td:first-child { font-weight: 600; }
+  .note {
+    margin-top: 26px; padding: 14px 16px; border-left: 2px solid var(--accent);
+    background: var(--paper-2); border-radius: 0 8px 8px 0;
+    font-size: 13px; color: var(--ink-soft);
+  }
+  .note b { color: var(--ink); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Prototipo de interfaz · Aplicación móvil</p>
+    <h1>SIRE — Sistema Integral de Respuesta ante Emergencias</h1>
+    <p class="lede">
+      Inventario de pantallas de la aplicación ciudadana (Android). Las maquetas
+      reproducen la interfaz implementada: Material&nbsp;3 en tema oscuro, generado a
+      partir del color semilla rojo emergencia, con los datos reales registrados
+      durante las pruebas de campo.
+    </p>
+    <div class="meta">
+      <span><b>Plataforma</b> · Android (Flutter)</span>
+      <span><b>Sistema de diseño</b> · Material 3</span>
+      <span><b>Navegación</b> · 4 secciones + autenticación</span>
+      <span><b>Pantallas</b> · 6</span>
+    </div>
+  </header>
+
+  <section class="screens">
+
+    <!-- P-01 LOGIN -->
+    <figure class="screen">
+      <div class="phone">
+        <div class="status"><span>1:32</span><span>▮▮ ▮</span></div>
+        <div class="body" style="display:flex;flex-direction:column;justify-content:center;">
+          <svg class="ico" style="margin:0 auto 8px" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#FFB4AB" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2.5 4.5 5.5v6c0 4.7 3.2 8.9 7.5 10 4.3-1.1 7.5-5.3 7.5-10v-6L12 2.5Z"/>
+          </svg>
+          <div style="text-align:center;font-size:23px;font-weight:700;letter-spacing:-.01em;">SIRE</div>
+          <div style="text-align:center;font-size:8.5px;margin:3px 0 22px;" class="muted">
+            Sistema Integral de Respuesta ante Emergencias
+          </div>
+          <div class="field"><span>✉</span><span>Correo</span></div>
+          <div class="field"><span>🔒</span><span style="flex:1">Contraseña</span><span>👁</span></div>
+          <div class="btn-filled" style="margin-top:9px;">Ingresar</div>
+          <div class="btn-text">¿No tienes cuenta? Regístrate</div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">P-01</span>
+        <span class="cap-name">Inicio de sesión</span>
+        <span class="cap-desc">Autenticación con correo y contraseña (Firebase Auth). Puerta de entrada: sin sesión, el enrutador redirige aquí.</span>
+      </figcaption>
+    </figure>
+
+    <!-- P-02 REGISTRO -->
+    <figure class="screen">
+      <div class="phone">
+        <div class="status"><span>1:33</span><span>▮▮ ▮</span></div>
+        <div class="appbar">Crear cuenta</div>
+        <div class="body">
+          <div class="field"><span>👤</span><span>Nombre completo</span></div>
+          <div class="field"><span>📞</span><span>Teléfono</span></div>
+          <div class="field"><span>✉</span><span>Correo</span></div>
+          <div class="field"><span>🔒</span><span style="flex:1">Contraseña</span><span>👁</span></div>
+          <div class="field"><span>🪪</span><span style="flex:1">Ciudadano</span><span>▾</span></div>
+          <div class="btn-filled" style="margin-top:7px;">Crear cuenta</div>
+          <div class="btn-text">Ya tengo cuenta</div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">P-02</span>
+        <span class="cap-name">Registro de ciudadano</span>
+        <span class="cap-desc">Crea la identidad en Firebase Auth y el perfil en la colección <code>usuarios</code>, con el rol seleccionado.</span>
+      </figcaption>
+    </figure>
+
+    <!-- P-03 INICIO -->
+    <figure class="screen">
+      <div class="phone">
+        <div class="status"><span>1:34</span><span>▮▮ ▮</span></div>
+        <div class="appbar">Inicio</div>
+        <div class="body">
+          <div style="font-size:11px;" class="muted">Hola,</div>
+          <div style="font-size:16px;font-weight:700;letter-spacing:-.01em;margin-bottom:12px;">Ashly Lopez Vicente</div>
+          <div style="display:flex;gap:9px;margin-bottom:11px;">
+            <div class="stat"><span style="font-size:13px;color:#FFB4AB">🔔</span><b>5</b><span>Alertas</span></div>
+            <div class="stat"><span style="font-size:13px;color:#FFB4AB">⏳</span><b>5</b><span>Pendientes</span></div>
+          </div>
+          <div class="btn-filled" style="background:var(--app-err-cont);color:var(--app-on-err-cont);border-radius:14px;">🆘 Ir a enviar SOS</div>
+          <div style="font-size:11.5px;font-weight:600;margin:15px 0 7px;">Últimas alertas</div>
+          <div class="card">
+            <div class="alert-row">
+              <div class="dot-sos">SOS</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:8.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">San Miguel Sigüilá, Quetzaltenango</div>
+                <div style="font-size:7.5px;" class="muted">13/07/2026 · 12:41:15</div>
+              </div>
+              <div class="chip">Pendiente</div>
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div class="on"><span class="pill">🏠</span><span>Inicio</span></div>
+          <div><span class="pill">🆘</span><span>SOS</span></div>
+          <div><span class="pill">🗺</span><span>Mapa</span></div>
+          <div><span class="pill">👤</span><span>Perfil</span></div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">P-03</span>
+        <span class="cap-name">Inicio · Panel del ciudadano</span>
+        <span class="cap-desc">Resumen de actividad: total de alertas, pendientes y las últimas emitidas, con acceso directo al SOS.</span>
+      </figcaption>
+    </figure>
+
+    <!-- P-04 SOS -->
+    <figure class="screen">
+      <div class="phone">
+        <div class="status"><span>1:32</span><span>▮▮ ▮</span></div>
+        <div class="appbar">SIRE<span class="trail">🗑</span></div>
+        <div class="body">
+          <div class="sos-circle">
+            <div style="font-size:27px;font-weight:800;letter-spacing:.04em;line-height:1;">SOS</div>
+          </div>
+          <div style="text-align:center;font-size:9px;margin:16px 4px 14px;" class="muted">
+            Mantén la calma. Pulsa SOS para enviar tu ubicación.
+          </div>
+          <div class="card">
+            <div style="display:flex;align-items:flex-start;gap:8px;">
+              <span style="font-size:12px;">⏻</span>
+              <div style="flex:1;">
+                <div style="font-size:10px;font-weight:600;">Detección por botón de encendido</div>
+                <div style="font-size:7.5px;margin-top:2px;" class="muted">Pulsa el botón de encendido 3 veces en 5 s para enviar un SOS.</div>
+              </div>
+              <div class="switch"></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;margin:13px 0 7px;">
+            <span>Historial</span><span>5</span>
+          </div>
+          <div class="card">
+            <div class="alert-row">
+              <div class="dot-sos">⏻</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:8.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">W92P+4PH, San Miguel Sigüilá</div>
+                <div style="font-size:7.5px;" class="muted">Botón de encendido · 14.90134, −91.61375</div>
+              </div>
+              <div class="chip">Pendiente</div>
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div><span class="pill">🏠</span><span>Inicio</span></div>
+          <div class="on"><span class="pill">🆘</span><span>SOS</span></div>
+          <div><span class="pill">🗺</span><span>Mapa</span></div>
+          <div><span class="pill">👤</span><span>Perfil</span></div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">P-04</span>
+        <span class="cap-name">SOS · Pantalla de emergencia</span>
+        <span class="cap-desc">Núcleo del sistema. Dos vías de activación: el botón en pantalla y el patrón de 3 pulsaciones del botón de encendido, detectado por un servicio nativo en segundo plano.</span>
+      </figcaption>
+    </figure>
+
+    <!-- P-05 MAPA -->
+    <figure class="screen">
+      <div class="phone">
+        <div class="status"><span>1:35</span><span>▮▮ ▮</span></div>
+        <div class="appbar">Mapa</div>
+        <div class="body">
+          <div class="ph-center">
+            <svg class="ico" width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#FFB4AB" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 3 3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3Z"/><path d="M9 3v15M15 6v15"/>
+            </svg>
+            <div style="font-size:10px;line-height:1.5;" class="muted">
+              Mapa de alertas activas en tiempo real y mapa de calor por zona.
+            </div>
+            <div style="border:1px solid var(--app-outline);border-radius:999px;padding:4px 11px;font-size:8px;" class="muted">
+              ⚑ Próximamente · Hito 5
+            </div>
+          </div>
+        </div>
+        <div class="navbar">
+          <div><span class="pill">🏠</span><span>Inicio</span></div>
+          <div><span class="pill">🆘</span><span>SOS</span></div>
+          <div class="on"><span class="pill">🗺</span><span>Mapa</span></div>
+          <div><span class="pill">👤</span><span>Perfil</span></div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">P-05</span>
+        <span class="cap-name">Mapa · Alertas y calor</span>
+        <span class="cap-desc">Reservada para Google Maps: marcadores de alertas activas y mapa de calor por zona y horario (insumo del análisis del Capítulo V).</span>
+      </figcaption>
+    </figure>
+
+    <!-- P-06 PERFIL -->
+    <figure class="screen">
+      <div class="phone">
+        <div class="status"><span>1:36</span><span>▮▮ ▮</span></div>
+        <div class="appbar">Perfil</div>
+        <div class="body">
+          <div style="width:56px;height:56px;border-radius:50%;background:var(--app-high);display:grid;place-items:center;margin:6px auto 9px;font-size:24px;">👤</div>
+          <div style="text-align:center;font-size:13px;font-weight:600;margin-bottom:13px;">Ashly Lopez Vicente</div>
+          <div class="card"><div class="alert-row"><span>🪪</span><div style="flex:1"><div style="font-size:9.5px;">Rol</div><div style="font-size:8px;" class="muted">Ciudadano</div></div></div></div>
+          <div class="card"><div class="alert-row"><span>📞</span><div style="flex:1"><div style="font-size:9.5px;">Teléfono</div><div style="font-size:8px;" class="muted">49291301</div></div></div></div>
+          <div class="card"><div class="alert-row"><span>👥</span><div style="flex:1"><div style="font-size:9.5px;">Aldea / Comunidad</div><div style="font-size:8px;" class="muted">Sin asignar</div></div></div></div>
+          <div class="card"><div class="alert-row"><span>✉</span><div style="flex:1"><div style="font-size:9.5px;">Correo</div><div style="font-size:8px;" class="muted">ashly2021@gmail.com</div></div></div></div>
+          <div class="btn-outline" style="margin-top:11px;">↪ Cerrar sesión</div>
+        </div>
+        <div class="navbar">
+          <div><span class="pill">🏠</span><span>Inicio</span></div>
+          <div><span class="pill">🆘</span><span>SOS</span></div>
+          <div><span class="pill">🗺</span><span>Mapa</span></div>
+          <div class="on"><span class="pill">👤</span><span>Perfil</span></div>
+        </div>
+      </div>
+      <figcaption>
+        <span class="cap-id">P-06</span>
+        <span class="cap-name">Perfil del usuario</span>
+        <span class="cap-desc">Datos del documento en <code>usuarios</code>: rol, teléfono y comunidad asignada. Permite cerrar sesión.</span>
+      </figcaption>
+    </figure>
+
+  </section>
+
+  <!-- ── SISTEMA DE DISEÑO ── -->
+  <section class="system">
+    <h2>Sistema de diseño</h2>
+    <p class="sub">
+      La paleta completa se deriva de un único color semilla mediante el algoritmo
+      de Material&nbsp;3, lo que garantiza contraste accesible en toda la interfaz.
+      El rojo se reserva para la acción de emergencia; nada más compite con él.
+    </p>
+
+    <div class="swatches">
+      <div class="sw"><i style="background:#C62828"></i><div><code>#C62828</code><span>Semilla · rojo emergencia</span></div></div>
+      <div class="sw"><i style="background:#FFB4AB"></i><div><code>#FFB4AB</code><span>Primario · botón SOS</span></div></div>
+      <div class="sw"><i style="background:#601410"></i><div><code>#601410</code><span>Sobre primario · texto SOS</span></div></div>
+      <div class="sw"><i style="background:#93000A"></i><div><code>#93000A</code><span>Contenedor de error · estado</span></div></div>
+      <div class="sw"><i style="background:#1A1110"></i><div><code>#1A1110</code><span>Superficie · fondo</span></div></div>
+      <div class="sw"><i style="background:#F1DEDC"></i><div><code>#F1DEDC</code><span>Sobre superficie · texto</span></div></div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Elemento</th><th>Tratamiento</th><th>Justificación</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Botón SOS</td><td><code>128 dp</code> · círculo · centrado</td><td>Objetivo táctil grande, alcanzable sin precisión bajo estrés.</td></tr>
+          <tr><td>Estado de alerta</td><td>Chip de color + etiqueta</td><td>El estado se lee por forma y color, no solo por texto.</td></tr>
+          <tr><td>Tema</td><td>Oscuro</td><td>Menor deslumbramiento de noche y menor consumo de batería.</td></tr>
+          <tr><td>Navegación</td><td>4 destinos fijos</td><td>SOS siempre a un toque desde cualquier sección.</td></tr>
+          <tr><td>Tipografía</td><td>Roboto · escala Material 3</td><td>Fuente del sistema: legible y sin coste de descarga.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note">
+      <b>Nota de fidelidad.</b> Estas maquetas reproducen la interfaz ya implementada y
+      probada en dispositivo real (Android, San Miguel Sigüilá, Quetzaltenango). Los datos
+      mostrados —usuario, coordenadas <code>14.90134, −91.61375</code> y estado
+      <code>pendiente</code>— provienen de los registros reales en Cloud Firestore
+      durante las pruebas de campo.
+    </p>
+  </section>
+</div>

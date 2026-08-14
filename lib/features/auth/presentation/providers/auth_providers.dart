@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../identity/data/identity_repository.dart';
+import '../../../users/domain/entities/account_status.dart';
 import '../../../users/domain/entities/app_user.dart';
 import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/users_providers.dart';
@@ -18,6 +22,43 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     return AuthRepositoryFirebase(FirebaseAuth.instance);
   }
   return AuthRepositoryLocal(ref.watch(sharedPreferencesProvider));
+});
+
+/// Imprime en la terminal (visible con `flutter run`) el registro del sistema
+/// de acceso. Sale con etiqueta [SIRE-LOGIN] y hora, para seguir en vivo cada
+/// intento: aprobado, fallido o bloqueado.
+void logAcceso(String mensaje) {
+  final hora = DateTime.now().toIso8601String().substring(11, 19);
+  debugPrint('SIRE-LOGIN | [$hora] $mensaje');
+}
+
+/// Perfil (con rol) del usuario en sesión; null si no hay sesión. La app lo usa
+/// para decidir qué mostrar: ciudadano → SOS · COCODE/Municipalidad → Bandeja.
+final currentUserProfileProvider = StreamProvider<AppUser?>((ref) {
+  final uid = ref.watch(authControllerProvider).user?.uid;
+  if (uid == null) return Stream<AppUser?>.value(null);
+  // Perfil EN VIVO: reacciona a cambios de rol, aprobación o contactos de
+  // confianza (RF-11) sin necesidad de volver a iniciar sesión.
+  return ref.read(userRepositoryProvider).watchUser(uid).map((perfil) {
+    if (perfil == null) {
+      logAcceso(
+        '🚫 BLOQUEADO · uid=$uid autenticado pero SIN perfil en la base '
+        '(colección usuarios). No puede acceder a las instancias del proyecto.',
+      );
+    } else if (!perfil.activo) {
+      logAcceso(
+        '🚫 BLOQUEADO · uid=$uid · nombre="${perfil.nombre}" · '
+        'rol=${perfil.rol.label} · cuenta DESACTIVADA (activo=false). Acceso denegado.',
+      );
+    } else {
+      logAcceso(
+        '📋 BASE DE DATOS OK · uid=$uid · nombre="${perfil.nombre}" · '
+        'rol=${perfil.rol.label} · aldea="${perfil.aldea}" · '
+        'acceso permitido a su instancia de ${perfil.rol.label}.',
+      );
+    }
+    return perfil;
+  });
 });
 
 class AuthState extends Equatable {
@@ -73,24 +114,39 @@ class AuthController extends Notifier<AuthState> {
 
   Future<bool> signIn({required String email, required String password}) async {
     state = state.copyWith(isBusy: true);
+    logAcceso('… INTENTO de inicio de sesión · correo=${email.trim()}');
     try {
       final user = await ref
           .read(authRepositoryProvider)
           .signIn(email: email, password: password);
       state = state.copyWith(user: user, isBusy: false);
+      logAcceso(
+        '✅ APROBADO · login correcto · correo=${user.email} · uid=${user.uid}. '
+        'Consultando su rol en la base de datos…',
+      );
       return true;
     } catch (e) {
+      logAcceso(
+        '❌ FALLIDO · login incorrecto · correo=${email.trim()} · '
+        'motivo="${_message(e)}"',
+      );
       state = state.copyWith(isBusy: false, error: _message(e));
       return false;
     }
   }
 
+  /// Registra un nuevo usuario. R1: NO se asigna rol ni acceso automáticamente.
+  /// La cuenta nace [AccountStatus.pendienteRevision]; una autoridad (COCODE de
+  /// la aldea o Municipalidad) la aprobará y le asignará el rol. El usuario solo
+  /// declara la aldea a la que pertenece ([aldeaSolicitada]).
   Future<bool> register({
     required String nombre,
     required String telefono,
     required String email,
     required String password,
-    UserRole rol = UserRole.ciudadano,
+    String aldeaSolicitada = '',
+    Uint8List? dpiAnverso,
+    Uint8List? dpiReverso,
   }) async {
     state = state.copyWith(isBusy: true);
     try {
@@ -99,16 +155,35 @@ class AuthController extends Notifier<AuthState> {
             password: password,
             displayName: nombre,
           );
-      // Crea el perfil en la colección de usuarios.
+      // Crea el perfil PENDIENTE DE REVISIÓN, sin rol efectivo ni acceso.
       await ref.read(userRepositoryProvider).saveUser(
             AppUser(
               id: authUser.uid,
               nombre: nombre,
               telefono: telefono,
               email: email,
-              rol: rol,
+              rol: UserRole.ciudadano, // marcador; el acceso lo decide el estado
+              estadoCuenta: AccountStatus.pendienteRevision,
+              aldeaSolicitada: aldeaSolicitada,
+              activo: true,
             ),
           );
+      // R2: sube las fotos del DPI AQUÍ (dentro del controlador), no en la
+      // pantalla de registro. Así la subida no se interrumpe cuando la app
+      // navega a "Cuenta en revisión" y destruye la pantalla de registro.
+      final repo = ref.read(identityRepositoryProvider);
+      if (dpiAnverso != null) {
+        await repo.subir(
+            uid: authUser.uid,
+            lado: IdentityRepository.anverso,
+            bytes: dpiAnverso);
+      }
+      if (dpiReverso != null) {
+        await repo.subir(
+            uid: authUser.uid,
+            lado: IdentityRepository.reverso,
+            bytes: dpiReverso);
+      }
       state = state.copyWith(user: authUser, isBusy: false);
       return true;
     } catch (e) {
@@ -122,6 +197,36 @@ class AuthController extends Notifier<AuthState> {
     state = state.copyWith(clearUser: true);
   }
 
+  /// Envía el correo de restablecimiento de contraseña. Devuelve true si se
+  /// envió correctamente; si falla, el mensaje queda en [AuthState.error].
+  Future<bool> sendPasswordReset(String email) async {
+    try {
+      await ref.read(authRepositoryProvider).sendPasswordReset(email);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: _message(e));
+      return false;
+    }
+  }
+
+  /// Cambia la contraseña del usuario en sesión. Devuelve true si se aplicó; si
+  /// falla, el motivo queda en [AuthState.error].
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await ref.read(authRepositoryProvider).changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+          );
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: _message(e));
+      return false;
+    }
+  }
+
   String _message(Object error) {
     if (error is FirebaseAuthException) {
       return switch (error.code) {
@@ -129,9 +234,11 @@ class AuthController extends Notifier<AuthState> {
         'user-not-found' ||
         'wrong-password' ||
         'invalid-credential' =>
-          'Correo o contraseña incorrectos.',
+          'La contraseña actual es incorrecta.',
         'email-already-in-use' => 'Ese correo ya está registrado.',
         'weak-password' => 'Contraseña muy débil (mínimo 6 caracteres).',
+        'requires-recent-login' =>
+          'Por seguridad, vuelve a iniciar sesión y reintenta.',
         'network-request-failed' => 'Sin conexión. Revisa tu internet.',
         _ => error.message ?? 'Error de autenticación.',
       };

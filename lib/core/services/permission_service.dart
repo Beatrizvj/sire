@@ -20,6 +20,14 @@ class PermissionService {
     return status.isGranted;
   }
 
+  /// Ubicación en primer plano. OBLIGATORIA antes de arrancar el servicio de
+  /// detección: en Android 14+ un servicio en primer plano de tipo "location"
+  /// exige este permiso concedido, o el sistema mata la app (SecurityException).
+  Future<bool> ensureLocationWhenInUse() async {
+    final status = await Permission.locationWhenInUse.request();
+    return status.isGranted;
+  }
+
   /// Ubicación en segundo plano (para capturar GPS con la pantalla bloqueada;
   /// se usará al endurecer el botón físico).
   Future<bool> ensureBackgroundLocation() async {

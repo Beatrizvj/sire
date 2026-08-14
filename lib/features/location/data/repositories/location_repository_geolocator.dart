@@ -29,12 +29,23 @@ class LocationRepositoryGeolocator implements LocationRepository {
       throw const LocationPermissionPermanentlyDeniedException();
     }
 
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 20),
-      ),
-    );
+    // Intenta una posición fresca de alta precisión, pero sin bloquear el SOS:
+    // si no responde pronto (típico en interiores), cae a la última ubicación
+    // conocida para que la alerta SIEMPRE se envíe.
+    Position? position;
+    try {
+      position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+    } on Exception {
+      position = await Geolocator.getLastKnownPosition();
+    }
+    if (position == null) {
+      throw const LocationServiceDisabledException();
+    }
 
     return LocationReading(
       latitude: position.latitude,
@@ -46,7 +57,12 @@ class LocationRepositoryGeolocator implements LocationRepository {
 
   Future<String?> _reverseGeocode(double lat, double lng) async {
     try {
-      final placemarks = await Geocoding().placemarkFromCoordinates(lat, lng);
+      // Acota el peor caso: en redes rurales lentas, el reverse geocoding no
+      // debe retrasar el SOS más de 2 s. Si expira, la alerta se envía con las
+      // coordenadas (sin dirección) y el panel las muestra igual.
+      final placemarks = await Geocoding()
+          .placemarkFromCoordinates(lat, lng)
+          .timeout(const Duration(seconds: 2));
       if (placemarks.isEmpty) return null;
       final p = placemarks.first;
       final parts = <String?>[

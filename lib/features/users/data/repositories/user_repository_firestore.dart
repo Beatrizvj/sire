@@ -23,6 +23,23 @@ class UserRepositoryFirestore implements UserRepository {
   }
 
   @override
+  Stream<AppUser?> watchUser(String id) => _users.doc(id).snapshots().map((doc) {
+        final data = doc.data();
+        return data == null ? null : AppUserModel.fromMap(data, id: doc.id);
+      });
+
+  @override
   Future<void> saveUser(AppUser user) =>
       _users.doc(user.id).set(AppUserModel.toMap(user), SetOptions(merge: true));
+
+  @override
+  Future<void> deleteUser(String id) => _users.doc(id).delete();
+
+  @override
+  Stream<List<AppUser>> watchAllUsers() =>
+      _users.orderBy('nombre').snapshots().map(
+            (snap) => snap.docs
+                .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
+                .toList(growable: false),
+          );
 }

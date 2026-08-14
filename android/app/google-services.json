@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1022970608171",
+    "project_id": "sire-app-179d3",
+    "storage_bucket": "sire-app-179d3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1022970608171:android:1520056053c87211a1086e",
+        "android_client_info": {
+          "package_name": "gt.edu.miumg.sire"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1022970608171-13bat1s3ut986ra89q1g28tqjk18am7i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtgTpozu_KBmd1DqBMBVSdZJ4T9AEE75Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1022970608171-13bat1s3ut986ra89q1g28tqjk18am7i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
