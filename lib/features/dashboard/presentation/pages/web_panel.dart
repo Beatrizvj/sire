@@ -8,6 +8,7 @@ import '../../../../core/validation/name_validator.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
+import '../../../alerts/presentation/widgets/alert_status_chip.dart';
 import '../../../alerts/presentation/widgets/new_alert_alarm.dart';
 import '../../../audit/data/audit_repository.dart';
 import '../../../audit/domain/audit_entry.dart';
@@ -1767,13 +1768,8 @@ class _EstadoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (fg, bg) = switch (status) {
-      AlertStatus.pendiente => _crit,
-      AlertStatus.atendida => _warn,
-      AlertStatus.resuelta => _good,
-      AlertStatus.falsaAlarma => _neut,
-    };
-    return _pill(status.label, fg, bg);
+    final c = alertStatusColors(status);
+    return _pill(status.label, c.fg, c.bg);
   }
 }
 
