@@ -12,6 +12,7 @@ import '../../domain/entities/alert_status.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../../domain/entities/sos_source.dart';
 import '../providers/alerts_providers.dart';
+import '../widgets/alert_status_chip.dart';
 
 /// Coordenadas legibles; "Ubicación no registrada" si la alerta se guardó sin GPS.
 String _coords(SosAlert alert) => (alert.latitude == 0 && alert.longitude == 0)
@@ -151,7 +152,7 @@ class _EmergencyTile extends StatelessWidget {
             Text('${df.format(alert.timestamp)}\n${alert.address ?? coords}'),
           ],
         ),
-        trailing: _StatusChip(status: alert.status),
+        trailing: AlertStatusChip(status: alert.status),
         isThreeLine: true,
       ),
     );
@@ -184,7 +185,7 @@ class _AccionesSheet extends ConsumerWidget {
                 Expanded(
                   child: Text(nombre, style: theme.textTheme.titleLarge),
                 ),
-                _StatusChip(status: alert.status),
+                AlertStatusChip(status: alert.status),
               ],
             ),
             const SizedBox(height: 4),
@@ -355,43 +356,6 @@ class _InfoRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(child: Text(text)),
       ],
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final AlertStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (bg, fg) = switch (status) {
-      AlertStatus.pendiente => (scheme.errorContainer, scheme.onErrorContainer),
-      AlertStatus.atendida => (
-          scheme.tertiaryContainer,
-          scheme.onTertiaryContainer,
-        ),
-      AlertStatus.resuelta => (
-          scheme.secondaryContainer,
-          scheme.onSecondaryContainer,
-        ),
-      AlertStatus.falsaAlarma => (
-          scheme.surfaceContainerHighest,
-          scheme.onSurfaceVariant,
-        ),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        status.label,
-        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600),
-      ),
     );
   }
 }

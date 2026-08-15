@@ -17,4 +17,13 @@ class AppColors {
 
   /// Semilla para ColorScheme.fromSeed.
   static const Color seed = emergency;
+
+  // ── Estados de alerta ──────────────────────────────────────────────
+  // Paleta ÚNICA de los estados de una alerta. La usan tanto la app móvil
+  // (Bandeja e historial) como el panel web, para que los colores coincidan
+  // siempre en los dos. Cambiar aquí = cambiar en ambos lados a la vez.
+  static const Color statusPendiente = warning; // ámbar — sin atender
+  static const Color statusAtendida = Color(0xFF1565C0); // azul — en proceso
+  static const Color statusResuelta = safe; // verde — resuelta
+  static const Color statusFalsaAlarma = Color(0xFF616161); // gris — descartada
 }
