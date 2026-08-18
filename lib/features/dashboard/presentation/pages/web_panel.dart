@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1835,7 +1834,7 @@ class _BotonActivarSonido extends ConsumerWidget {
     try {
       await player.stop();
       await player.setVolume(1);
-      await player.play(AssetSource('sounds/alerta.wav'));
+      await player.play(await alarmSource());
       await Future<void>.delayed(const Duration(milliseconds: 1200));
       await player.stop();
     } catch (_) {}
