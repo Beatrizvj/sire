@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -21,15 +20,16 @@ final alarmPlayerProvider = Provider<AudioPlayer>((ref) {
   return player;
 });
 
-// El .wav se reproduce por BYTES (cargados con rootBundle), no con AssetSource:
-// en Flutter web el asset queda bajo `assets/assets/...` y AssetSource lo busca
-// en `assets/...` (recibe el index.html, no audio, y no suena). rootBundle usa
-// la clave correcta en móvil y web; BytesSource evita el problema de rutas.
-Uint8List? _alarmBytes;
+// Fuente del .wav de la alarma, por plataforma:
+// - Web: el asset se sirve en `assets/assets/sounds/alerta.wav` con su tipo
+//   correcto (audio/wav); UrlSource lo reproduce directo (verificado en el
+//   navegador: play OK). No sirven AssetSource (arma mal la ruta) ni BytesSource
+//   (el blob del navegador quedaba sin MIME y no sonaba).
+// - Móvil: AssetSource funciona directamente.
 Future<Source> alarmSource() async {
-  _alarmBytes ??=
-      (await rootBundle.load('assets/sounds/alerta.wav')).buffer.asUint8List();
-  return BytesSource(_alarmBytes!);
+  return kIsWeb
+      ? UrlSource('assets/assets/sounds/alerta.wav')
+      : AssetSource('sounds/alerta.wav');
 }
 
 /// RF-14 · Vigila las alertas y, cuando entra una **nueva**, dispara una alarma
