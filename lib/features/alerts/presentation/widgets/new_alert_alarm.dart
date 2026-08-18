@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -18,6 +20,17 @@ final alarmPlayerProvider = Provider<AudioPlayer>((ref) {
   ref.onDispose(player.dispose);
   return player;
 });
+
+// El .wav se reproduce por BYTES (cargados con rootBundle), no con AssetSource:
+// en Flutter web el asset queda bajo `assets/assets/...` y AssetSource lo busca
+// en `assets/...` (recibe el index.html, no audio, y no suena). rootBundle usa
+// la clave correcta en móvil y web; BytesSource evita el problema de rutas.
+Uint8List? _alarmBytes;
+Future<Source> alarmSource() async {
+  _alarmBytes ??=
+      (await rootBundle.load('assets/sounds/alerta.wav')).buffer.asUint8List();
+  return BytesSource(_alarmBytes!);
+}
 
 /// RF-14 · Vigila las alertas y, cuando entra una **nueva**, dispara una alarma
 /// sonora (sirena en bucle) y un aviso visual rojo sobre el panel.
@@ -68,7 +81,7 @@ class _NewAlertAlarmState extends ConsumerState<NewAlertAlarm>
     _autoStop?.cancel();
     try {
       await _player.stop();
-      await _player.play(AssetSource('sounds/alerta.wav'));
+      await _player.play(await alarmSource());
       // Freno de seguridad: la sirena no suena más de 20 s aunque nadie la
       // silencie; el aviso visual permanece hasta que la autoridad actúe.
       _autoStop = Timer(const Duration(seconds: 20), () => _player.stop());
