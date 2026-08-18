@@ -1820,28 +1820,30 @@ Widget _pill(String texto, Color fg, Color bg) => Container(
 /// Botón que desbloquea el audio del navegador para que suene la alarma de
 /// alertas nuevas (los navegadores exigen un gesto del usuario antes de
 /// reproducir sonido de forma automática).
-class _BotonActivarSonido extends StatelessWidget {
+class _BotonActivarSonido extends ConsumerWidget {
   const _BotonActivarSonido({required this.activado, required this.onActivar});
 
   final bool activado;
   final VoidCallback onActivar;
 
-  Future<void> _activar() async {
-    // El clic ya cuenta como gesto del usuario; reproducimos la sirena en
-    // silencio una vez para dejar habilitado el audio de aquí en adelante.
+  Future<void> _activar(WidgetRef ref) async {
+    // Un gesto del usuario desbloquea el audio del navegador. Reproducimos la
+    // sirena una vez —audible y breve— en el MISMO reproductor que usa la
+    // alarma (alarmPlayerProvider), para confirmar que suena y dejar
+    // habilitadas las alertas siguientes.
+    final player = ref.read(alarmPlayerProvider);
     try {
-      final p = AudioPlayer();
-      await p.setVolume(0);
-      await p.play(AssetSource('sounds/alerta.wav'));
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      await p.stop();
-      await p.dispose();
+      await player.stop();
+      await player.setVolume(1);
+      await player.play(AssetSource('sounds/alerta.wav'));
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      await player.stop();
     } catch (_) {}
     onActivar();
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (activado) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -1855,7 +1857,7 @@ class _BotonActivarSonido extends StatelessWidget {
       );
     }
     return OutlinedButton.icon(
-      onPressed: _activar,
+      onPressed: () => _activar(ref),
       icon: const Icon(Icons.volume_off, size: 16),
       label: const Text('Activar sonido'),
       style: OutlinedButton.styleFrom(
