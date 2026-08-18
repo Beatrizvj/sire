@@ -1,9 +1,13 @@
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
@@ -34,6 +38,9 @@ const _warn = (Color(0xFF8A5A00), Color(0xFFFFE7B8));
 const _good = (Color(0xFF2E6B32), Color(0xFFCFEBD0));
 const _neut = (Color(0xFF6B5A57), Color(0xFFEDE5E3));
 
+/// Centro aproximado de San Miguel Sigüilá para el mapa en vivo del panel.
+const LatLng _centroMunicipioPanel = LatLng(14.8726, -91.6009);
+
 const _comunidades = ['Cabecera', 'La Ciénaga', 'La Emboscada', 'El Llano'];
 
 const _secciones = <(IconData, String)>[
@@ -63,6 +70,9 @@ class WebPanel extends ConsumerStatefulWidget {
 
 class _WebPanelState extends ConsumerState<WebPanel> {
   int _seccion = 0;
+  // Los navegadores bloquean el audio hasta un gesto del usuario; el botón
+  // "Activar sonido" lo habilita y aquí se recuerda mientras dure la sesión.
+  bool _sonidoActivado = false;
 
   Widget _cuerpo(int i) => switch (i) {
         0 => const _Dashboard(),
@@ -70,12 +80,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
         2 => const _UsuariosBody(),
         3 => const _AprobacionesBody(),
         4 => const _ComunidadesBody(),
-        5 => const _Placeholder(
-            icono: Icons.map_outlined,
-            titulo: 'Mapa en vivo',
-            detalle:
-                'Requiere Google Maps (cuenta de facturación de Google). Próximamente.',
-          ),
+        5 => const _MapaEnVivoBody(),
         6 => const ReportesBody(),
         _ => const _ConfiguracionBody(),
       };
@@ -138,7 +143,12 @@ class _WebPanelState extends ConsumerState<WebPanel> {
                 Expanded(
                   child: Column(
                     children: [
-                      _TopBar(titulo: _secciones[_seccion].$2),
+                      _TopBar(
+                        titulo: _secciones[_seccion].$2,
+                        sonidoActivado: _sonidoActivado,
+                        onActivarSonido: () =>
+                            setState(() => _sonidoActivado = true),
+                      ),
                       Expanded(child: cuerpo),
                     ],
                   ),
@@ -314,9 +324,15 @@ class _NavItem extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.titulo});
+  const _TopBar({
+    required this.titulo,
+    required this.sonidoActivado,
+    required this.onActivarSonido,
+  });
 
   final String titulo;
+  final bool sonidoActivado;
+  final VoidCallback onActivarSonido;
 
   @override
   Widget build(BuildContext context) {
@@ -332,6 +348,9 @@ class _TopBar extends StatelessWidget {
               style:
                   const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           const Spacer(),
+          _BotonActivarSonido(
+              activado: sonidoActivado, onActivar: onActivarSonido),
+          const SizedBox(width: 16),
           Container(
             width: 8,
             height: 8,
@@ -1798,40 +1817,201 @@ Widget _pill(String texto, Color fg, Color bg) => Container(
               color: fg, fontSize: 11, fontWeight: FontWeight.w700)),
     );
 
-class _Placeholder extends StatelessWidget {
-  const _Placeholder({
-    required this.icono,
-    required this.titulo,
-    required this.detalle,
-  });
+/// Botón que desbloquea el audio del navegador para que suene la alarma de
+/// alertas nuevas (los navegadores exigen un gesto del usuario antes de
+/// reproducir sonido de forma automática).
+class _BotonActivarSonido extends StatelessWidget {
+  const _BotonActivarSonido({required this.activado, required this.onActivar});
 
-  final IconData icono;
-  final String titulo;
-  final String detalle;
+  final bool activado;
+  final VoidCallback onActivar;
+
+  Future<void> _activar() async {
+    // El clic ya cuenta como gesto del usuario; reproducimos la sirena en
+    // silencio una vez para dejar habilitado el audio de aquí en adelante.
+    try {
+      final p = AudioPlayer();
+      await p.setVolume(0);
+      await p.play(AssetSource('sounds/alerta.wav'));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await p.stop();
+      await p.dispose();
+    } catch (_) {}
+    onActivar();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
+    if (activado) {
+      return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icono, size: 64, color: const Color(0xFFBFAEAB)),
-          const SizedBox(height: 16),
-          const Chip(
-            label: Text('Próximamente'),
-            backgroundColor: Color(0xFFFFE7B8),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: 320,
-            child: Text(detalle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF6B5A57))),
-          ),
+          Icon(Icons.volume_up, size: 16, color: _good.$1),
+          const SizedBox(width: 6),
+          Text('Sonido activado',
+              style: TextStyle(
+                  color: _good.$1, fontSize: 12, fontWeight: FontWeight.w600)),
         ],
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: _activar,
+      icon: const Icon(Icons.volume_off, size: 16),
+      label: const Text('Activar sonido'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _brand,
+        side: const BorderSide(color: _line),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
   }
+}
+
+/// Mapa en vivo del panel: ubica las alertas activas (pendiente / en atención)
+/// sobre OpenStreetMap. No requiere Google Maps ni cuenta de facturación.
+class _MapaEnVivoBody extends ConsumerWidget {
+  const _MapaEnVivoBody();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final alertsAsync = ref.watch(allAlertsProvider);
+    return alertsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('No se pudo cargar el mapa.\n$e',
+              textAlign: TextAlign.center),
+        ),
+      ),
+      data: (alerts) {
+        final activas = alerts
+            .where((a) =>
+                (a.status == AlertStatus.pendiente ||
+                    a.status == AlertStatus.atendida) &&
+                !(a.latitude == 0 && a.longitude == 0))
+            .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        final centro = activas.isNotEmpty
+            ? LatLng(activas.first.latitude, activas.first.longitude)
+            : _centroMunicipioPanel;
+        final marcadores = activas.take(120).toList();
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                FlutterMap(
+                  options: MapOptions(
+                    initialCenter: centro,
+                    initialZoom: 14,
+                    backgroundColor: _bg,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'gt.edu.miumg.sire',
+                      errorTileCallback: (tile, error, stackTrace) =>
+                          debugPrint('SIRE panel mapa · tile no cargó: $error'),
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        for (final a in marcadores)
+                          Marker(
+                            point: LatLng(a.latitude, a.longitude),
+                            width: 44,
+                            height: 44,
+                            child: Tooltip(
+                              message:
+                                  '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
+                                  '\n${a.address ?? ''}',
+                              child: Icon(
+                                Icons.location_on,
+                                size: 40,
+                                color: a.status == AlertStatus.pendiente
+                                    ? AppColors.statusPendiente
+                                    : AppColors.statusAtendida,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                if (activas.isEmpty)
+                  const Center(child: _TarjetaSinAlertasMapa()),
+                const Positioned(left: 12, bottom: 12, child: _LeyendaMapa()),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TarjetaSinAlertasMapa extends StatelessWidget {
+  const _TarjetaSinAlertasMapa();
+
+  @override
+  Widget build(BuildContext context) => const Card(
+        color: Colors.white,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle_outline),
+              SizedBox(width: 8),
+              Text('No hay alertas activas en el mapa.'),
+            ],
+          ),
+        ),
+      );
+}
+
+class _LeyendaMapa extends StatelessWidget {
+  const _LeyendaMapa();
+
+  @override
+  Widget build(BuildContext context) => const Card(
+        color: Colors.white,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _LeyendaItemMapa(
+                  color: AppColors.statusPendiente, texto: 'Pendiente'),
+              SizedBox(height: 4),
+              _LeyendaItemMapa(
+                  color: AppColors.statusAtendida, texto: 'En atención'),
+            ],
+          ),
+        ),
+      );
+}
+
+class _LeyendaItemMapa extends StatelessWidget {
+  const _LeyendaItemMapa({required this.color, required this.texto});
+
+  final Color color;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.location_on, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(texto, style: const TextStyle(fontSize: 12)),
+        ],
+      );
 }
 
 class _Error extends StatelessWidget {
