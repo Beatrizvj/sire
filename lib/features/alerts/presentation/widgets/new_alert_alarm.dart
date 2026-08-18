@@ -9,6 +9,16 @@ import '../../domain/entities/alert_status.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../providers/alerts_providers.dart';
 
+/// Reproductor ÚNICO de la alarma, compartido por [NewAlertAlarm] (suena la
+/// sirena al entrar una alerta) y el botón "Activar sonido" del panel (que lo
+/// desbloquea con un gesto del usuario). Así el navegador habilita el MISMO
+/// reproductor que después suena las alertas.
+final alarmPlayerProvider = Provider<AudioPlayer>((ref) {
+  final player = AudioPlayer(playerId: 'sire_alarm');
+  ref.onDispose(player.dispose);
+  return player;
+});
+
 /// RF-14 · Vigila las alertas y, cuando entra una **nueva**, dispara una alarma
 /// sonora (sirena en bucle) y un aviso visual rojo sobre el panel.
 ///
@@ -28,7 +38,7 @@ class NewAlertAlarm extends ConsumerStatefulWidget {
 
 class _NewAlertAlarmState extends ConsumerState<NewAlertAlarm>
     with SingleTickerProviderStateMixin {
-  final AudioPlayer _player = AudioPlayer(playerId: 'sire_alarm');
+  late final AudioPlayer _player;
   final Set<String> _conocidas = {};
   bool _primeraCarga = true;
   SosAlert? _activa;
@@ -42,6 +52,7 @@ class _NewAlertAlarmState extends ConsumerState<NewAlertAlarm>
   @override
   void initState() {
     super.initState();
+    _player = ref.read(alarmPlayerProvider);
     _player.setReleaseMode(ReleaseMode.loop);
   }
 
@@ -49,7 +60,7 @@ class _NewAlertAlarmState extends ConsumerState<NewAlertAlarm>
   void dispose() {
     _autoStop?.cancel();
     _blink.dispose();
-    _player.dispose();
+    // El reproductor lo administra alarmPlayerProvider; no se libera aquí.
     super.dispose();
   }
 
