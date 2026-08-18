@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
@@ -11,6 +12,10 @@ import '../../../alerts/presentation/providers/alerts_providers.dart';
 /// Centro aproximado del municipio de San Miguel Sigüilá (Quetzaltenango).
 /// Encuadre inicial del mapa cuando aún no hay alertas activas con ubicación.
 const LatLng _centroMunicipio = LatLng(14.8726, -91.6009);
+
+/// Máximo de marcadores dibujados a la vez, para que el mapa no se sature cuando
+/// hay muchas alertas activas (se muestran las más recientes).
+const int _maxMarcadores = 80;
 
 /// Mapa de alertas activas para las autoridades (COCODE / Municipalidad), sobre
 /// OpenStreetMap. Coloca un marcador por cada alerta pendiente o en atención con
@@ -39,17 +44,22 @@ class MapPage extends ConsumerWidget {
           ),
         ),
         data: (alerts) {
-          // Solo alertas activas (pendiente o en atención) con ubicación válida.
+          // Solo alertas activas (pendiente o en atención) con ubicación válida,
+          // ordenadas de la más reciente a la más antigua.
           final activas = alerts
               .where((a) =>
                   (a.status == AlertStatus.pendiente ||
                       a.status == AlertStatus.atendida) &&
                   !(a.latitude == 0 && a.longitude == 0))
-              .toList();
+              .toList()
+            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
           final centro = activas.isNotEmpty
               ? LatLng(activas.first.latitude, activas.first.longitude)
               : _centroMunicipio;
+
+          // Se dibujan solo las más recientes para que el mapa no se sature.
+          final marcadores = activas.take(_maxMarcadores).toList();
 
           return Stack(
             children: [
@@ -57,16 +67,19 @@ class MapPage extends ConsumerWidget {
                 options: MapOptions(
                   initialCenter: centro,
                   initialZoom: 14,
+                  backgroundColor: scheme.surfaceContainerHighest,
                 ),
                 children: [
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'gt.edu.miumg.sire',
+                    errorTileCallback: (tile, error, stackTrace) =>
+                        debugPrint('SIRE mapa · un tile no cargó: $error'),
                   ),
                   MarkerLayer(
                     markers: [
-                      for (final a in activas)
+                      for (final a in marcadores)
                         Marker(
                           point: LatLng(a.latitude, a.longitude),
                           width: 44,
@@ -77,8 +90,8 @@ class MapPage extends ConsumerWidget {
                               Icons.location_on,
                               size: 44,
                               color: a.status == AlertStatus.pendiente
-                                  ? scheme.error
-                                  : scheme.tertiary,
+                                  ? AppColors.statusPendiente
+                                  : AppColors.statusAtendida,
                             ),
                           ),
                         ),
@@ -134,7 +147,6 @@ class _Leyenda extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -142,9 +154,9 @@ class _Leyenda extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _LeyendaItem(color: scheme.error, texto: 'Pendiente'),
+            _LeyendaItem(color: AppColors.statusPendiente, texto: 'Pendiente'),
             const SizedBox(height: 4),
-            _LeyendaItem(color: scheme.tertiary, texto: 'En atención'),
+            _LeyendaItem(color: AppColors.statusAtendida, texto: 'En atención'),
           ],
         ),
       ),

@@ -98,9 +98,16 @@ class AlertRepositoryFirestore implements AlertRepository {
     await batch.commit();
   }
 
+  // Tope de alertas que se transmiten en vivo a la Bandeja/Mapa. Acota la carga
+  // del hilo principal y el uso de datos: en vez de traer TODA la colección
+  // (que crece sin límite), se escuchan solo las más recientes. Suficiente para
+  // la operación diaria; el histórico completo no necesita estar en memoria.
+  static const int _limiteAlertasEnVivo = 200;
+
   @override
   Stream<List<SosAlert>> watchAllAlerts() => _alertas
       .orderBy('fecha', descending: true)
+      .limit(_limiteAlertasEnVivo)
       .snapshots()
       .map((snap) => snap.docs.map(_fromDoc).toList(growable: false));
 

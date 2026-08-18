@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 /// Botón SOS grande con anillo pulsante. Muestra un indicador de progreso
 /// mientras se obtiene la ubicación.
 class SosButton extends StatefulWidget {
@@ -31,7 +33,6 @@ class _SosButtonState extends State<SosButton>
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       width: 260,
       height: 260,
@@ -48,13 +49,13 @@ class _SosButtonState extends State<SosButton>
                   height: 170 + 90 * t,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: scheme.error.withValues(alpha: (1 - t) * 0.25),
+                    color: AppColors.emergency.withValues(alpha: (1 - t) * 0.25),
                   ),
                 );
               },
             ),
           Material(
-            color: scheme.error,
+            color: AppColors.emergency,
             shape: const CircleBorder(),
             elevation: 10,
             child: InkWell(
@@ -65,16 +66,16 @@ class _SosButtonState extends State<SosButton>
                 height: 170,
                 child: Center(
                   child: widget.isSending
-                      ? CircularProgressIndicator(color: scheme.onError)
+                      ? CircularProgressIndicator(color: Colors.white)
                       : Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.sos, size: 60, color: scheme.onError),
+                            Icon(Icons.sos, size: 60, color: Colors.white),
                             const SizedBox(height: 4),
                             Text(
                               'SOS',
                               style: TextStyle(
-                                color: scheme.onError,
+                                color: Colors.white,
                                 fontSize: 26,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 3,
