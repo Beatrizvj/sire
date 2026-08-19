@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,28 +7,7 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/alert_status.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../providers/alerts_providers.dart';
-
-/// Reproductor ÚNICO de la alarma, compartido por [NewAlertAlarm] (suena la
-/// sirena al entrar una alerta) y el botón "Activar sonido" del panel (que lo
-/// desbloquea con un gesto del usuario). Así el navegador habilita el MISMO
-/// reproductor que después suena las alertas.
-final alarmPlayerProvider = Provider<AudioPlayer>((ref) {
-  final player = AudioPlayer(playerId: 'sire_alarm');
-  ref.onDispose(player.dispose);
-  return player;
-});
-
-// Fuente del .wav de la alarma, por plataforma:
-// - Web: el asset se sirve en `assets/assets/sounds/alerta.wav` con su tipo
-//   correcto (audio/wav); UrlSource lo reproduce directo (verificado en el
-//   navegador: play OK). No sirven AssetSource (arma mal la ruta) ni BytesSource
-//   (el blob del navegador quedaba sin MIME y no sonaba).
-// - Móvil: AssetSource funciona directamente.
-Future<Source> alarmSource() async {
-  return kIsWeb
-      ? UrlSource('assets/assets/sounds/alerta.wav')
-      : AssetSource('sounds/alerta.wav');
-}
+import 'alarm_sound.dart';
 
 /// RF-14 · Vigila las alertas y, cuando entra una **nueva**, dispara una alarma
 /// sonora (sirena en bucle) y un aviso visual rojo sobre el panel.
@@ -51,7 +28,6 @@ class NewAlertAlarm extends ConsumerStatefulWidget {
 
 class _NewAlertAlarmState extends ConsumerState<NewAlertAlarm>
     with SingleTickerProviderStateMixin {
-  late final AudioPlayer _player;
   final Set<String> _conocidas = {};
   bool _primeraCarga = true;
   SosAlert? _activa;
@@ -63,28 +39,20 @@ class _NewAlertAlarmState extends ConsumerState<NewAlertAlarm>
   )..repeat(reverse: true);
 
   @override
-  void initState() {
-    super.initState();
-    _player = ref.read(alarmPlayerProvider);
-    _player.setReleaseMode(ReleaseMode.loop);
-  }
-
-  @override
   void dispose() {
     _autoStop?.cancel();
     _blink.dispose();
-    // El reproductor lo administra alarmPlayerProvider; no se libera aquí.
+    alarmStop();
     super.dispose();
   }
 
   Future<void> _sonar() async {
     _autoStop?.cancel();
     try {
-      await _player.stop();
-      await _player.play(await alarmSource());
+      await alarmLoop();
       // Freno de seguridad: la sirena no suena más de 20 s aunque nadie la
       // silencie; el aviso visual permanece hasta que la autoridad actúe.
-      _autoStop = Timer(const Duration(seconds: 20), () => _player.stop());
+      _autoStop = Timer(const Duration(seconds: 20), () => alarmStop());
     } catch (_) {
       // El navegador puede bloquear el audio hasta el primer clic del usuario;
       // el aviso visual sigue funcionando de todos modos.
@@ -94,7 +62,7 @@ class _NewAlertAlarmState extends ConsumerState<NewAlertAlarm>
   Future<void> _silenciar() async {
     _autoStop?.cancel();
     try {
-      await _player.stop();
+      await alarmStop();
     } catch (_) {}
     if (mounted) setState(() => _activa = null);
   }
