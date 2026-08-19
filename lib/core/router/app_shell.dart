@@ -234,8 +234,11 @@ class _AlertMonitorGate extends ConsumerStatefulWidget {
 
 class _AlertMonitorGateState extends ConsumerState<_AlertMonitorGate> {
   // Firma de la última configuración aplicada, para no reiniciar el servicio en
-  // cada frame: 'off', 'todos' (autoridad) o 'c:uid1,uid2' (contacto de confianza).
-  String? _ultimaConfig;
+  // cada frame. Incluye el uid + el filtro ('uid|off', 'uid|todos',
+  // 'uid|c:uid1,uid2'), para que un cambio de cuenta SIEMPRE reinicie el
+  // monitoreo (listener re-autenticado y base de "conocidas" limpia), aunque el
+  // rol sea el mismo.
+  String? _ultimaFirma;
 
   void _sync(AppUser? perfil) {
     var todos = false;
@@ -256,8 +259,9 @@ class _AlertMonitorGateState extends ConsumerState<_AlertMonitorGate> {
     } else {
       config = 'off';
     }
-    if (config == _ultimaConfig) return;
-    _ultimaConfig = config;
+    final firma = '${perfil?.id ?? '-'}|$config';
+    if (firma == _ultimaFirma) return;
+    _ultimaFirma = firma;
     final bridge = ref.read(alertMonitorBridgeProvider);
     if (config == 'off') {
       bridge.stop();
@@ -268,7 +272,7 @@ class _AlertMonitorGateState extends ConsumerState<_AlertMonitorGate> {
 
   @override
   void dispose() {
-    if (_ultimaConfig != null && _ultimaConfig != 'off') {
+    if (_ultimaFirma != null && !_ultimaFirma!.endsWith('|off')) {
       ref.read(alertMonitorBridgeProvider).stop();
     }
     super.dispose();
