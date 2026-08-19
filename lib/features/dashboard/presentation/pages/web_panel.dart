@@ -1305,6 +1305,7 @@ class _VerDpiDialogState extends ConsumerState<_VerDpiDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text('DPI de ${widget.objetivo.nombre}'),
       content: SizedBox(
         width: 520,
@@ -1347,7 +1348,11 @@ class _VerDpiDialogState extends ConsumerState<_VerDpiDialog> {
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: bytes != null
-                ? Image.memory(bytes, fit: BoxFit.contain)
+                ? ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 340),
+                    child: Image.memory(bytes,
+                        width: double.infinity, fit: BoxFit.contain),
+                  )
                 : Container(
                     height: 80,
                     alignment: Alignment.center,
