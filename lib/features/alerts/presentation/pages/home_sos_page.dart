@@ -332,8 +332,20 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
         );
     } catch (e) {
       if (!mounted) return;
+      // El caso típico: la alerta se envió con poca señal y todavía no termina
+      // de subir al servidor, así que aún no se puede cancelar. Se lo explicamos
+      // en claro (en vez del error técnico) y le pedimos reintentar.
+      final s = e.toString();
+      final aunEnviando = s.contains('permission-denied') ||
+          s.contains('not-found') ||
+          s.contains('unavailable');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo cancelar: $e')),
+        SnackBar(
+          content: Text(aunEnviando
+              ? 'La alerta todavía se está enviando (puede ser por poca señal). '
+                  'Espera unos segundos e inténtalo de nuevo.'
+              : 'No se pudo cancelar: $e'),
+        ),
       );
     }
   }
