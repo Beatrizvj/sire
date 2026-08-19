@@ -11,6 +11,7 @@ import '../../../../core/validation/name_validator.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
+import '../../../alerts/presentation/widgets/alarm_sound.dart';
 import '../../../alerts/presentation/widgets/alert_status_chip.dart';
 import '../../../alerts/presentation/widgets/new_alert_alarm.dart';
 import '../../../audit/data/audit_repository.dart';
@@ -1819,26 +1820,23 @@ Widget _pill(String texto, Color fg, Color bg) => Container(
 /// Botón que desbloquea el audio del navegador para que suene la alarma de
 /// alertas nuevas (los navegadores exigen un gesto del usuario antes de
 /// reproducir sonido de forma automática).
-class _BotonActivarSonido extends ConsumerWidget {
+class _BotonActivarSonido extends StatelessWidget {
   const _BotonActivarSonido({required this.activado, required this.onActivar});
 
   final bool activado;
   final VoidCallback onActivar;
 
-  Future<void> _activar(BuildContext context, WidgetRef ref) async {
-    // Un gesto del usuario desbloquea el audio del navegador. Reproducimos la
-    // sirena en el MISMO reproductor que usa la alarma (alarmPlayerProvider) y
-    // mostramos el resultado en pantalla para diagnosticar si algo falla.
-    final player = ref.read(alarmPlayerProvider);
+  Future<void> _activar(BuildContext context) async {
+    // El clic del usuario desbloquea el audio del navegador. Reproducimos la
+    // sirena una vez (con el <audio> nativo del navegador) para confirmar que
+    // suena y dejar habilitadas las alarmas siguientes.
     String msg;
     try {
-      await player.stop();
-      await player.setVolume(1);
-      await player.play(await alarmSource());
+      await alarmOnce();
       msg = 'Reproduciendo sirena de prueba. Si NO la oyes: sube el volumen del '
           'sistema y revisa que la pestaña no esté silenciada.';
       await Future<void>.delayed(const Duration(milliseconds: 1500));
-      await player.stop();
+      await alarmStop();
     } catch (e) {
       msg = 'No se pudo reproducir: $e';
     }
@@ -1851,7 +1849,7 @@ class _BotonActivarSonido extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     if (activado) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -1865,7 +1863,7 @@ class _BotonActivarSonido extends ConsumerWidget {
       );
     }
     return OutlinedButton.icon(
-      onPressed: () => _activar(context, ref),
+      onPressed: () => _activar(context),
       icon: const Icon(Icons.volume_off, size: 16),
       label: const Text('Activar sonido'),
       style: OutlinedButton.styleFrom(
