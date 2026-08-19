@@ -1825,20 +1825,29 @@ class _BotonActivarSonido extends ConsumerWidget {
   final bool activado;
   final VoidCallback onActivar;
 
-  Future<void> _activar(WidgetRef ref) async {
+  Future<void> _activar(BuildContext context, WidgetRef ref) async {
     // Un gesto del usuario desbloquea el audio del navegador. Reproducimos la
-    // sirena una vez —audible y breve— en el MISMO reproductor que usa la
-    // alarma (alarmPlayerProvider), para confirmar que suena y dejar
-    // habilitadas las alertas siguientes.
+    // sirena en el MISMO reproductor que usa la alarma (alarmPlayerProvider) y
+    // mostramos el resultado en pantalla para diagnosticar si algo falla.
     final player = ref.read(alarmPlayerProvider);
+    String msg;
     try {
       await player.stop();
       await player.setVolume(1);
       await player.play(await alarmSource());
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      msg = 'Reproduciendo sirena de prueba. Si NO la oyes: sube el volumen del '
+          'sistema y revisa que la pestaña no esté silenciada.';
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
       await player.stop();
-    } catch (_) {}
+    } catch (e) {
+      msg = 'No se pudo reproducir: $e';
+    }
     onActivar();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 6)),
+      );
+    }
   }
 
   @override
@@ -1856,7 +1865,7 @@ class _BotonActivarSonido extends ConsumerWidget {
       );
     }
     return OutlinedButton.icon(
-      onPressed: () => _activar(ref),
+      onPressed: () => _activar(context, ref),
       icon: const Icon(Icons.volume_off, size: 16),
       label: const Text('Activar sonido'),
       style: OutlinedButton.styleFrom(
