@@ -24,6 +24,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
@@ -309,8 +310,14 @@ class PowerButtonService : Service() {
 
     private fun saveAlert(location: Location?) {
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-        val uid = prefs.getString(KEY_UID, "") ?: ""
-        val nombre = prefs.getString(KEY_NOMBRE, "") ?: ""
+        // Usa el usuario AUTENTICADO EN VIVO, no el guardado en prefs (que puede
+        // quedar viejo al cambiar de cuenta). Así idUsuario == request.auth.uid y
+        // la regla de Firestore acepta la escritura, sin importar de quién sea la
+        // sesión actual. (Prefs solo como respaldo.)
+        val authUser = FirebaseAuth.getInstance().currentUser
+        val uid = authUser?.uid ?: prefs.getString(KEY_UID, "") ?: ""
+        val nombre = authUser?.displayName?.takeIf { it.isNotBlank() }
+            ?: prefs.getString(KEY_NOMBRE, "") ?: ""
         val data = hashMapOf<String, Any?>(
             "idUsuario" to uid,
             "nombreUsuario" to nombre,
@@ -331,18 +338,24 @@ class PowerButtonService : Service() {
             // llegue al panel (y suene) cuanto antes. La dirección se resuelve
             // después y se agrega con un update; mientras tanto el panel ya muestra
             // las coordenadas. Esto recorta el retraso del reverse geocoding.
-            doc.set(data).addOnCompleteListener {
-                PowerButtonEvents.emit(EVENT_SOS)
-                if (location != null) {
-                    runCatching {
-                        ioExecutor.execute {
-                            reverseGeocode(location.latitude, location.longitude)?.let { dir ->
-                                runCatching { doc.update("direccion", dir) }
+            doc.set(data)
+                .addOnSuccessListener {
+                    // Solo se avisa "enviado" si de verdad se guardó (antes se
+                    // avisaba aunque fallara, por eso parecía enviado sin llegar).
+                    PowerButtonEvents.emit(EVENT_SOS)
+                    if (location != null) {
+                        runCatching {
+                            ioExecutor.execute {
+                                reverseGeocode(location.latitude, location.longitude)?.let { dir ->
+                                    runCatching { doc.update("direccion", dir) }
+                                }
                             }
                         }
                     }
                 }
-            }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "No se pudo guardar el SOS del boton fisico", e)
+                }
         }
     }
 
