@@ -134,11 +134,13 @@ service cloud.firestore {
                            && resource.data.idUsuario
                                 in perfil().get('contactosConfianza', []))
                     );
-      // COCODE y Municipalidad cambian el estado; además el ciudadano puede
-      // cancelar (marcar falsa alarma) su propia alerta.
+      // COCODE y Municipalidad cambian el estado. Además, el ciudadano puede
+      // CANCELAR su propia alerta (marcarla 'falsa_alarma') en cualquier momento
+      // mientras siga abierta: basta con que sea SU alerta y que el cambio sea
+      // SOLO a 'falsa_alarma'. No se exige que la cuenta siga aprobada.
       allow update: if esCocode() || esMunicipalidad()
-                       || (aprobado()
-                           && resource.data.idUsuario == request.auth.uid);
+                       || (resource.data.idUsuario == request.auth.uid
+                           && request.resource.data.estado == 'falsa_alarma');
       allow delete: if esMunicipalidad();
     }
 
