@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/validation/name_validator.dart';
+import '../../../../core/validation/password_validator.dart';
 import '../../../identity/data/identity_repository.dart';
 import '../providers/auth_providers.dart';
 
@@ -73,7 +74,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ),
     );
     if (fuente == null) return;
-    final foto = await _picker.pickImage(source: fuente, maxWidth: 1400);
+    // Achica la imagen al capturarla para que la foto (guardada como base64 en
+    // Firestore) NUNCA supere el límite de 1 MB por documento.
+    final foto = await _picker.pickImage(
+        source: fuente, maxWidth: 1000, maxHeight: 1000, imageQuality: 70);
     if (foto == null) return;
 
     // Pantalla de recorte para ajustar bien el DPI. La compresión fuerte deja
@@ -81,7 +85,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final recortada = await ImageCropper().cropImage(
       sourcePath: foto.path,
       compressFormat: ImageCompressFormat.jpg,
-      compressQuality: 45,
+      compressQuality: 40,
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Ajustar foto del DPI',
@@ -236,6 +240,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   obscureText: _obscure,
                   decoration: InputDecoration(
                     labelText: 'Contraseña',
+                    helperText: 'Mínimo 8 caracteres, con letra y número',
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
@@ -244,9 +249,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       onPressed: () => setState(() => _obscure = !_obscure),
                     ),
                   ),
-                  validator: (v) => (v == null || v.length < 6)
-                      ? 'Mínimo 6 caracteres'
-                      : null,
+                  validator: PasswordValidator.validar,
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
