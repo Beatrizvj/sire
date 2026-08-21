@@ -28,14 +28,18 @@ class AppShell extends ConsumerWidget {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final perfil = perfilAsync.asData?.value;
-    if (perfil != null && !perfil.puedeAcceder) {
-      return _CuentaEnRevision(estado: perfil.estadoCuenta);
+    // Blindaje R1: sin una cuenta APROBADA no se accede a ninguna función. Cubre
+    // también la sesión autenticada SIN perfil en la base (registro incompleto):
+    // nunca se muestra la app a quien no tenga cuenta aprobada.
+    if (perfil == null || !perfil.puedeAcceder) {
+      return _CuentaEnRevision(
+          estado: perfil?.estadoCuenta ?? AccountStatus.pendienteRevision);
     }
 
     // En web: el acceso al panel depende del rol.
     if (kIsWeb) {
-      final esAutoridad = perfil?.rol == UserRole.cocode ||
-          perfil?.rol == UserRole.municipalidad;
+      final esAutoridad = perfil.rol == UserRole.cocode ||
+          perfil.rol == UserRole.municipalidad;
       return esAutoridad ? const WebPanel() : const _AccesoSoloAutoridad();
     }
 
@@ -45,7 +49,7 @@ class AppShell extends ConsumerWidget {
     // Mapa y Perfil. Envuelto en _AlertMonitorGate: si el usuario es autoridad,
     // arranca el servicio nativo que hace sonar la alarma aunque la app esté en
     // segundo plano.
-    final items = _navItemsPorRol(perfil?.rol ?? UserRole.ciudadano);
+    final items = _navItemsPorRol(perfil.rol);
     // El branch actual del router, traducido a la posición visible del rol.
     var seleccion =
         items.indexWhere((it) => it.branch == navigationShell.currentIndex);

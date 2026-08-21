@@ -155,22 +155,11 @@ class AuthController extends Notifier<AuthState> {
             password: password,
             displayName: nombre,
           );
-      // Crea el perfil PENDIENTE DE REVISIÓN, sin rol efectivo ni acceso.
-      await ref.read(userRepositoryProvider).saveUser(
-            AppUser(
-              id: authUser.uid,
-              nombre: nombre,
-              telefono: telefono,
-              email: email,
-              rol: UserRole.ciudadano, // marcador; el acceso lo decide el estado
-              estadoCuenta: AccountStatus.pendienteRevision,
-              aldeaSolicitada: aldeaSolicitada,
-              activo: true,
-            ),
-          );
-      // R2: sube las fotos del DPI AQUÍ (dentro del controlador), no en la
-      // pantalla de registro. Así la subida no se interrumpe cuando la app
-      // navega a "Cuenta en revisión" y destruye la pantalla de registro.
+      // R2 (blindado): sube las fotos del DPI ANTES de crear el perfil. Se hace
+      // dentro del controlador (no en la pantalla de registro) para que la
+      // subida no se interrumpa al navegar a "Cuenta en revisión". Y al ir
+      // PRIMERO, si la subida falla no se crea el perfil: así NUNCA queda una
+      // cuenta sin DPI en la cola de aprobaciones.
       final repo = ref.read(identityRepositoryProvider);
       if (dpiAnverso != null) {
         await repo.subir(
@@ -184,10 +173,29 @@ class AuthController extends Notifier<AuthState> {
             lado: IdentityRepository.reverso,
             bytes: dpiReverso);
       }
+      // Ya con las fotos guardadas, crea el perfil PENDIENTE DE REVISIÓN
+      // (sin rol efectivo ni acceso).
+      await ref.read(userRepositoryProvider).saveUser(
+            AppUser(
+              id: authUser.uid,
+              nombre: nombre,
+              telefono: telefono,
+              email: email,
+              rol: UserRole.ciudadano, // marcador; el acceso lo decide el estado
+              estadoCuenta: AccountStatus.pendienteRevision,
+              aldeaSolicitada: aldeaSolicitada,
+              activo: true,
+            ),
+          );
       state = state.copyWith(user: authUser, isBusy: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isBusy: false, error: _message(e));
+      // Registro incompleto (p. ej. no se pudo guardar la foto del DPI): cierra
+      // la sesión recién creada para NO dejar un usuario autenticado sin perfil.
+      try {
+        await ref.read(authRepositoryProvider).signOut();
+      } catch (_) {}
+      state = state.copyWith(isBusy: false, error: _message(e), clearUser: true);
       return false;
     }
   }
