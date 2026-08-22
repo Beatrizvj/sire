@@ -525,6 +525,7 @@ class _TablaAlertas extends ConsumerWidget {
           const DataColumn(label: Text('Tipo')),
           const DataColumn(label: Text('Fecha')),
           const DataColumn(label: Text('Estado')),
+          const DataColumn(label: Text('Respuesta')),
           if (conAcciones) const DataColumn(label: Text('Acción')),
         ],
         rows: [
@@ -550,6 +551,9 @@ class _TablaAlertas extends ConsumerWidget {
               DataCell(_CategoriaChip(categoria: a.categoria)),
               DataCell(Text(df.format(a.timestamp))),
               DataCell(_EstadoChip(status: a.status)),
+              DataCell(Text(a.tiempoRespuesta != null
+                  ? formatearDuracion(a.tiempoRespuesta!)
+                  : '—')),
               if (conAcciones) DataCell(_AccionesAlerta(alerta: a, ref: ref)),
             ]),
         ],

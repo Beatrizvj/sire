@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_providers.dart';
 
 /// Inicio de sesión (correo + contraseña).
@@ -81,15 +82,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.light
+                      ? Colors.white
+                      : const Color(0xFF202226),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.emergency, width: 2),
+                ),
+                padding: const EdgeInsets.fromLTRB(26, 32, 26, 26),
+                child: Form(
                 key: _formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.shield_outlined,
-                      size: 80, color: theme.colorScheme.primary),
-                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 72,
+                    width: 72,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: const [
+                        Icon(Icons.shield,
+                            size: 72, color: AppColors.emergency),
+                        Icon(Icons.shield_outlined,
+                            size: 34, color: Colors.white),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   Text(
                     AppConfig.appName,
                     textAlign: TextAlign.center,
@@ -139,6 +160,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.emergency,
+                      foregroundColor: Colors.white,
+                    ),
                     onPressed: state.isBusy ? null : _submit,
                     child: state.isBusy
                         ? const SizedBox(
@@ -150,10 +175,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 4),
                   TextButton(
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppColors.emergency),
                     onPressed: state.isBusy ? null : _showResetDialog,
                     child: const Text('¿Olvidaste tu contraseña?'),
                   ),
                   TextButton(
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppColors.emergency),
                     onPressed: () => context.go(AppRoutes.register),
                     child: const Text('¿No tienes cuenta? Regístrate'),
                   ),
@@ -169,6 +198,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ),
                 ],
+              ),
               ),
               ),
             ),

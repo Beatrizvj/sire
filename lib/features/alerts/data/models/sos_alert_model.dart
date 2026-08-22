@@ -24,6 +24,8 @@ class SosAlertModel {
         'address': alert.address,
         'accuracy': alert.accuracy,
         'categoria': alert.categoria,
+        'atendidaEn': alert.atendidaEn?.toIso8601String(),
+        'resueltaEn': alert.resueltaEn?.toIso8601String(),
       };
 
   static SosAlert fromMap(Map<String, dynamic> map) => SosAlert(
@@ -39,6 +41,12 @@ class SosAlertModel {
         address: map['address'] as String?,
         accuracy: (map['accuracy'] as num?)?.toDouble(),
         categoria: map['categoria'] as String?,
+        atendidaEn: map['atendidaEn'] != null
+            ? DateTime.tryParse(map['atendidaEn'] as String)
+            : null,
+        resueltaEn: map['resueltaEn'] != null
+            ? DateTime.tryParse(map['resueltaEn'] as String)
+            : null,
       );
 
   static String encodeList(List<SosAlert> alerts) =>

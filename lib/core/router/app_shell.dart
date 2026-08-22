@@ -9,6 +9,7 @@ import '../../features/users/domain/entities/account_status.dart';
 import '../../features/users/domain/entities/app_user.dart';
 import '../../features/users/domain/entities/user_role.dart';
 import '../services/alert_monitor_bridge.dart';
+import '../theme/app_colors.dart';
 
 /// Contenedor de navegación:
 /// - **Web**: consola [WebPanel] solo para COCODE/Municipalidad; el ciudadano
@@ -143,9 +144,17 @@ class _CuentaEnRevision extends ConsumerWidget {
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Container(
+            margin: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: theme.brightness == Brightness.light
+                  ? Colors.white
+                  : const Color(0xFF202226),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.emergency, width: 2),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
