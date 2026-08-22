@@ -117,6 +117,15 @@ class _ReportesContenido extends StatelessWidget {
         alertas.where((a) => a.status == AlertStatus.pendiente).length;
     final resueltas =
         alertas.where((a) => a.status == AlertStatus.resuelta).length;
+    final atendidas = alertas.where((a) => a.tiempoRespuesta != null).toList();
+    final promTexto = atendidas.isEmpty
+        ? '—'
+        : formatearDuracion(Duration(
+            milliseconds: (atendidas
+                        .map((a) => a.tiempoRespuesta!.inMilliseconds)
+                        .reduce((x, y) => x + y) /
+                    atendidas.length)
+                .round()));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -159,6 +168,11 @@ class _ReportesContenido extends StatelessWidget {
                   titulo: 'Resueltas',
                   valor: '$resueltas',
                   color: const Color(0xFF2E7D32)),
+              const SizedBox(width: 14),
+              _Kpi(
+                  titulo: 'T. respuesta prom.',
+                  valor: promTexto,
+                  color: const Color(0xFFEF6C00)),
               const SizedBox(width: 14),
               _Kpi(
                   titulo: 'Usuarios',
@@ -208,6 +222,7 @@ class _ReportesContenido extends StatelessWidget {
     'Origen',
     'Tipo de incidente',
     'Estado',
+    'Tiempo de respuesta',
     'Latitud',
     'Longitud',
     'Dirección',
@@ -227,6 +242,9 @@ class _ReportesContenido extends StatelessWidget {
               ? 'Sin especificar'
               : a.categoria!,
           a.status.label,
+          a.tiempoRespuesta != null
+              ? formatearDuracion(a.tiempoRespuesta!)
+              : '',
           a.latitude.toStringAsFixed(5),
           a.longitude.toStringAsFixed(5),
           a.address ?? '',

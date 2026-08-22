@@ -46,7 +46,16 @@ class AlertRepositoryLocal implements AlertRepository {
   Future<void> updateStatus(String id, AlertStatus status) async {
     final current = await getAlerts();
     final updated = [
-      for (final a in current) a.id == id ? a.copyWith(status: status) : a,
+      for (final a in current)
+        a.id == id
+            ? a.copyWith(
+                status: status,
+                atendidaEn:
+                    status == AlertStatus.atendida ? DateTime.now() : null,
+                resueltaEn:
+                    status == AlertStatus.resuelta ? DateTime.now() : null,
+              )
+            : a,
     ];
     await _prefs.setString(_key, SosAlertModel.encodeList(updated));
   }

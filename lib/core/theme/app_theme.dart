@@ -15,13 +15,17 @@ class AppTheme {
       brightness: brightness,
     );
 
+    final neutralBg = brightness == Brightness.light
+        ? AppColors.neutralBgLight
+        : AppColors.neutralBgDark;
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.surface,
+      scaffoldBackgroundColor: neutralBg,
       appBarTheme: AppBarTheme(
         centerTitle: true,
-        backgroundColor: colorScheme.surface,
+        backgroundColor: neutralBg,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
       ),

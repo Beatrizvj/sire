@@ -21,6 +21,8 @@ class SosAlert extends Equatable {
     this.address,
     this.accuracy,
     this.categoria,
+    this.atendidaEn,
+    this.resueltaEn,
   });
 
   final String id;
@@ -47,7 +49,21 @@ class SosAlert extends Equatable {
   /// "sin especificar" (p. ej. SOS por botón de encendido, a clasificar después).
   final String? categoria;
 
-  SosAlert copyWith({AlertStatus? status, String? categoria}) => SosAlert(
+  /// Tiempo de respuesta: momentos en que la autoridad marcó la alerta como
+  /// "atendida" y "resuelta". Nulos hasta que ocurra cada transición.
+  final DateTime? atendidaEn;
+  final DateTime? resueltaEn;
+
+  /// Tiempo de respuesta = desde que se creó la alerta hasta que se atendió.
+  Duration? get tiempoRespuesta => atendidaEn?.difference(timestamp);
+
+  SosAlert copyWith({
+    AlertStatus? status,
+    String? categoria,
+    DateTime? atendidaEn,
+    DateTime? resueltaEn,
+  }) =>
+      SosAlert(
         id: id,
         userId: userId,
         userName: userName,
@@ -60,6 +76,8 @@ class SosAlert extends Equatable {
         address: address,
         accuracy: accuracy,
         categoria: categoria ?? this.categoria,
+        atendidaEn: atendidaEn ?? this.atendidaEn,
+        resueltaEn: resueltaEn ?? this.resueltaEn,
       );
 
   @override
@@ -76,5 +94,18 @@ class SosAlert extends Equatable {
         address,
         accuracy,
         categoria,
+        atendidaEn,
+        resueltaEn,
       ];
+}
+
+/// Formatea una duración como "45 s", "3 min 20 s" o "2 h 5 min".
+String formatearDuracion(Duration d) {
+  if (d.inSeconds < 60) return '${d.inSeconds} s';
+  if (d.inMinutes < 60) {
+    final s = d.inSeconds % 60;
+    return s == 0 ? '${d.inMinutes} min' : '${d.inMinutes} min $s s';
+  }
+  final m = d.inMinutes % 60;
+  return m == 0 ? '${d.inHours} h' : '${d.inHours} h $m min';
 }

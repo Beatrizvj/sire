@@ -38,7 +38,8 @@ class AlertTile extends StatelessWidget {
         subtitle: Text(
           '${dateFormat.format(alert.timestamp)}\n'
           '${alert.source.label} · $coords$accuracy\n'
-          'Incidente: ${alert.categoria ?? 'Sin especificar'}',
+          'Incidente: ${alert.categoria ?? 'Sin especificar'}'
+          '${alert.tiempoRespuesta != null ? '\nTiempo de respuesta: ${formatearDuracion(alert.tiempoRespuesta!)}' : ''}',
         ),
         trailing: AlertStatusChip(status: alert.status),
         isThreeLine: true,

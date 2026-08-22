@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../../core/validation/password_validator.dart';
 import '../../../identity/data/identity_repository.dart';
@@ -180,7 +181,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
-              child: Form(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : const Color(0xFF202226),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.emergency, width: 2),
+                ),
+                padding: const EdgeInsets.fromLTRB(22, 26, 22, 26),
+                child: Form(
                 key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -322,6 +332,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.emergency,
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: (state.isBusy || _subiendo) ? null : _submit,
                   child: (state.isBusy || _subiendo)
                       ? const SizedBox(
@@ -333,6 +347,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 ),
                 const SizedBox(height: 8),
                 TextButton(
+                  style: TextButton.styleFrom(
+                      foregroundColor: AppColors.emergency),
                   onPressed: () => context.go(AppRoutes.login),
                   child: const Text('Ya tengo cuenta'),
                 ),
@@ -350,6 +366,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   ),
               ],
             ),
+          ),
           ),
           ),
           ),

@@ -9,6 +9,10 @@ class AppColors {
   static const Color emergency = Color(0xFFC62828);
   static const Color emergencyDark = Color(0xFF8E0000);
 
+  /// Fondo neutro institucional de la app (evita el tinte rosado del tema).
+  static const Color neutralBgLight = Color(0xFFECEEF1);
+  static const Color neutralBgDark = Color(0xFF16181B);
+
   /// Verde "estado seguro / resuelto".
   static const Color safe = Color(0xFF2E7D32);
 

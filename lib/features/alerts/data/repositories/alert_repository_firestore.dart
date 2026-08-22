@@ -37,6 +37,12 @@ class AlertRepositoryFirestore implements AlertRepository {
         'direccion': alert.address,
         'precision': alert.accuracy,
         'categoria': alert.categoria,
+        'atendidaEn': alert.atendidaEn == null
+            ? null
+            : Timestamp.fromDate(alert.atendidaEn!),
+        'resueltaEn': alert.resueltaEn == null
+            ? null
+            : Timestamp.fromDate(alert.resueltaEn!),
         'creadoEn': FieldValue.serverTimestamp(),
       };
 
@@ -59,6 +65,8 @@ class AlertRepositoryFirestore implements AlertRepository {
       address: data['direccion'] as String?,
       accuracy: (data['precision'] as num?)?.toDouble(),
       categoria: data['categoria'] as String?,
+      atendidaEn: (data['atendidaEn'] as Timestamp?)?.toDate(),
+      resueltaEn: (data['resueltaEn'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -112,8 +120,16 @@ class AlertRepositoryFirestore implements AlertRepository {
       .map((snap) => snap.docs.map(_fromDoc).toList(growable: false));
 
   @override
-  Future<void> updateStatus(String id, AlertStatus status) =>
-      _alertas.doc(id).update({'estado': status.value});
+  Future<void> updateStatus(String id, AlertStatus status) {
+    final data = <String, dynamic>{'estado': status.value};
+    // Marca de tiempo para medir el tiempo de respuesta (la fija el servidor).
+    if (status == AlertStatus.atendida) {
+      data['atendidaEn'] = FieldValue.serverTimestamp();
+    } else if (status == AlertStatus.resuelta) {
+      data['resueltaEn'] = FieldValue.serverTimestamp();
+    }
+    return _alertas.doc(id).update(data);
+  }
 
   @override
   Future<void> updateCategoria(String id, String categoria) =>
