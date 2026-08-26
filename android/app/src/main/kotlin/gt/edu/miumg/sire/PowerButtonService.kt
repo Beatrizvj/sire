@@ -23,6 +23,9 @@ import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -280,6 +283,36 @@ class PowerButtonService : Service() {
     // --- SOS nativo: captura GPS y guarda en Firestore ---
 
     private fun captureLocationAndSave() {
+        // Proveedor FUSIONADO de Google Play Services (el mismo del SOS de pantalla
+        // vía geolocator): consigue el GPS mucho más rápido y confiable que
+        // LocationManager, incluso bajo techo. Si falla (p. ej. sin Play Services),
+        // se cae al LocationManager como respaldo.
+        try {
+            val fused = LocationServices.getFusedLocationProviderClient(this)
+            val cts = CancellationTokenSource()
+            fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+                .addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        ioExecutor.execute { saveAlert(loc) }
+                    } else {
+                        // Sin posición fresca: usa la última conocida (fusionada).
+                        fused.lastLocation
+                            .addOnSuccessListener { last ->
+                                ioExecutor.execute { saveAlert(last ?: lastKnownFromManager()) }
+                            }
+                            .addOnFailureListener {
+                                ioExecutor.execute { saveAlert(lastKnownFromManager()) }
+                            }
+                    }
+                }
+                .addOnFailureListener { captureWithLocationManager() }
+        } catch (e: Exception) {
+            captureWithLocationManager()
+        }
+    }
+
+    /** Respaldo: captura con el LocationManager nativo (v1). */
+    private fun captureWithLocationManager() {
         val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val provider = when {
             lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
@@ -300,6 +333,9 @@ class PowerButtonService : Service() {
             ioExecutor.execute { saveAlert(null) }
         }
     }
+
+    private fun lastKnownFromManager(): Location? =
+        lastKnown(getSystemService(Context.LOCATION_SERVICE) as LocationManager)
 
     private fun lastKnown(lm: LocationManager): Location? = try {
         lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
@@ -331,27 +367,26 @@ class PowerButtonService : Service() {
             data["latitud"] = location.latitude
             data["longitud"] = location.longitude
             data["precision"] = location.accuracy.toDouble()
+            // La dirección se resuelve AQUÍ y viaja en la MISMA escritura de
+            // creación. Las reglas de Firestore dejan al ciudadano CREAR su alerta
+            // pero NO actualizarla (salvo para cancelarla con 'falsa_alarma'), así
+            // que el `update("direccion")` posterior era rechazado con
+            // PERMISSION_DENIED. El SOS de pantalla ya la escribe así, en un solo
+            // set; esto deja ambos caminos consistentes.
+            reverseGeocode(location.latitude, location.longitude)?.let { dir ->
+                data["direccion"] = dir
+            }
         }
         val doc = FirebaseFirestore.getInstance().collection("alertas").document(buildDocId())
         runCatching {
-            // Se ESCRIBE de inmediato, SIN esperar la dirección, para que la alerta
-            // llegue al panel (y suene) cuanto antes. La dirección se resuelve
-            // después y se agrega con un update; mientras tanto el panel ya muestra
-            // las coordenadas. Esto recorta el retraso del reverse geocoding.
+            // Una sola escritura de creación con coordenadas + dirección. saveAlert
+            // ya corre en ioExecutor, por lo que el reverseGeocode síncrono de arriba
+            // no bloquea el hilo principal.
             doc.set(data)
                 .addOnSuccessListener {
                     // Solo se avisa "enviado" si de verdad se guardó (antes se
                     // avisaba aunque fallara, por eso parecía enviado sin llegar).
                     PowerButtonEvents.emit(EVENT_SOS)
-                    if (location != null) {
-                        runCatching {
-                            ioExecutor.execute {
-                                reverseGeocode(location.latitude, location.longitude)?.let { dir ->
-                                    runCatching { doc.update("direccion", dir) }
-                                }
-                            }
-                        }
-                    }
                 }
                 .addOnFailureListener { e ->
                     Log.e(TAG, "No se pudo guardar el SOS del boton fisico", e)

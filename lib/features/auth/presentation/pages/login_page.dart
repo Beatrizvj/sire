@@ -6,6 +6,7 @@ import '../../../../core/config/app_config.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_providers.dart';
+import '../widgets/auth_form_styles.dart';
 
 /// Inicio de sesión (correo + contraseña).
 class LoginPage extends ConsumerStatefulWidget {
@@ -64,7 +65,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final state = ref.watch(authControllerProvider);
 
     ref.listen(authControllerProvider, (previous, next) {
@@ -76,130 +76,236 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
 
     return Scaffold(
+      backgroundColor: kAuthBackground,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: theme.brightness == Brightness.light
-                      ? Colors.white
-                      : const Color(0xFF202226),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.emergency, width: 2),
-                ),
-                padding: const EdgeInsets.fromLTRB(26, 32, 26, 26),
-                child: Form(
+              child: Form(
                 key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    height: 72,
-                    width: 72,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: const [
-                        Icon(Icons.shield,
-                            size: 72, color: AppColors.emergency),
-                        Icon(Icons.shield_outlined,
-                            size: 34, color: Colors.white),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    AppConfig.appName,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    AppConfig.appTagline,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 32),
-                  TextFormField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo',
-                      prefixIcon: Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
-                      if (!v.contains('@')) return 'Correo inválido';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _password,
-                    obscureText: _obscure,
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscure
-                            ? Icons.visibility_off
-                            : Icons.visibility),
-                        onPressed: () => setState(() => _obscure = !_obscure),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── Isologo municipal ────────────────────────────────
+                    const Center(child: AuthLogoBadge()),
+                    const SizedBox(height: 22),
+
+                    // ── Títulos ──────────────────────────────────────────
+                    Text(
+                      AppConfig.appName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 6,
                       ),
                     ),
-                    validator: (v) => (v == null || v.isEmpty)
-                        ? 'Ingresa tu contraseña'
-                        : null,
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.emergency,
-                      foregroundColor: Colors.white,
+                    const SizedBox(height: 8),
+                    Text(
+                      AppConfig.appTagline,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
                     ),
-                    onPressed: state.isBusy ? null : _submit,
-                    child: state.isBusy
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Ingresar'),
-                  ),
-                  const SizedBox(height: 4),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                        foregroundColor: AppColors.emergency),
-                    onPressed: state.isBusy ? null : _showResetDialog,
-                    child: const Text('¿Olvidaste tu contraseña?'),
-                  ),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                        foregroundColor: AppColors.emergency),
-                    onPressed: () => context.go(AppRoutes.register),
-                    child: const Text('¿No tienes cuenta? Regístrate'),
-                  ),
-                  if (!AppConfig.firebaseEnabled)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Modo demo local: cualquier correo y contraseña funcionan.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 14),
+
+                    // ── Municipio destacado ──────────────────────────────
+                    const Center(child: MunicipioChip()),
+                    const SizedBox(height: 36),
+
+                    // ── Correo ───────────────────────────────────────────
+                    TextFormField(
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      style: const TextStyle(color: Colors.white),
+                      cursorColor: AppColors.emergency,
+                      decoration: authFieldDecoration(
+                        label: 'Correo',
+                        icon: Icons.email_outlined,
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Ingresa tu correo';
+                        }
+                        if (!v.contains('@')) return 'Correo inválido';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Contraseña ───────────────────────────────────────
+                    TextFormField(
+                      controller: _password,
+                      obscureText: _obscure,
+                      textInputAction: TextInputAction.done,
+                      style: const TextStyle(color: Colors.white),
+                      cursorColor: AppColors.emergency,
+                      onFieldSubmitted: (_) {
+                        if (!state.isBusy) _submit();
+                      },
+                      decoration: authFieldDecoration(
+                        label: 'Contraseña',
+                        icon: Icons.lock_outline,
+                        suffixIcon: IconButton(
+                          tooltip: _obscure
+                              ? 'Mostrar contraseña'
+                              : 'Ocultar contraseña',
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.white54,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Ingresa tu contraseña'
+                          : null,
+                    ),
+
+                    // ── ¿Olvidaste tu contraseña? ────────────────────────
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: state.isBusy ? null : _showResetDialog,
+                        style: TextButton.styleFrom(
+                          foregroundColor: kAuthLightRed,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: const Size(0, 40),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('¿Olvidaste tu contraseña?'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── Botón principal ──────────────────────────────────
+                    SizedBox(
+                      height: 52,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.emergency,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor:
+                              AppColors.emergency.withValues(alpha: 0.5),
+                          disabledForegroundColor: Colors.white70,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        onPressed: state.isBusy ? null : _submit,
+                        child: state.isBusy
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text('Ingresar'),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // ── Enlace a registro ────────────────────────────────
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.go(AppRoutes.register),
+                        style: TextButton.styleFrom(
+                          foregroundColor: kAuthLightRed,
+                        ),
+                        child: Text.rich(
+                          const TextSpan(
+                            text: '¿No tienes cuenta?  ',
+                            style: TextStyle(
+                              color: Colors.white60,
+                              fontSize: 14,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: 'Regístrate aquí',
+                                style: TextStyle(
+                                  color: kAuthLightRed,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: kAuthLightRed,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                ],
-              ),
-              ),
+                    const SizedBox(height: 28),
+
+                    // ── Aviso institucional (bajo contraste) ─────────────
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.07),
+                        ),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.verified_user_outlined,
+                            size: 18,
+                            color: Colors.white38,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Las cuentas nuevas son validadas por el COCODE '
+                              'de tu aldea o la Municipalidad.',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12.5,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Nota de modo demo local (solo si Firebase está apagado).
+                    if (!AppConfig.firebaseEnabled) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Modo demo local: cualquier correo y contraseña '
+                        'funcionan.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -248,6 +354,16 @@ class _PasswordResetDialogState extends State<_PasswordResetDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      backgroundColor: kAuthSurface,
+      titleTextStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+      ),
+      contentTextStyle: const TextStyle(color: Colors.white70, height: 1.35),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       title: const Text('Recuperar contraseña'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -260,10 +376,11 @@ class _PasswordResetDialogState extends State<_PasswordResetDialog> {
           TextField(
             controller: _controller,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Correo',
-              prefixIcon: Icon(Icons.email_outlined),
-              border: OutlineInputBorder(),
+            style: const TextStyle(color: Colors.white),
+            cursorColor: AppColors.emergency,
+            decoration: authFieldDecoration(
+              label: 'Correo',
+              icon: Icons.email_outlined,
             ),
           ),
         ],
@@ -271,15 +388,23 @@ class _PasswordResetDialogState extends State<_PasswordResetDialog> {
       actions: [
         TextButton(
           onPressed: _sending ? null : () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(foregroundColor: Colors.white70),
           child: const Text('Cancelar'),
         ),
         FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.emergency,
+            foregroundColor: Colors.white,
+          ),
           onPressed: _sending ? null : _submit,
           child: _sending
               ? const SizedBox(
                   height: 18,
                   width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
                 )
               : const Text('Enviar enlace'),
         ),
