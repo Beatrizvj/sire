@@ -59,6 +59,10 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     // Para leer el usuario autenticado en vivo desde el servicio nativo del SOS.
     implementation("com.google.firebase:firebase-auth")
+    // Ubicación FUSIONADA (Google Play Services): consigue el GPS mucho más rápido
+    // y confiable que LocationManager para el SOS del botón, igual que el SOS de
+    // pantalla (que usa geolocator con este mismo proveedor).
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
 
 dependencies {
