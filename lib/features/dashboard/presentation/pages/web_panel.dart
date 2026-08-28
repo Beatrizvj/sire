@@ -480,6 +480,7 @@ class _Card extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -502,6 +503,82 @@ class _Card extends StatelessWidget {
   }
 }
 
+// ─────────────────────── Tabla que llena el ancho ───────────────────────
+
+/// Tabla de columnas **flexibles**: ocupa todo el ancho disponible repartiendo
+/// el espacio según el `flex` de cada columna. Solo hace scroll horizontal
+/// cuando la ventana es más angosta que [minWidth] (respaldo en pantallas
+/// chicas). Reemplaza a `DataTable`, que no se estira y dejaba huecos.
+class _FillTable extends StatelessWidget {
+  const _FillTable({
+    required this.columns,
+    required this.rows,
+    this.minWidth = 1000,
+  });
+
+  /// (flex, encabezado) por columna.
+  final List<(int, String)> columns;
+
+  /// Celdas por fila, en el mismo orden que [columns].
+  final List<List<Widget>> rows;
+
+  final double minWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width =
+            constraints.maxWidth > minWidth ? constraints.maxWidth : minWidth;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: width,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  child: Row(
+                    children: [
+                      for (final (flex, label) in columns)
+                        Expanded(
+                          flex: flex,
+                          child: Text(
+                            label,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF6B5A57),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                for (final cells in rows)
+                  Container(
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: _line)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < columns.length; i++)
+                          Expanded(flex: columns[i].$1, child: cells[i]),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 // ─────────────────────────── Tabla de alertas ───────────────────────────
 
 class _TablaAlertas extends ConsumerWidget {
@@ -513,51 +590,62 @@ class _TablaAlertas extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final df = DateFormat('dd/MM/yyyy HH:mm');
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 26,
-        headingRowHeight: 40,
-        columns: [
-          const DataColumn(label: Text('Ciudadano')),
-          const DataColumn(label: Text('Ubicación')),
-          const DataColumn(label: Text('Origen')),
-          const DataColumn(label: Text('Tipo')),
-          const DataColumn(label: Text('Fecha')),
-          const DataColumn(label: Text('Estado')),
-          const DataColumn(label: Text('Respuesta')),
-          if (conAcciones) const DataColumn(label: Text('Acción')),
-        ],
-        rows: [
-          for (final a in alertas)
-            DataRow(cells: [
-              DataCell(Text(
-                  (a.userName != null && a.userName!.isNotEmpty)
-                      ? a.userName!
-                      : 'Ciudadano',
-                  style: const TextStyle(fontWeight: FontWeight.w600))),
-              DataCell(SizedBox(
-                width: 210,
-                child: Text(
-                  a.address ??
-                      ((a.latitude == 0 && a.longitude == 0)
-                          ? 'Sin ubicación'
-                          : '${a.latitude.toStringAsFixed(5)}, ${a.longitude.toStringAsFixed(5)}'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              )),
-              DataCell(Text(a.source.label)),
-              DataCell(_CategoriaChip(categoria: a.categoria)),
-              DataCell(Text(df.format(a.timestamp))),
-              DataCell(_EstadoChip(status: a.status)),
-              DataCell(Text(a.tiempoRespuesta != null
+    const cell = TextStyle(fontSize: 13);
+    return _FillTable(
+      minWidth: conAcciones ? 1180 : 980,
+      columns: [
+        (16, 'Ciudadano'),
+        (19, 'Ubicación'),
+        (15, 'Origen'),
+        (12, 'Tipo'),
+        (13, 'Fecha'),
+        (11, 'Estado'),
+        (9, 'Respuesta'),
+        if (conAcciones) (13, 'Acción'),
+      ],
+      rows: [
+        for (final a in alertas)
+          [
+            Text(
+              (a.userName != null && a.userName!.isNotEmpty)
+                  ? a.userName!
+                  : 'Ciudadano',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            Text(
+              a.address ??
+                  ((a.latitude == 0 && a.longitude == 0)
+                      ? 'Sin ubicación'
+                      : '${a.latitude.toStringAsFixed(5)}, ${a.longitude.toStringAsFixed(5)}'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: cell,
+            ),
+            Text(a.source.label,
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: cell),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _CategoriaChip(categoria: a.categoria),
+            ),
+            Text(df.format(a.timestamp),
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: cell),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _EstadoChip(status: a.status),
+            ),
+            Text(
+              a.tiempoRespuesta != null
                   ? formatearDuracion(a.tiempoRespuesta!)
-                  : '—')),
-              if (conAcciones) DataCell(_AccionesAlerta(alerta: a, ref: ref)),
-            ]),
-        ],
-      ),
+                  : '—',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: cell,
+            ),
+            if (conAcciones) _AccionesAlerta(alerta: a, ref: ref),
+          ],
+      ],
     );
   }
 }
@@ -597,37 +685,57 @@ class _AccionesAlerta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categorias = ref.watch(categoriasActivasProvider);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        PopupMenuButton<AlertStatus>(
-          tooltip: 'Cambiar estado',
-          onSelected: (s) => _set(context, s),
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: AlertStatus.atendida, child: Text('Atender')),
-            PopupMenuItem(value: AlertStatus.resuelta, child: Text('Resolver')),
-            PopupMenuItem(
-                value: AlertStatus.falsaAlarma, child: Text('Falsa alarma')),
-          ],
-          child: const Chip(
-            label: Text('Gestionar', style: TextStyle(fontSize: 12)),
-            avatar: Icon(Icons.expand_more, size: 16),
+    // Un único botón compacto: su menú agrupa "cambiar estado" y "clasificar".
+    // Así la columna Acción ocupa poco y la tabla cabe sin scroll horizontal.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: PopupMenuButton<void>(
+        tooltip: 'Gestionar alerta',
+        position: PopupMenuPosition.under,
+        itemBuilder: (_) => [
+          const PopupMenuItem<void>(
+            enabled: false,
+            height: 30,
+            child: Text('Cambiar estado',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6B5A57))),
           ),
-        ),
-        const SizedBox(width: 6),
-        PopupMenuButton<String>(
-          tooltip: 'Clasificar incidente',
-          onSelected: (c) => _clasificar(context, c),
-          itemBuilder: (_) => [
-            for (final c in categorias)
-              PopupMenuItem(value: c, child: Text(c)),
-          ],
-          child: const Chip(
-            label: Text('Clasificar', style: TextStyle(fontSize: 12)),
-            avatar: Icon(Icons.label_outline, size: 16),
+          PopupMenuItem<void>(
+            onTap: () => _set(context, AlertStatus.atendida),
+            child: const Text('Atender'),
           ),
+          PopupMenuItem<void>(
+            onTap: () => _set(context, AlertStatus.resuelta),
+            child: const Text('Resolver'),
+          ),
+          PopupMenuItem<void>(
+            onTap: () => _set(context, AlertStatus.falsaAlarma),
+            child: const Text('Falsa alarma'),
+          ),
+          if (categorias.isNotEmpty) const PopupMenuDivider(),
+          if (categorias.isNotEmpty)
+            const PopupMenuItem<void>(
+              enabled: false,
+              height: 30,
+              child: Text('Clasificar incidente',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF6B5A57))),
+            ),
+          for (final c in categorias)
+            PopupMenuItem<void>(
+              onTap: () => _clasificar(context, c),
+              child: Text(c),
+            ),
+        ],
+        child: const Chip(
+          label: Text('Gestionar', style: TextStyle(fontSize: 12)),
+          avatar: Icon(Icons.expand_more, size: 16),
         ),
-      ],
+      ),
     );
   }
 }
@@ -706,27 +814,38 @@ class _UsuariosBody extends ConsumerWidget {
               padding: const EdgeInsets.all(24),
               child: _Card(
                 titulo: '${users.length} usuarios registrados',
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columnSpacing: 26,
-                    columns: const [
-                      DataColumn(label: Text('Nombre')),
-                      DataColumn(label: Text('Correo')),
-                      DataColumn(label: Text('Comunidad')),
-                      DataColumn(label: Text('Rol')),
-                      DataColumn(label: Text('Acción')),
-                    ],
-                    rows: [
-                      for (final u in users)
-                        DataRow(cells: [
-                          DataCell(Text(u.nombre,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600))),
-                          DataCell(Text(u.email ?? '')),
-                          DataCell(Text(u.aldea.isEmpty ? '—' : u.aldea)),
-                          DataCell(_RolChip(rol: u.rol)),
-                          DataCell(Row(
+                child: _FillTable(
+                  minWidth: 820,
+                  columns: const [
+                    (22, 'Nombre'),
+                    (26, 'Correo'),
+                    (16, 'Comunidad'),
+                    (14, 'Rol'),
+                    (20, 'Acción'),
+                  ],
+                  rows: [
+                    for (final u in users)
+                      [
+                        Text(u.nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text(u.email ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13)),
+                        Text(u.aldea.isEmpty ? '—' : u.aldea,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13)),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _RolChip(rol: u.rol),
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (esVerificador && actor != null)
@@ -743,10 +862,10 @@ class _UsuariosBody extends ConsumerWidget {
                                 child: const Text('Editar'),
                               ),
                             ],
-                          )),
-                        ]),
-                    ],
-                  ),
+                          ),
+                        ),
+                      ],
+                  ],
                 ),
               ),
             );

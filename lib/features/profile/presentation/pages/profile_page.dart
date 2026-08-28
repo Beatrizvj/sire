@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../users/domain/entities/app_user.dart';
 import '../../../users/presentation/providers/users_providers.dart';
 
@@ -19,7 +20,18 @@ class ProfilePage extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil')),
+      appBar: AppBar(
+        title: const Text('Perfil'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Ajustes',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -70,6 +82,18 @@ class ProfilePage extends ConsumerWidget {
                 ],
               );
             },
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Ajustes'),
+              subtitle: const Text('Tema, envío de SOS y cuenta'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+              ),
+            ),
           ),
           const Divider(height: 32),
           OutlinedButton.icon(

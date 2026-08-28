@@ -13,6 +13,7 @@ import '../../domain/entities/alert_status.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../../domain/entities/sos_source.dart';
 import '../providers/alerts_providers.dart';
+import '../providers/sos_trigger_mode.dart';
 import '../widgets/alert_tile.dart';
 import '../widgets/sos_button.dart';
 
@@ -354,6 +355,7 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = ref.watch(alertsControllerProvider);
+    final sosMode = ref.watch(sosTriggerModeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -366,28 +368,35 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
         children: [
-          Center(
-            child: SosButton(
-              isSending: state.isSending,
-              onPressed: _onSosPressed,
+          // El botón en pantalla y/o la detección por botón de encendido se
+          // muestran según la preferencia del ciudadano (Ajustes → Cómo enviar
+          // un SOS). Por defecto, ambos.
+          if (sosMode.usaPantalla) ...[
+            Center(
+              child: SosButton(
+                isSending: state.isSending,
+                onPressed: _onSosPressed,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            state.isSending
-                ? 'Obteniendo tu ubicación…'
-                : 'Mantén la calma. Pulsa SOS para enviar tu ubicación.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 24),
-          _DetectionCard(
-            value: _detectionOn,
-            busy: _togglingDetection,
-            onChanged: _toggleDetection,
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            Text(
+              state.isSending
+                  ? 'Obteniendo tu ubicación…'
+                  : 'Mantén la calma. Pulsa SOS para enviar tu ubicación.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (sosMode.usaEncendido) ...[
+            _DetectionCard(
+              value: _detectionOn,
+              busy: _togglingDetection,
+              onChanged: _toggleDetection,
+            ),
+            const SizedBox(height: 24),
+          ],
           Row(
             children: [
               Text('Historial', style: theme.textTheme.titleMedium),
