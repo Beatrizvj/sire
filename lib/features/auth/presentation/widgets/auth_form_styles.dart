@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/app_colors.dart';
 
 /// Estilos compartidos por las pantallas de autenticación (login y registro).
@@ -99,6 +100,220 @@ class AuthLogoBadge extends StatelessWidget {
         ),
       ),
       child: Icon(Icons.shield, size: size * 0.48, color: AppColors.emergency),
+    );
+  }
+}
+
+// ─────────────────────────── Hero del panel web ───────────────────────────
+
+/// Panel lateral (solo web escritorio): identidad institucional de SIRE y las
+/// capacidades del panel municipal, sobre un gradiente rojo de marca. Lo usan
+/// login y registro para dar una entrada de escritorio coherente.
+class AuthHeroPanel extends StatelessWidget {
+  const AuthHeroPanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF241413), Color(0xFF5C1512), AppColors.emergencyDark],
+          stops: [0.0, 0.55, 1.0],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Motivo decorativo: anillos de "baliza" translúcidos.
+          Positioned(top: -120, right: -120, child: _ring(360, 0.05)),
+          Positioned(bottom: -80, left: -100, child: _ring(280, 0.04)),
+          // Contenido.
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(56, 48, 56, 48),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Lockup de marca.
+                  Row(
+                    children: [
+                      Container(
+                        height: 52,
+                        width: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: const Icon(Icons.shield,
+                            color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: 14),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SIRE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 3,
+                            ),
+                          ),
+                          Text(
+                            'PANEL MUNICIPAL',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                              letterSpacing: 2,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 56),
+
+                  // Titular de valor.
+                  const Text(
+                    'Coordina la respuesta\nante emergencias del\nmunicipio',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    AppConfig.appTagline,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontSize: 15,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 44),
+
+                  // Capacidades del panel.
+                  const _HeroFeature(
+                    icon: Icons.notifications_active_outlined,
+                    titulo: 'Alertas SOS en tiempo real',
+                    detalle: 'Recibe y atiende los reportes ciudadanos al '
+                        'instante.',
+                  ),
+                  const SizedBox(height: 22),
+                  const _HeroFeature(
+                    icon: Icons.how_to_reg_outlined,
+                    titulo: 'Validación de cuentas',
+                    detalle: 'Aprueba a los ciudadanos por COCODE o '
+                        'Municipalidad.',
+                  ),
+                  const SizedBox(height: 22),
+                  const _HeroFeature(
+                    icon: Icons.map_outlined,
+                    titulo: 'Mapa en vivo del municipio',
+                    detalle: 'Ubica cada incidente en el territorio a medida '
+                        'que ocurre.',
+                  ),
+                  const SizedBox(height: 52),
+
+                  // Pie institucional.
+                  Row(
+                    children: [
+                      Icon(Icons.location_on,
+                          size: 16,
+                          color: Colors.white.withValues(alpha: 0.6)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'San Miguel Sigüilá · Municipalidad',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ring(double size, double alpha) => Container(
+        height: size,
+        width: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: alpha),
+            width: 40,
+          ),
+        ),
+      );
+}
+
+/// Fila de capacidad del hero (ícono en burbuja translúcida + texto).
+class _HeroFeature extends StatelessWidget {
+  const _HeroFeature({
+    required this.icon,
+    required this.titulo,
+    required this.detalle,
+  });
+
+  final IconData icon;
+  final String titulo;
+  final String detalle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 42,
+          width: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, color: Colors.white, size: 21),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                titulo,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                detalle,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.62),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

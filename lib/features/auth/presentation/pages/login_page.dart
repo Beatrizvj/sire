@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +9,16 @@ import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form_styles.dart';
 
+/// Ancho a partir del cual, **solo en web**, el login pasa a pantalla dividida
+/// (hero institucional a la izquierda + formulario a la derecha). Por debajo
+/// —y siempre en la app móvil— se usa el diseño centrado de una sola columna.
+const double _kWideBreakpoint = 900;
+
 /// Inicio de sesión (correo + contraseña).
+///
+/// Diseño responsive con una sola fuente de verdad para la lógica:
+/// * App móvil (o navegador angosto): tarjeta centrada, tema oscuro.
+/// * Panel web en escritorio: split-screen con hero municipal.
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -78,240 +88,283 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return Scaffold(
       backgroundColor: kAuthBackground,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // ── Isologo municipal ────────────────────────────────
-                    const Center(child: AuthLogoBadge()),
-                    const SizedBox(height: 22),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // El hero split solo aparece en el panel web en pantallas anchas.
+            // La app móvil (kIsWeb == false) nunca lo muestra, ni en tablet.
+            final wide = kIsWeb && constraints.maxWidth >= _kWideBreakpoint;
+            if (wide) return _wideLayout(state);
+            return _narrowLayout(state);
+          },
+        ),
+      ),
+    );
+  }
 
-                    // ── Títulos ──────────────────────────────────────────
-                    Text(
-                      AppConfig.appName,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 6,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      AppConfig.appTagline,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 13,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
+  // ── Layout móvil / navegador angosto: una sola columna centrada ──────────
+  Widget _narrowLayout(AuthState state) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: _formSection(state, compact: false),
+        ),
+      ),
+    );
+  }
 
-                    // ── Municipio destacado ──────────────────────────────
-                    const Center(child: MunicipioChip()),
-                    const SizedBox(height: 36),
-
-                    // ── Correo ───────────────────────────────────────────
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      style: const TextStyle(color: Colors.white),
-                      cursorColor: AppColors.emergency,
-                      decoration: authFieldDecoration(
-                        label: 'Correo',
-                        icon: Icons.email_outlined,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Ingresa tu correo';
-                        }
-                        if (!v.contains('@')) return 'Correo inválido';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── Contraseña ───────────────────────────────────────
-                    TextFormField(
-                      controller: _password,
-                      obscureText: _obscure,
-                      textInputAction: TextInputAction.done,
-                      style: const TextStyle(color: Colors.white),
-                      cursorColor: AppColors.emergency,
-                      onFieldSubmitted: (_) {
-                        if (!state.isBusy) _submit();
-                      },
-                      decoration: authFieldDecoration(
-                        label: 'Contraseña',
-                        icon: Icons.lock_outline,
-                        suffixIcon: IconButton(
-                          tooltip: _obscure
-                              ? 'Mostrar contraseña'
-                              : 'Ocultar contraseña',
-                          icon: Icon(
-                            _obscure
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                            color: Colors.white54,
-                          ),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
-                        ),
-                      ),
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'Ingresa tu contraseña'
-                          : null,
-                    ),
-
-                    // ── ¿Olvidaste tu contraseña? ────────────────────────
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: state.isBusy ? null : _showResetDialog,
-                        style: TextButton.styleFrom(
-                          foregroundColor: kAuthLightRed,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          minimumSize: const Size(0, 40),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text('¿Olvidaste tu contraseña?'),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── Botón principal ──────────────────────────────────
-                    SizedBox(
-                      height: 52,
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.emergency,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor:
-                              AppColors.emergency.withValues(alpha: 0.5),
-                          disabledForegroundColor: Colors.white70,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        onPressed: state.isBusy ? null : _submit,
-                        child: state.isBusy
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Text('Ingresar'),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // ── Enlace a registro ────────────────────────────────
-                    Center(
-                      child: TextButton(
-                        onPressed: () => context.go(AppRoutes.register),
-                        style: TextButton.styleFrom(
-                          foregroundColor: kAuthLightRed,
-                        ),
-                        child: Text.rich(
-                          const TextSpan(
-                            text: '¿No tienes cuenta?  ',
-                            style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 14,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: 'Regístrate aquí',
-                                style: TextStyle(
-                                  color: kAuthLightRed,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: kAuthLightRed,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-
-                    // ── Aviso institucional (bajo contraste) ─────────────
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.04),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.07),
-                        ),
-                      ),
-                      child: const Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.verified_user_outlined,
-                            size: 18,
-                            color: Colors.white38,
-                          ),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Las cuentas nuevas son validadas por el COCODE '
-                              'de tu aldea o la Municipalidad.',
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 12.5,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Nota de modo demo local (solo si Firebase está apagado).
-                    if (!AppConfig.firebaseEnabled) ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Modo demo local: cualquier correo y contraseña '
-                        'funcionan.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white38, fontSize: 12),
-                      ),
-                    ],
-                  ],
-                ),
+  // ── Layout web escritorio: hero institucional + formulario ───────────────
+  Widget _wideLayout(AuthState state) {
+    return Row(
+      children: [
+        const Expanded(flex: 6, child: AuthHeroPanel()),
+        Expanded(
+          flex: 5,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: _formSection(state, compact: true),
               ),
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  /// Formulario. En [compact] (web) la marca vive en el hero, así que aquí solo
+  /// va un encabezado breve. Si no, se muestra la cabecera de marca completa.
+  Widget _formSection(AuthState state, {required bool compact}) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (compact) ...[
+            const Text(
+              'PANEL MUNICIPAL',
+              style: TextStyle(
+                color: kAuthLightRed,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Bienvenido de nuevo',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Ingresa con tu cuenta autorizada para gestionar las '
+              'emergencias del municipio.',
+              style: TextStyle(color: Colors.white60, fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 32),
+          ] else ...[
+            const Center(child: AuthLogoBadge()),
+            const SizedBox(height: 22),
+            Text(
+              AppConfig.appName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 34,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 6,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              AppConfig.appTagline,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Center(child: MunicipioChip()),
+            const SizedBox(height: 36),
+          ],
+          ..._sharedFields(state),
+        ],
       ),
     );
+  }
+
+  /// Campos + acciones comunes a ambos layouts (única fuente de la lógica).
+  List<Widget> _sharedFields(AuthState state) {
+    return [
+      // ── Correo ─────────────────────────────────────────────────────────
+      TextFormField(
+        controller: _email,
+        keyboardType: TextInputType.emailAddress,
+        textInputAction: TextInputAction.next,
+        style: const TextStyle(color: Colors.white),
+        cursorColor: AppColors.emergency,
+        decoration: authFieldDecoration(
+          label: 'Correo',
+          icon: Icons.email_outlined,
+        ),
+        validator: (v) {
+          if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
+          if (!v.contains('@')) return 'Correo inválido';
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
+
+      // ── Contraseña ─────────────────────────────────────────────────────
+      TextFormField(
+        controller: _password,
+        obscureText: _obscure,
+        textInputAction: TextInputAction.done,
+        style: const TextStyle(color: Colors.white),
+        cursorColor: AppColors.emergency,
+        onFieldSubmitted: (_) {
+          if (!state.isBusy) _submit();
+        },
+        decoration: authFieldDecoration(
+          label: 'Contraseña',
+          icon: Icons.lock_outline,
+          suffixIcon: IconButton(
+            tooltip: _obscure ? 'Mostrar contraseña' : 'Ocultar contraseña',
+            icon: Icon(
+              _obscure ? Icons.visibility_off : Icons.visibility,
+              color: Colors.white54,
+            ),
+            onPressed: () => setState(() => _obscure = !_obscure),
+          ),
+        ),
+        validator: (v) =>
+            (v == null || v.isEmpty) ? 'Ingresa tu contraseña' : null,
+      ),
+
+      // ── ¿Olvidaste tu contraseña? ──────────────────────────────────────
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton(
+          onPressed: state.isBusy ? null : _showResetDialog,
+          style: TextButton.styleFrom(
+            foregroundColor: kAuthLightRed,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            minimumSize: const Size(0, 40),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text('¿Olvidaste tu contraseña?'),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ── Botón principal ────────────────────────────────────────────────
+      SizedBox(
+        height: 52,
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.emergency,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: AppColors.emergency.withValues(alpha: 0.5),
+            disabledForegroundColor: Colors.white70,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+          onPressed: state.isBusy ? null : _submit,
+          child: state.isBusy
+              ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Text('Ingresar'),
+        ),
+      ),
+      const SizedBox(height: 18),
+
+      // ── Enlace a registro ──────────────────────────────────────────────
+      Center(
+        child: TextButton(
+          onPressed: () => context.go(AppRoutes.register),
+          style: TextButton.styleFrom(foregroundColor: kAuthLightRed),
+          child: Text.rich(
+            const TextSpan(
+              text: '¿No tienes cuenta?  ',
+              style: TextStyle(color: Colors.white60, fontSize: 14),
+              children: [
+                TextSpan(
+                  text: 'Regístrate aquí',
+                  style: TextStyle(
+                    color: kAuthLightRed,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                    decorationColor: kAuthLightRed,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 28),
+
+      // ── Aviso institucional (bajo contraste) ───────────────────────────
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.verified_user_outlined, size: 18, color: Colors.white38),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Las cuentas nuevas son validadas por el COCODE de tu aldea '
+                'o la Municipalidad.',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12.5,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // Nota de modo demo local (solo si Firebase está apagado).
+      if (!AppConfig.firebaseEnabled) ...[
+        const SizedBox(height: 16),
+        const Text(
+          'Modo demo local: cualquier correo y contraseña funcionan.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white38, fontSize: 12),
+        ),
+      ],
+    ];
   }
 }
 

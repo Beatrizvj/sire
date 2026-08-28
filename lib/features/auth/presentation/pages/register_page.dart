@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,10 @@ import '../../../../core/validation/password_validator.dart';
 import '../../../identity/data/identity_repository.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form_styles.dart';
+
+/// Ancho a partir del cual, **solo en web**, el registro pasa a pantalla
+/// dividida (hero institucional + formulario), igual que el login.
+const double _kWideBreakpoint = 900;
 
 /// Localidades de San Miguel Sigüilá (aldea que declara el ciudadano).
 const _aldeas = <String>['Cabecera', 'La Ciénaga', 'La Emboscada', 'El Llano'];
@@ -179,295 +184,316 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       }
     });
 
-    return Scaffold(
-      backgroundColor: kAuthBackground,
-      appBar: AppBar(
-        backgroundColor: kAuthBackground,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text('Crear cuenta'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // El hero split solo aparece en el panel web en pantallas anchas.
+        final wide = kIsWeb && constraints.maxWidth >= _kWideBreakpoint;
+        if (wide) {
+          return Scaffold(
+            backgroundColor: kAuthBackground,
+            body: SafeArea(
+              child: Row(
+                children: [
+                  const Expanded(flex: 6, child: AuthHeroPanel()),
+                  Expanded(flex: 5, child: _formScroll(state, compact: true)),
+                ],
+              ),
+            ),
+          );
+        }
+        return Scaffold(
+          backgroundColor: kAuthBackground,
+          appBar: AppBar(
+            backgroundColor: kAuthBackground,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            title: const Text('Crear cuenta'),
+          ),
+          body: SafeArea(child: _formScroll(state, compact: false)),
+        );
+      },
+    );
+  }
+
+  Widget _formScroll(AuthState state, {required bool compact}) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 48 : 24,
+        vertical: compact ? 40 : 8,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: _formContent(state, compact: compact),
+        ),
+      ),
+    );
+  }
+
+  /// Formulario de registro. En [compact] (web) la marca vive en el hero, así
+  /// que aquí solo va un encabezado breve; si no, la cabecera de marca completa.
+  Widget _formContent(AuthState state, {required bool compact}) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (compact) ...[
+            const Text(
+              'Crear cuenta',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Completa tus datos. Tu cuenta quedará en revisión hasta que '
+              'una autoridad la valide.',
+              style: TextStyle(color: Colors.white60, fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 28),
+          ] else ...[
+            const Center(child: AuthLogoBadge(size: 64)),
+            const SizedBox(height: 14),
+            const Center(child: MunicipioChip()),
+            const SizedBox(height: 6),
+            const Text(
+              'Crea tu cuenta ciudadana',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white60, fontSize: 13),
+            ),
+            const SizedBox(height: 26),
+          ],
+
+          // ── Datos personales ─────────────────────────────────────────────
+          TextFormField(
+            controller: _nombre,
+            textCapitalization: TextCapitalization.words,
+            style: const TextStyle(color: Colors.white),
+            cursorColor: AppColors.emergency,
+            decoration: authFieldDecoration(
+              label: 'Nombre(s)',
+              icon: Icons.person_outline,
+            ),
+            validator: (v) => NameValidator.validar(v, campo: 'nombre'),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _apellido,
+            textCapitalization: TextCapitalization.words,
+            style: const TextStyle(color: Colors.white),
+            cursorColor: AppColors.emergency,
+            decoration: authFieldDecoration(
+              label: 'Apellido(s)',
+              icon: Icons.badge_outlined,
+            ),
+            validator: (v) => NameValidator.validar(v, campo: 'apellido'),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _telefono,
+            keyboardType: TextInputType.phone,
+            style: const TextStyle(color: Colors.white),
+            cursorColor: AppColors.emergency,
+            decoration: authFieldDecoration(
+              label: 'Teléfono',
+              icon: Icons.phone_outlined,
+            ),
+            validator: (v) => (v == null || v.trim().length < 8)
+                ? 'Teléfono inválido'
+                : null,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            style: const TextStyle(color: Colors.white),
+            cursorColor: AppColors.emergency,
+            decoration: authFieldDecoration(
+              label: 'Correo',
+              icon: Icons.email_outlined,
+            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
+              if (!v.contains('@')) return 'Correo inválido';
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _password,
+            obscureText: _obscure,
+            style: const TextStyle(color: Colors.white),
+            cursorColor: AppColors.emergency,
+            decoration: authFieldDecoration(
+              label: 'Contraseña',
+              icon: Icons.lock_outline,
+              helperText: 'Mínimo 8 caracteres, con letra y número',
+              suffixIcon: IconButton(
+                tooltip:
+                    _obscure ? 'Mostrar contraseña' : 'Ocultar contraseña',
+                icon: Icon(
+                  _obscure ? Icons.visibility_off : Icons.visibility,
+                  color: Colors.white54,
+                ),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              ),
+            ),
+            validator: PasswordValidator.validar,
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _aldea,
+            isExpanded: true,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+            dropdownColor: kAuthSurface,
+            iconEnabledColor: Colors.white54,
+            decoration: authFieldDecoration(
+              label: 'Aldea / Localidad',
+              icon: Icons.groups_outlined,
+            ),
+            items: _aldeas
+                .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                .toList(),
+            onChanged: (a) => setState(() => _aldea = a),
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'Selecciona tu aldea' : null,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Tu rol lo asignará una autoridad (COCODE o Municipalidad) al '
+            'revisar tu cuenta. No se asigna automáticamente.',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 12.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── Verificación de identidad (DPI) ──────────────────────────────
+          const Row(
+            children: [
+              Icon(Icons.badge_outlined, size: 18, color: Colors.white54),
+              SizedBox(width: 8),
+              Text(
+                'Verificación de identidad (DPI)',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Toma una foto de cada lado de tu DPI. Solo se usan para validar '
+            'tu identidad; se guardan de forma privada.',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 12.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _FotoDpi(
+                  etiqueta: 'DPI · Anverso',
+                  bytes: _anverso,
+                  onTap: () => _tomarFoto(IdentityRepository.anverso),
+                  onDiscard: () => _descartar(IdentityRepository.anverso),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _FotoDpi(
+                  etiqueta: 'DPI · Reverso',
+                  bytes: _reverso,
+                  onTap: () => _tomarFoto(IdentityRepository.reverso),
+                  onDiscard: () => _descartar(IdentityRepository.reverso),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // ── Botón principal ──────────────────────────────────────────────
+          SizedBox(
+            height: 52,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.emergency,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    AppColors.emergency.withValues(alpha: 0.5),
+                disabledForegroundColor: Colors.white70,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              onPressed: (state.isBusy || _subiendo) ? null : _submit,
+              child: (state.isBusy || _subiendo)
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Crear cuenta'),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Enlace a login ───────────────────────────────────────────────
+          Center(
+            child: TextButton(
+              onPressed: () => context.go(AppRoutes.login),
+              style: TextButton.styleFrom(foregroundColor: kAuthLightRed),
+              child: Text.rich(
+                const TextSpan(
+                  text: '¿Ya tienes cuenta?  ',
+                  style: TextStyle(color: Colors.white60, fontSize: 14),
                   children: [
-                    // ── Cabecera de marca ────────────────────────────────
-                    const Center(child: AuthLogoBadge(size: 64)),
-                    const SizedBox(height: 14),
-                    const Center(child: MunicipioChip()),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Crea tu cuenta ciudadana',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white60, fontSize: 13),
-                    ),
-                    const SizedBox(height: 26),
-
-                    // ── Datos personales ─────────────────────────────────
-                    TextFormField(
-                      controller: _nombre,
-                      textCapitalization: TextCapitalization.words,
-                      style: const TextStyle(color: Colors.white),
-                      cursorColor: AppColors.emergency,
-                      decoration: authFieldDecoration(
-                        label: 'Nombre(s)',
-                        icon: Icons.person_outline,
-                      ),
-                      validator: (v) =>
-                          NameValidator.validar(v, campo: 'nombre'),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _apellido,
-                      textCapitalization: TextCapitalization.words,
-                      style: const TextStyle(color: Colors.white),
-                      cursorColor: AppColors.emergency,
-                      decoration: authFieldDecoration(
-                        label: 'Apellido(s)',
-                        icon: Icons.badge_outlined,
-                      ),
-                      validator: (v) =>
-                          NameValidator.validar(v, campo: 'apellido'),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _telefono,
-                      keyboardType: TextInputType.phone,
-                      style: const TextStyle(color: Colors.white),
-                      cursorColor: AppColors.emergency,
-                      decoration: authFieldDecoration(
-                        label: 'Teléfono',
-                        icon: Icons.phone_outlined,
-                      ),
-                      validator: (v) => (v == null || v.trim().length < 8)
-                          ? 'Teléfono inválido'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      style: const TextStyle(color: Colors.white),
-                      cursorColor: AppColors.emergency,
-                      decoration: authFieldDecoration(
-                        label: 'Correo',
-                        icon: Icons.email_outlined,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Ingresa tu correo';
-                        }
-                        if (!v.contains('@')) return 'Correo inválido';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: _obscure,
-                      style: const TextStyle(color: Colors.white),
-                      cursorColor: AppColors.emergency,
-                      decoration: authFieldDecoration(
-                        label: 'Contraseña',
-                        icon: Icons.lock_outline,
-                        helperText: 'Mínimo 8 caracteres, con letra y número',
-                        suffixIcon: IconButton(
-                          tooltip: _obscure
-                              ? 'Mostrar contraseña'
-                              : 'Ocultar contraseña',
-                          icon: Icon(
-                            _obscure
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                            color: Colors.white54,
-                          ),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
-                        ),
-                      ),
-                      validator: PasswordValidator.validar,
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: _aldea,
-                      isExpanded: true,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
-                      dropdownColor: kAuthSurface,
-                      iconEnabledColor: Colors.white54,
-                      decoration: authFieldDecoration(
-                        label: 'Aldea / Localidad',
-                        icon: Icons.groups_outlined,
-                      ),
-                      items: _aldeas
-                          .map((a) =>
-                              DropdownMenuItem(value: a, child: Text(a)))
-                          .toList(),
-                      onChanged: (a) => setState(() => _aldea = a),
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'Selecciona tu aldea'
-                          : null,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Tu rol lo asignará una autoridad (COCODE o Municipalidad) '
-                      'al revisar tu cuenta. No se asigna automáticamente.',
+                    TextSpan(
+                      text: 'Inicia sesión',
                       style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12.5,
-                        height: 1.35,
+                        color: kAuthLightRed,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: kAuthLightRed,
                       ),
                     ),
-                    const SizedBox(height: 24),
-
-                    // ── Verificación de identidad (DPI) ──────────────────
-                    const Row(
-                      children: [
-                        Icon(Icons.badge_outlined,
-                            size: 18, color: Colors.white54),
-                        SizedBox(width: 8),
-                        Text(
-                          'Verificación de identidad (DPI)',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Toma una foto de cada lado de tu DPI. Solo se usan para '
-                      'validar tu identidad; se guardan de forma privada.',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12.5,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _FotoDpi(
-                            etiqueta: 'DPI · Anverso',
-                            bytes: _anverso,
-                            onTap: () =>
-                                _tomarFoto(IdentityRepository.anverso),
-                            onDiscard: () =>
-                                _descartar(IdentityRepository.anverso),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _FotoDpi(
-                            etiqueta: 'DPI · Reverso',
-                            bytes: _reverso,
-                            onTap: () =>
-                                _tomarFoto(IdentityRepository.reverso),
-                            onDiscard: () =>
-                                _descartar(IdentityRepository.reverso),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-
-                    // ── Botón principal ──────────────────────────────────
-                    SizedBox(
-                      height: 52,
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.emergency,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor:
-                              AppColors.emergency.withValues(alpha: 0.5),
-                          disabledForegroundColor: Colors.white70,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        onPressed:
-                            (state.isBusy || _subiendo) ? null : _submit,
-                        child: (state.isBusy || _subiendo)
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Text('Crear cuenta'),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ── Enlace a login ───────────────────────────────────
-                    Center(
-                      child: TextButton(
-                        onPressed: () => context.go(AppRoutes.login),
-                        style: TextButton.styleFrom(
-                          foregroundColor: kAuthLightRed,
-                        ),
-                        child: Text.rich(
-                          const TextSpan(
-                            text: '¿Ya tienes cuenta?  ',
-                            style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 14,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: 'Inicia sesión',
-                                style: TextStyle(
-                                  color: kAuthLightRed,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: kAuthLightRed,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Nota de modo demo local (solo si Firebase está apagado).
-                    if (!AppConfig.firebaseEnabled) ...[
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Modo demo local: el registro se guarda en el '
-                        'dispositivo.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white38, fontSize: 12),
-                      ),
-                    ],
                   ],
                 ),
               ),
             ),
           ),
-        ),
+
+          // Nota de modo demo local (solo si Firebase está apagado).
+          if (!AppConfig.firebaseEnabled) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Modo demo local: el registro se guarda en el dispositivo.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -517,8 +543,7 @@ class _FotoDpi extends StatelessWidget {
                       child: CircleAvatar(
                         radius: 12,
                         backgroundColor: AppColors.emergency,
-                        child: Icon(Icons.check,
-                            size: 15, color: Colors.white),
+                        child: Icon(Icons.check, size: 15, color: Colors.white),
                       ),
                     ),
                   )
@@ -553,8 +578,8 @@ class _FotoDpi extends StatelessWidget {
                 TextButton.icon(
                   onPressed: onDiscard,
                   icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('Descartar',
-                      style: TextStyle(fontSize: 12)),
+                  label:
+                      const Text('Descartar', style: TextStyle(fontSize: 12)),
                   style: TextButton.styleFrom(
                     foregroundColor: kAuthLightRed,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
