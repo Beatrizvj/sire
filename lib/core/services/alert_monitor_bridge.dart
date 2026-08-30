@@ -16,11 +16,18 @@ class AlertMonitorBridge {
   static const MethodChannel _channel = MethodChannel('sire/alert_monitor');
 
   /// Inicia el monitoreo (arranca el servicio en primer plano).
-  /// - [todos] = true: autoridad, oye TODAS las alertas.
-  /// - [todos] = false: ciudadano contacto de confianza (RF-11), oye solo las
-  ///   alertas de los uids en [contactos].
-  Future<void> start({bool todos = true, List<String> contactos = const []}) =>
-      _invoke('startMonitor', {'todos': todos, 'contactos': contactos});
+  /// - [todos] = true: Municipalidad, oye TODAS las alertas del municipio.
+  /// - [aldea] no vacía: COCODE, oye solo las alertas de SU aldea (ruteo por
+  ///   aldea registrada del ciudadano).
+  /// - [contactos] no vacío: ciudadano contacto de confianza (RF-11), oye solo
+  ///   las alertas de los uids en [contactos].
+  Future<void> start({
+    bool todos = true,
+    List<String> contactos = const [],
+    String aldea = '',
+  }) =>
+      _invoke('startMonitor',
+          {'todos': todos, 'contactos': contactos, 'aldea': aldea});
 
   /// Detiene el monitoreo (al cerrar sesión o dejar de ser autoridad/contacto).
   Future<void> stop() => _invoke('stopMonitor');

@@ -80,6 +80,15 @@ service cloud.firestore {
                        && resource.data.get('aldeaSolicitada', '') == miAldea()
                        && request.resource.data.get('rol', 'ciudadano') == 'ciudadano';
 
+      // RF-11: el COCODE arma los grupos de "contactos de confianza" de los
+      // CIUDADANOS aprobados de SU aldea. Mínimo privilegio: SOLO puede cambiar
+      // el campo `contactosConfianza` (ni rol, ni estado, ni aldea, ni nada más).
+      allow update: if esCocode()
+                       && resource.data.get('aldea', '') == miAldea()
+                       && resource.data.get('rol', 'ciudadano') == 'ciudadano'
+                       && request.resource.data.diff(resource.data)
+                            .affectedKeys().hasOnly(['contactosConfianza']);
+
       allow delete: if esMunicipalidad();
     }
 
@@ -123,22 +132,26 @@ service cloud.firestore {
       // El ciudadano (aprobado) crea su propia alerta (idUsuario debe ser el suyo).
       allow create: if aprobado()
                        && request.resource.data.idUsuario == request.auth.uid;
-      // La lee su dueño; COCODE y Municipalidad las ven para atenderlas.
-      // RF-11: un ciudadano aprobado también puede leer las alertas de los
-      // contactos de confianza que UNA AUTORIDAD le asignó (para que le suene
-      // la alarma). Solo esos; nadie más.
+      // Ruteo por aldea: la Municipalidad lee TODAS las alertas; cada COCODE,
+      // SOLO las de su aldea (por eso su consulta DEBE filtrar por aldea). El
+      // dueño lee la suya. RF-11: un ciudadano aprobado también lee las alertas
+      // de los contactos de confianza que UNA AUTORIDAD le asignó (alarma).
       allow read:   if signedIn() && (
                        resource.data.idUsuario == request.auth.uid
-                       || esCocode() || esMunicipalidad()
+                       || esMunicipalidad()
+                       || (esCocode()
+                           && resource.data.get('aldea', '') == miAldea())
                        || (aprobado()
                            && resource.data.idUsuario
                                 in perfil().get('contactosConfianza', []))
                     );
-      // COCODE y Municipalidad cambian el estado. Además, el ciudadano puede
-      // CANCELAR su propia alerta (marcarla 'falsa_alarma') en cualquier momento
-      // mientras siga abierta: basta con que sea SU alerta y que el cambio sea
-      // SOLO a 'falsa_alarma'. No se exige que la cuenta siga aprobada.
-      allow update: if esCocode() || esMunicipalidad()
+      // La Municipalidad cambia el estado de cualquier alerta; el COCODE, solo
+      // las de SU aldea. Además, el ciudadano puede CANCELAR su propia alerta
+      // (marcarla 'falsa_alarma') mientras siga abierta: basta con que sea SU
+      // alerta y que el cambio sea SOLO a 'falsa_alarma'.
+      allow update: if esMunicipalidad()
+                       || (esCocode()
+                           && resource.data.get('aldea', '') == miAldea())
                        || (resource.data.idUsuario == request.auth.uid
                            && request.resource.data.estado == 'falsa_alarma');
       allow delete: if esMunicipalidad();

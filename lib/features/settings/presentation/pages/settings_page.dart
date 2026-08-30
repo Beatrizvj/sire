@@ -119,10 +119,13 @@ void _showAcercaDe(BuildContext context) {
     children: const [
       SizedBox(height: 12),
       Text(AppConfig.appTagline),
-      SizedBox(height: 8),
+      SizedBox(height: 12),
       Text('Municipalidad de San Miguel Sigüilá, Quetzaltenango.'),
       SizedBox(height: 8),
-      Text('Proyecto de graduación · Universidad Mariano Gálvez de Guatemala.'),
+      Text(
+        'Las alertas SOS enviadas por la ciudadanía las reciben y atienden '
+        'los COCODE de cada aldea y la Municipalidad.',
+      ),
     ],
   );
 }

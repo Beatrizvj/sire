@@ -354,9 +354,13 @@ class PowerButtonService : Service() {
         val uid = authUser?.uid ?: prefs.getString(KEY_UID, "") ?: ""
         val nombre = authUser?.displayName?.takeIf { it.isNotBlank() }
             ?: prefs.getString(KEY_NOMBRE, "") ?: ""
+        // Aldea registrada del ciudadano (guardada al iniciar la detección): rutea
+        // la alerta a su COCODE (la Municipalidad ve todas; cada COCODE, su aldea).
+        val aldea = prefs.getString(KEY_ALDEA, "") ?: ""
         val data = hashMapOf<String, Any?>(
             "idUsuario" to uid,
             "nombreUsuario" to nombre,
+            "aldea" to aldea,
             "fecha" to Timestamp(Date()),
             "estado" to "pendiente",
             "tipo" to "SOS",
@@ -486,6 +490,7 @@ class PowerButtonService : Service() {
         const val PREFS = "sire_native"
         const val KEY_UID = "uid"
         const val KEY_NOMBRE = "nombre"
+        const val KEY_ALDEA = "aldea"
 
         // Debe coincidir con AppConfig en Dart (sosButtonPresses / sosDetectionWindow).
         private const val REQUIRED_TOGGLES = 3

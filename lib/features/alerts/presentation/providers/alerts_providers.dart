@@ -8,6 +8,7 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../location/presentation/providers/location_providers.dart';
+import '../../../users/domain/entities/user_role.dart';
 import '../../data/repositories/alert_repository_firestore.dart';
 import '../../data/repositories/alert_repository_local.dart';
 import '../../domain/entities/alert_status.dart';
@@ -34,13 +35,26 @@ final triggerSosProvider = Provider<TriggerSos>(
   ),
 );
 
-/// Todas las alertas de la comunidad en tiempo real, para la Bandeja de
-/// COCODE / Municipalidad. Solo la deben observar las autoridades: las reglas
-/// de Firestore permiten a COCODE/Municipalidad leer todas; un ciudadano
-/// recibiría permiso denegado.
-final allAlertsProvider = StreamProvider.autoDispose<List<SosAlert>>(
-  (ref) => ref.watch(alertRepositoryProvider).watchAllAlerts(),
-);
+/// Alertas que ve la autoridad EN SESIÓN, en tiempo real:
+/// - Municipalidad → TODAS las alertas del municipio.
+/// - COCODE → SOLO las de SU aldea (ruteo por aldea registrada del ciudadano).
+///
+/// Filtra en el cliente sobre el flujo de Firestore. Centraliza el ruteo: la
+/// Bandeja, el panel web, el mapa y la alarma visual usan este mismo provider,
+/// así que todos respetan el filtro por aldea sin repetir lógica. (Un ciudadano
+/// no debe observar este provider: las reglas de Firestore le denegarían la
+/// lectura de alertas ajenas.)
+final allAlertsProvider = StreamProvider.autoDispose<List<SosAlert>>((ref) {
+  final actor = ref.watch(currentUserProfileProvider).asData?.value;
+  final repo = ref.watch(alertRepositoryProvider);
+  // COCODE: solo su aldea, filtrado EN LA CONSULTA (lo exige la regla de
+  // Firestore, que ahora restringe al COCODE a leer solo su aldea).
+  // Municipalidad (y cualquier otro caso): todas.
+  if (actor != null && actor.rol == UserRole.cocode) {
+    return repo.watchAlertsByAldea(actor.aldea);
+  }
+  return repo.watchAllAlerts();
+});
 
 class AlertsState extends Equatable {
   const AlertsState({
@@ -104,9 +118,15 @@ class AlertsController extends Notifier<AlertsState> {
     state = state.copyWith(isSending: true);
     try {
       final userId = ref.read(authControllerProvider).user?.uid;
-      final result = await ref
-          .read(triggerSosProvider)
-          .call(source, userId: userId, categoria: categoria);
+      // Aldea registrada del ciudadano: viaja con la alerta para rutearla a su
+      // COCODE (la Municipalidad ve todas; cada COCODE, solo su aldea).
+      final aldea = ref.read(currentUserProfileProvider).asData?.value?.aldea;
+      final result = await ref.read(triggerSosProvider).call(
+            source,
+            userId: userId,
+            categoria: categoria,
+            aldea: aldea,
+          );
       state = state.copyWith(
           isSending: false, alerts: [result.alert, ...state.alerts]);
       return result;

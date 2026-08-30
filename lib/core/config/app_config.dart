@@ -17,6 +17,11 @@ class AppConfig {
   /// Debe coincidir con WINDOW_MS en PowerButtonService.kt.
   static const Duration sosDetectionWindow = Duration(seconds: 4);
 
+  /// RF-13: ventana de cancelación del botón EN PANTALLA antes de difundir el
+  /// SOS. Espeja CANCEL_WINDOW_SECONDS de PowerButtonService.kt (botón físico),
+  /// para que ambas vías den el mismo margen para cancelar.
+  static const Duration sosCancelWindow = Duration(seconds: 8);
+
   // --- Feature flags (se activan en hitos posteriores) ---
   /// Hito 3: al conectar Firebase, cambiar a `true`.
   ///

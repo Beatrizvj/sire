@@ -28,10 +28,13 @@ class PowerButtonBridge {
     return _stream!;
   }
 
-  /// Inicia la detección nativa. Pasa el [uid] para que el servicio pueda
-  /// etiquetar la alerta (idUsuario) al guardarla en Firestore por su cuenta.
-  Future<bool> startDetection(String uid, String nombre) =>
-      _invokeBool('startDetection', {'uid': uid, 'nombre': nombre});
+  /// Inicia la detección nativa. Pasa el [uid], el [nombre] y la [aldea] del
+  /// ciudadano para que el servicio etiquete la alerta (idUsuario, nombreUsuario
+  /// y aldea) al guardarla en Firestore por su cuenta. La aldea rutea la alerta
+  /// al COCODE correspondiente (RF-11 / ruteo por aldea).
+  Future<bool> startDetection(String uid, String nombre, String aldea) =>
+      _invokeBool(
+          'startDetection', {'uid': uid, 'nombre': nombre, 'aldea': aldea});
 
   Future<bool> stopDetection() => _invokeBool('stopDetection');
 

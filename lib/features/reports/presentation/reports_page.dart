@@ -13,7 +13,9 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../alerts/domain/entities/alert_status.dart';
 import '../../alerts/domain/entities/sos_alert.dart';
 import '../../alerts/presentation/providers/alerts_providers.dart';
+import '../../auth/presentation/providers/auth_providers.dart';
 import '../../users/domain/entities/app_user.dart';
+import '../../users/domain/entities/user_role.dart';
 import '../../users/presentation/providers/users_providers.dart';
 
 // Paleta del panel.
@@ -38,22 +40,38 @@ class ReportesBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(currentUserProfileProvider).asData?.value;
     final alertasAsync = ref.watch(allAlertsProvider);
-    final usuarios = ref.watch(allUsersProvider).asData?.value ?? const [];
+    // Mínimo privilegio: el COCODE ve solo su aldea (las alertas ya vienen
+    // filtradas por allAlertsProvider; los usuarios se filtran aquí).
+    final usuarios = usuariosVisiblesPara(
+        ref.watch(allUsersProvider).asData?.value ?? const [], actor);
+    // Ámbito del reporte, para el título y la exportación.
+    final ambito = actor?.rol == UserRole.cocode && actor!.aldea.isNotEmpty
+        ? 'Aldea ${actor.aldea}'
+        : 'San Miguel Sigüilá';
 
     return alertasAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error al cargar: $e')),
-      data: (alertas) => _ReportesContenido(alertas: alertas, usuarios: usuarios),
+      data: (alertas) => _ReportesContenido(
+          alertas: alertas, usuarios: usuarios, ambito: ambito),
     );
   }
 }
 
 class _ReportesContenido extends StatelessWidget {
-  const _ReportesContenido({required this.alertas, required this.usuarios});
+  const _ReportesContenido({
+    required this.alertas,
+    required this.usuarios,
+    required this.ambito,
+  });
 
   final List<SosAlert> alertas;
   final List<AppUser> usuarios;
+
+  /// Ámbito del reporte: "San Miguel Sigüilá" (Municipalidad) o "Aldea X" (COCODE).
+  final String ambito;
 
   // ── Agregaciones (BI) ──
   Map<String, int> get _porEstado {
@@ -135,8 +153,17 @@ class _ReportesContenido extends StatelessWidget {
           // Barra de exportación.
           Row(
             children: [
-              const Text('Reportes',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Reportes',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(ambito,
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF6B5A57))),
+                ],
+              ),
               const Spacer(),
               _BotonExport(
                   icono: Icons.grid_on,
@@ -313,7 +340,7 @@ class _ReportesContenido extends StatelessWidget {
                     style: pw.TextStyle(
                         fontSize: 18, fontWeight: pw.FontWeight.bold)),
                 pw.Text(
-                    'San Miguel Sigüilá · Generado ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
+                    '$ambito · Generado ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
                     style: const pw.TextStyle(fontSize: 10)),
               ],
             ),

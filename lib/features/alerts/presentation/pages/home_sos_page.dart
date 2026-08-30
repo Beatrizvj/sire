@@ -16,6 +16,7 @@ import '../providers/alerts_providers.dart';
 import '../providers/sos_trigger_mode.dart';
 import '../widgets/alert_tile.dart';
 import '../widgets/sos_button.dart';
+import '../widgets/sos_countdown_dialog.dart';
 
 /// Pantalla principal: botón SOS, activación de la detección por botón físico
 /// e historial de alertas.
@@ -126,6 +127,20 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
     );
     // Si cerró el panel sin elegir, no se envía nada.
     if (categoria == null) return;
+    if (!mounted) return;
+    // RF-13: ventana de cancelación antes de difundir (igual que el botón de
+    // encendido). Si el ciudadano cancela, no se envía nada.
+    final enviar = await showSosCountdown(
+      context,
+      segundos: AppConfig.sosCancelWindow.inSeconds,
+    );
+    if (!enviar) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(content: Text('SOS cancelado.')));
+      return;
+    }
     await _trigger(
       SosSource.screenButton,
       categoria: categoria == categoriaSinEspecificar ? null : categoria,
@@ -192,9 +207,14 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
           await bridge.requestIgnoreBatteryOptimizations();
         }
         final user = ref.read(authControllerProvider).user;
+        // Aldea registrada del ciudadano: viaja al servicio nativo para etiquetar
+        // la alerta del botón de encendido y rutearla a su COCODE.
+        final aldea =
+            ref.read(currentUserProfileProvider).asData?.value?.aldea ?? '';
         enabled = await bridge.startDetection(
           user?.uid ?? '',
           user?.displayName ?? '',
+          aldea,
         );
         if (!enabled) {
           errorMsg =

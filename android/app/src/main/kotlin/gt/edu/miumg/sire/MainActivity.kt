@@ -28,14 +28,17 @@ class MainActivity : FlutterActivity() {
         MethodChannel(messenger, CONTROL_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startDetection" -> {
-                    // Guarda el uid del usuario en sesión para que el servicio nativo
-                    // pueda etiquetar la alerta (idUsuario) al escribir en Firestore.
+                    // Guarda uid, nombre y aldea del usuario en sesión para que el
+                    // servicio nativo etiquete la alerta (idUsuario, nombreUsuario,
+                    // aldea) al escribir en Firestore y la rutee a su COCODE.
                     val uid = call.argument<String>("uid") ?: ""
                     val nombre = call.argument<String>("nombre") ?: ""
+                    val aldea = call.argument<String>("aldea") ?: ""
                     getSharedPreferences(PowerButtonService.PREFS, MODE_PRIVATE)
                         .edit()
                         .putString(PowerButtonService.KEY_UID, uid)
                         .putString(PowerButtonService.KEY_NOMBRE, nombre)
+                        .putString(PowerButtonService.KEY_ALDEA, aldea)
                         .apply()
                     startPowerService()
                     result.success(true)
@@ -73,12 +76,13 @@ class MainActivity : FlutterActivity() {
         MethodChannel(messenger, MONITOR_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startMonitor" -> {
-                    // RF-11: guarda el filtro del monitoreo (autoridad = todas las
-                    // alertas; ciudadano = solo los uids de sus contactos de
-                    // confianza) para que el servicio arme la consulta correcta.
+                    // Guarda el filtro del monitoreo para que el servicio arme la
+                    // consulta correcta: Municipalidad = todas; COCODE = solo su
+                    // aldea; ciudadano = solo los uids de sus contactos (RF-11).
                     val todos = call.argument<Boolean>("todos") ?: true
                     val contactos =
                         call.argument<List<String>>("contactos") ?: emptyList()
+                    val aldea = call.argument<String>("aldea") ?: ""
                     getSharedPreferences(AlertMonitorService.PREFS, MODE_PRIVATE)
                         .edit()
                         .putBoolean(AlertMonitorService.KEY_TODOS, todos)
@@ -86,6 +90,7 @@ class MainActivity : FlutterActivity() {
                             AlertMonitorService.KEY_CONTACTOS,
                             contactos.toSet(),
                         )
+                        .putString(AlertMonitorService.KEY_ALDEA, aldea)
                         .apply()
                     startMonitorService()
                     result.success(true)

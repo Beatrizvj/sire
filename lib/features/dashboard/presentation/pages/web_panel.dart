@@ -58,6 +58,19 @@ const _secciones = <(IconData, String)>[
 const _ixAlertas = 1;
 const _ixAprobaciones = 3;
 
+// Secciones SOLO municipales (vistas de todo el municipio). El COCODE no las ve:
+// Comunidades (4) y Configuración (7).
+const _seccionesSoloMunicipalidad = {4, 7};
+
+/// Índices de sección visibles según el rol. La Municipalidad ve todas; el
+/// COCODE, todas menos las municipales (Comunidades y Configuración).
+List<int> _seccionesVisibles(UserRole? rol) => [
+      for (var i = 0; i < _secciones.length; i++)
+        if (rol == UserRole.municipalidad ||
+            !_seccionesSoloMunicipalidad.contains(i))
+          i,
+    ];
+
 /// Panel web municipal (consola de escritorio, **responsive**). Reusa los mismos
 /// providers y datos de Firestore que la app móvil. Solo lo ven COCODE y
 /// Municipalidad (el control de acceso vive en AppShell).
@@ -99,8 +112,16 @@ class _WebPanelState extends ConsumerState<WebPanel> {
     final pendientesAprob =
         actor == null ? 0 : pendientesPara(todos, actor).length;
 
+    // Panel por rol: la Municipalidad ve todas las secciones; el COCODE, solo
+    // las de su aldea (sin Comunidades ni Configuración, que son municipales).
+    final visibles = _seccionesVisibles(actor?.rol);
+    final seccionActual = visibles.contains(_seccion)
+        ? _seccion
+        : (visibles.isEmpty ? 0 : visibles.first);
+
     Widget barra({required bool enDrawer}) => _SidebarContent(
-          seleccion: _seccion,
+          visibles: visibles,
+          seleccion: seccionActual,
           pendientes: pendientes,
           pendientesAprob: pendientesAprob,
           onSelect: (i) {
@@ -118,7 +139,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
             ColorScheme.fromSeed(seedColor: _brand, brightness: Brightness.light),
         scaffoldBackgroundColor: _bg,
       ),
-      child: Container(color: _bg, child: _cuerpo(_seccion)),
+      child: Container(color: _bg, child: _cuerpo(seccionActual)),
     );
 
     final Widget scaffold = compacto
@@ -126,7 +147,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
             appBar: AppBar(
               backgroundColor: _side,
               foregroundColor: Colors.white,
-              title: Text(_secciones[_seccion].$2),
+              title: Text(_secciones[seccionActual].$2),
             ),
             drawer: Drawer(
               backgroundColor: _side,
@@ -144,7 +165,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
                   child: Column(
                     children: [
                       _TopBar(
-                        titulo: _secciones[_seccion].$2,
+                        titulo: _secciones[seccionActual].$2,
                         sonidoActivado: _sonidoActivado,
                         onActivarSonido: () =>
                             setState(() => _sonidoActivado = true),
@@ -171,6 +192,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
 
 class _SidebarContent extends StatelessWidget {
   const _SidebarContent({
+    required this.visibles,
     required this.seleccion,
     required this.pendientes,
     required this.pendientesAprob,
@@ -178,6 +200,7 @@ class _SidebarContent extends StatelessWidget {
     required this.onLogout,
   });
 
+  final List<int> visibles;
   final int seleccion;
   final int pendientes;
   final int pendientesAprob;
@@ -231,7 +254,7 @@ class _SidebarContent extends StatelessWidget {
               ],
             ),
           ),
-          for (var i = 0; i < _secciones.length; i++)
+          for (final i in visibles)
             _NavItem(
               icon: _secciones[i].$1,
               label: _secciones[i].$2,
@@ -373,8 +396,12 @@ class _Dashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(currentUserProfileProvider).asData?.value;
     final alerts = ref.watch(allAlertsProvider).asData?.value ?? const [];
-    final users = ref.watch(allUsersProvider).asData?.value ?? const [];
+    // Conteos por rol: el COCODE ve solo su aldea (las alertas ya vienen
+    // filtradas por allAlertsProvider; los usuarios se filtran aquí).
+    final users = usuariosVisiblesPara(
+        ref.watch(allUsersProvider).asData?.value ?? const [], actor);
     final pendientes =
         alerts.where((a) => a.status == AlertStatus.pendiente).length;
     final ciudadanos = users.where((u) => u.rol == UserRole.ciudadano).length;
@@ -806,7 +833,9 @@ class _UsuariosBody extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => _Error(
               mensaje: '$e', onRetry: () => ref.invalidate(allUsersProvider)),
-          data: (users) {
+          data: (todos) {
+            // Mínimo privilegio: el COCODE solo ve/gestiona su aldea.
+            final users = usuariosVisiblesPara(todos, actor);
             if (users.isEmpty) {
               return const Center(child: Text('No hay usuarios.'));
             }
@@ -888,11 +917,25 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
   late String _comunidad =
       _comunidades.contains(widget.usuario.aldea) ? widget.usuario.aldea : '';
   late bool _verIdentidad = widget.usuario.puedeVerIdentidad;
+  late final Set<String> _contactos = widget.usuario.contactosConfianza.toSet();
   bool _guardando = false;
 
   @override
   Widget build(BuildContext context) {
+    // RF-11: candidatos = ciudadanos aprobados de la MISMA comunidad (vecinos),
+    // sin el propio usuario. El grupo es mutuo; lo arma la autoridad.
+    final todos = ref.watch(allUsersProvider).asData?.value ?? const <AppUser>[];
+    final candidatos = (_rol == UserRole.ciudadano && _comunidad.isNotEmpty)
+        ? todos
+            .where((u) =>
+                u.id != widget.usuario.id &&
+                u.rol == UserRole.ciudadano &&
+                u.puedeAcceder &&
+                u.aldea == _comunidad)
+            .toList()
+        : const <AppUser>[];
     return AlertDialog(
+      scrollable: true,
       title: Text(widget.usuario.nombre),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -945,6 +988,43 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
                 'usuarios (verificador).',
                 style: TextStyle(fontSize: 12)),
           ),
+          if (_rol == UserRole.ciudadano) ...[
+            const SizedBox(height: 12),
+            const Divider(),
+            const Text('Contactos de confianza (RF-11)',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(
+              'Grupo de confianza de ${widget.usuario.nombre}: a todos les suena '
+              'la alarma cuando cualquiera del grupo envía un SOS (es mutuo).',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
+            ),
+            const SizedBox(height: 8),
+            if (_comunidad.isEmpty)
+              const Text('Asigna primero una comunidad para ver a los vecinos.',
+                  style: TextStyle(fontSize: 12))
+            else if (candidatos.isEmpty)
+              const Text('No hay otros ciudadanos aprobados en esta comunidad.',
+                  style: TextStyle(fontSize: 12))
+            else
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final c in candidatos)
+                    FilterChip(
+                      label: Text(c.nombre),
+                      selected: _contactos.contains(c.id),
+                      onSelected: (sel) => setState(() {
+                        if (sel) {
+                          _contactos.add(c.id);
+                        } else {
+                          _contactos.remove(c.id);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+          ],
         ],
       ),
       actionsAlignment: MainAxisAlignment.spaceBetween,
@@ -1030,14 +1110,38 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
     setState(() => _guardando = true);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    final repo = ref.read(userRepositoryProvider);
+    final yo = widget.usuario.id;
+    final nuevos = _rol == UserRole.ciudadano ? _contactos : <String>{};
+    final viejos = widget.usuario.contactosConfianza.toSet();
     try {
-      await ref.read(userRepositoryProvider).saveUser(
-            widget.usuario.copyWith(
-              rol: _rol,
-              aldea: _comunidad,
-              puedeVerIdentidad: _verIdentidad,
-            ),
-          );
+      await repo.saveUser(
+        widget.usuario.copyWith(
+          rol: _rol,
+          aldea: _comunidad,
+          puedeVerIdentidad: _verIdentidad,
+          contactosConfianza: nuevos.toList(),
+        ),
+      );
+      // Grupo MUTUO (RF-11): a cada vecino AÑADIDO, agrégame en su lista; a cada
+      // QUITADO, quítame. Así el grupo queda recíproco armándolo de un solo lado.
+      for (final otroId in nuevos.difference(viejos)) {
+        final otro = await repo.getUser(otroId);
+        if (otro != null && !otro.contactosConfianza.contains(yo)) {
+          await repo.saveUser(otro.copyWith(
+            contactosConfianza: [...otro.contactosConfianza, yo],
+          ));
+        }
+      }
+      for (final otroId in viejos.difference(nuevos)) {
+        final otro = await repo.getUser(otroId);
+        if (otro != null && otro.contactosConfianza.contains(yo)) {
+          await repo.saveUser(otro.copyWith(
+            contactosConfianza:
+                otro.contactosConfianza.where((c) => c != yo).toList(),
+          ));
+        }
+      }
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('${widget.usuario.nombre} → ${_rol.label}.')),

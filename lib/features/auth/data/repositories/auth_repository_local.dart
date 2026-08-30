@@ -100,6 +100,9 @@ class AuthRepositoryLocal implements AuthRepository {
   Future<void> signOut() => _persist(null);
 
   @override
+  Future<void> deleteCurrentUser() => _persist(null);
+
+  @override
   Future<void> sendPasswordReset(String email) async {
     // Modo local (demo): no hay servidor de correo; solo valida el formato.
     if (email.trim().isEmpty || !email.contains('@')) {

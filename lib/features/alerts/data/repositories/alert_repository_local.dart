@@ -43,6 +43,12 @@ class AlertRepositoryLocal implements AlertRepository {
   }
 
   @override
+  Stream<List<SosAlert>> watchAlertsByAldea(String aldea) async* {
+    final todas = await getAlerts();
+    yield todas.where((a) => (a.aldea ?? '') == aldea).toList();
+  }
+
+  @override
   Future<void> updateStatus(String id, AlertStatus status) async {
     final current = await getAlerts();
     final updated = [

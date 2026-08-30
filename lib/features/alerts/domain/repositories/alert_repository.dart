@@ -11,8 +11,13 @@ abstract interface class AlertRepository {
   Future<void> saveAlert(SosAlert alert);
   Future<void> clear();
 
-  /// Todas las alertas de la comunidad en tiempo real (COCODE / Municipalidad).
+  /// Todas las alertas de la comunidad en tiempo real (Municipalidad).
   Stream<List<SosAlert>> watchAllAlerts();
+
+  /// Alertas de UNA aldea en tiempo real (ruteo por aldea del COCODE). Filtra en
+  /// la CONSULTA (no en el cliente) para cumplir la regla de Firestore que
+  /// restringe al COCODE a leer solo las alertas de su aldea.
+  Stream<List<SosAlert>> watchAlertsByAldea(String aldea);
 
   /// Cambia el estado de una alerta (atender / resolver / falsa alarma).
   Future<void> updateStatus(String id, AlertStatus status);

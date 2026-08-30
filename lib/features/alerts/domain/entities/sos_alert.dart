@@ -6,7 +6,7 @@ import 'sos_source.dart';
 /// Una alerta de emergencia (SOS) generada por el ciudadano.
 ///
 /// Los campos mapean el esquema de Firestore de la tesis:
-/// `idUsuario`, `fecha`, `latitud`, `longitud`, `estado`, `tipo`.
+/// `idUsuario`, `fecha`, `latitud`, `longitud`, `estado`, `tipo`, `aldea`.
 class SosAlert extends Equatable {
   const SosAlert({
     required this.id,
@@ -16,6 +16,7 @@ class SosAlert extends Equatable {
     required this.source,
     this.userId,
     this.userName,
+    this.aldea,
     this.status = AlertStatus.pendiente,
     this.type = 'SOS',
     this.address,
@@ -32,6 +33,11 @@ class SosAlert extends Equatable {
 
   /// Nombre del ciudadano (nombreUsuario), para que la autoridad lo identifique.
   final String? userName;
+
+  /// Aldea REGISTRADA del ciudadano que envía el SOS. Rutea la alerta: la
+  /// Municipalidad ve TODAS; cada COCODE, solo las de su aldea. Nula/"" = sin
+  /// aldea asignada (solo la Municipalidad la atiende).
+  final String? aldea;
   final double latitude;
   final double longitude;
   final DateTime timestamp;
@@ -67,6 +73,7 @@ class SosAlert extends Equatable {
         id: id,
         userId: userId,
         userName: userName,
+        aldea: aldea,
         latitude: latitude,
         longitude: longitude,
         timestamp: timestamp,
@@ -85,6 +92,7 @@ class SosAlert extends Equatable {
         id,
         userId,
         userName,
+        aldea,
         latitude,
         longitude,
         timestamp,
