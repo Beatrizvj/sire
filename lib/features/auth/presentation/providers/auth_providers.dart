@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:equatable/equatable.dart';
@@ -98,6 +100,14 @@ final authControllerProvider =
     NotifierProvider<AuthController, AuthState>(AuthController.new);
 
 class AuthController extends Notifier<AuthState> {
+  /// Tiempo máximo para cada paso de red del registro (crear la cuenta, subir
+  /// cada foto del DPI, crear el perfil y el rollback). Sin este tope, una
+  /// escritura a Firestore que no recibe confirmación del servidor (conexión
+  /// inestable) dejaría el registro colgado para siempre: el botón "Crear
+  /// cuenta" girando y la cuenta a medio crear (Auth sí, perfil no). Con el
+  /// tope, falla rápido, se revierte y el usuario puede reintentar.
+  static const Duration _timeoutRegistro = Duration(seconds: 20);
+
   @override
   AuthState build() {
     final repo = ref.watch(authRepositoryProvider);
@@ -150,32 +160,40 @@ class AuthController extends Notifier<AuthState> {
   }) async {
     state = state.copyWith(isBusy: true);
     try {
-      final authUser = await ref.read(authRepositoryProvider).register(
-            email: email,
-            password: password,
-            displayName: nombre,
-          );
+      final authUser = await ref
+          .read(authRepositoryProvider)
+          .register(email: email, password: password, displayName: nombre)
+          .timeout(_timeoutRegistro);
       // R2 (blindado): sube las fotos del DPI ANTES de crear el perfil. Se hace
       // dentro del controlador (no en la pantalla de registro) para que la
       // subida no se interrumpa al navegar a "Cuenta en revisión". Y al ir
       // PRIMERO, si la subida falla no se crea el perfil: así NUNCA queda una
-      // cuenta sin DPI en la cola de aprobaciones.
+      // cuenta sin DPI en la cola de aprobaciones. Cada escritura lleva timeout
+      // para no colgarse si la conexión con Firestore se traba.
       final repo = ref.read(identityRepositoryProvider);
       if (dpiAnverso != null) {
-        await repo.subir(
-            uid: authUser.uid,
-            lado: IdentityRepository.anverso,
-            bytes: dpiAnverso);
+        await repo
+            .subir(
+              uid: authUser.uid,
+              lado: IdentityRepository.anverso,
+              bytes: dpiAnverso,
+            )
+            .timeout(_timeoutRegistro);
       }
       if (dpiReverso != null) {
-        await repo.subir(
-            uid: authUser.uid,
-            lado: IdentityRepository.reverso,
-            bytes: dpiReverso);
+        await repo
+            .subir(
+              uid: authUser.uid,
+              lado: IdentityRepository.reverso,
+              bytes: dpiReverso,
+            )
+            .timeout(_timeoutRegistro);
       }
       // Ya con las fotos guardadas, crea el perfil PENDIENTE DE REVISIÓN
       // (sin rol efectivo ni acceso).
-      await ref.read(userRepositoryProvider).saveUser(
+      await ref
+          .read(userRepositoryProvider)
+          .saveUser(
             AppUser(
               id: authUser.uid,
               nombre: nombre,
@@ -186,15 +204,27 @@ class AuthController extends Notifier<AuthState> {
               aldeaSolicitada: aldeaSolicitada,
               activo: true,
             ),
-          );
+          )
+          .timeout(_timeoutRegistro);
       state = state.copyWith(user: authUser, isBusy: false);
       return true;
     } catch (e) {
-      // Registro incompleto (p. ej. no se pudo guardar la foto del DPI): cierra
-      // la sesión recién creada para NO dejar un usuario autenticado sin perfil.
+      // Registro incompleto (sin conexión estable o error al guardar el DPI):
+      // ELIMINA la cuenta de Auth recién creada para no dejar un usuario
+      // autenticado SIN perfil (que además bloquearía reintentar con el mismo
+      // correo por "email-already-in-use"). El borrado también lleva timeout
+      // para que el rollback nunca deje el botón girando; si falla, al menos
+      // cierra la sesión.
       try {
-        await ref.read(authRepositoryProvider).signOut();
-      } catch (_) {}
+        await ref
+            .read(authRepositoryProvider)
+            .deleteCurrentUser()
+            .timeout(_timeoutRegistro);
+      } catch (_) {
+        try {
+          await ref.read(authRepositoryProvider).signOut();
+        } catch (_) {}
+      }
       state = state.copyWith(isBusy: false, error: _message(e), clearUser: true);
       return false;
     }
@@ -236,6 +266,11 @@ class AuthController extends Notifier<AuthState> {
   }
 
   String _message(Object error) {
+    // Conexión inestable: alguna escritura de red superó el tope de tiempo.
+    if (error is TimeoutException) {
+      return 'La conexión con el servidor es inestable y la operación no se '
+          'completó. Revisa tu internet e inténtalo de nuevo.';
+    }
     if (error is FirebaseAuthException) {
       return switch (error.code) {
         'invalid-email' => 'Correo inválido.',

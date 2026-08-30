@@ -83,18 +83,6 @@ class ProfilePage extends ConsumerWidget {
               );
             },
           ),
-          const SizedBox(height: 8),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: const Text('Ajustes'),
-              subtitle: const Text('Tema, envío de SOS y cuenta'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
-              ),
-            ),
-          ),
           const Divider(height: 32),
           OutlinedButton.icon(
             onPressed: () =>

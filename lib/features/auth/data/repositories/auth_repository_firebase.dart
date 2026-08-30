@@ -60,6 +60,13 @@ class AuthRepositoryFirebase implements AuthRepository {
   Future<void> signOut() => _auth.signOut();
 
   @override
+  Future<void> deleteCurrentUser() async {
+    // La cuenta se acaba de crear (login reciente), así que delete() no exige
+    // reautenticación. Si no hay usuario en sesión, no hace nada.
+    await _auth.currentUser?.delete();
+  }
+
+  @override
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
 

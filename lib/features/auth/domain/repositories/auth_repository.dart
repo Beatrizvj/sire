@@ -19,6 +19,11 @@ abstract interface class AuthRepository {
 
   Future<void> signOut();
 
+  /// Elimina la cuenta de Auth del usuario en sesión. Se usa como rollback de un
+  /// registro incompleto, para no dejar un usuario autenticado SIN perfil (que
+  /// además bloquearía reintentar con el mismo correo).
+  Future<void> deleteCurrentUser();
+
   /// Envía un correo para restablecer la contraseña.
   Future<void> sendPasswordReset(String email);
 

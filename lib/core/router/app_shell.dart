@@ -256,13 +256,19 @@ class _AlertMonitorGateState extends ConsumerState<_AlertMonitorGate> {
   void _sync(AppUser? perfil) {
     var todos = false;
     var contactos = const <String>[];
+    var aldea = '';
     final String config;
     if (perfil == null || !perfil.puedeAcceder) {
       config = 'off';
-    } else if (perfil.rol == UserRole.cocode ||
-        perfil.rol == UserRole.municipalidad) {
+    } else if (perfil.rol == UserRole.municipalidad) {
+      // Municipalidad: autoridad central, oye TODAS las alertas del municipio.
       todos = true;
       config = 'todos';
+    } else if (perfil.rol == UserRole.cocode) {
+      // Ruteo por aldea: el COCODE oye SOLO las alertas de su aldea. Sin aldea
+      // asignada no puede filtrar, así que no se arranca el monitoreo.
+      aldea = perfil.aldea;
+      config = aldea.isEmpty ? 'off' : 'aldea:$aldea';
     } else if (perfil.rol == UserRole.ciudadano &&
         perfil.contactosConfianza.isNotEmpty) {
       // RF-11: el ciudadano es contacto de confianza de alguien → oye las
@@ -279,7 +285,7 @@ class _AlertMonitorGateState extends ConsumerState<_AlertMonitorGate> {
     if (config == 'off') {
       bridge.stop();
     } else {
-      bridge.start(todos: todos, contactos: contactos);
+      bridge.start(todos: todos, contactos: contactos, aldea: aldea);
     }
   }
 

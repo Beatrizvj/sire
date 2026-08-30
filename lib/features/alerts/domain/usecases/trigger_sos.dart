@@ -42,12 +42,14 @@ class TriggerSos {
     SosSource source, {
     String? userId,
     String? categoria,
+    String? aldea,
   }) async {
     final reading = await locationRepository.getCurrentLocation();
 
     final alert = SosAlert(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       userId: userId,
+      aldea: aldea,
       latitude: reading.latitude,
       longitude: reading.longitude,
       accuracy: reading.accuracy,

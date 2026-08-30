@@ -28,6 +28,9 @@ class AlertRepositoryFirestore implements AlertRepository {
   Map<String, dynamic> _toFirestore(SosAlert alert) => {
         'idUsuario': alert.userId ?? _uid,
         'nombreUsuario': _auth.currentUser?.displayName ?? '',
+        // Aldea registrada del ciudadano: rutea la alerta a su COCODE (la
+        // Municipalidad ve todas; cada COCODE, solo su aldea).
+        'aldea': alert.aldea ?? '',
         'fecha': Timestamp.fromDate(alert.timestamp),
         'latitud': alert.latitude,
         'longitud': alert.longitude,
@@ -53,6 +56,7 @@ class AlertRepositoryFirestore implements AlertRepository {
       id: doc.id,
       userId: data['idUsuario'] as String?,
       userName: data['nombreUsuario'] as String?,
+      aldea: data['aldea'] as String?,
       latitude: (data['latitud'] as num?)?.toDouble() ?? 0.0,
       longitude: (data['longitud'] as num?)?.toDouble() ?? 0.0,
       timestamp: fecha is Timestamp ? fecha.toDate() : DateTime.now(),
@@ -118,6 +122,15 @@ class AlertRepositoryFirestore implements AlertRepository {
       .limit(_limiteAlertasEnVivo)
       .snapshots()
       .map((snap) => snap.docs.map(_fromDoc).toList(growable: false));
+
+  @override
+  Stream<List<SosAlert>> watchAlertsByAldea(String aldea) =>
+      _alertas.where('aldea', isEqualTo: aldea).snapshots().map((snap) {
+        // Sin orderBy en el servidor para NO exigir un índice compuesto
+        // (aldea + fecha). Se ordena en el cliente por fecha descendente.
+        return snap.docs.map(_fromDoc).toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      });
 
   @override
   Future<void> updateStatus(String id, AlertStatus status) {

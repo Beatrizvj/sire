@@ -27,9 +27,9 @@ import com.google.firebase.firestore.ListenerRegistration
  * listener mientras vive (como el PowerButtonService, pero escuchando en vez de
  * emitir).
  *
- * Nota (MVP): por ahora suena por TODA alerta nueva pendiente. El filtro por
- * localidad (que un COCODE solo oiga su aldea) se agregará cuando la alerta
- * guarde la localidad del ciudadano.
+ * Ruteo por aldea: la Municipalidad oye TODAS las alertas; cada COCODE, solo
+ * las de su aldea (la alerta guarda el campo `aldea` del ciudadano); un
+ * ciudadano contacto de confianza, solo las de sus contactos asignados (RF-11).
  */
 class AlertMonitorService : Service() {
 
@@ -81,15 +81,21 @@ class AlertMonitorService : Service() {
 
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         val todos = prefs.getBoolean(KEY_TODOS, true)
+        val aldea = prefs.getString(KEY_ALDEA, "") ?: ""
         val contactos =
             prefs.getStringSet(KEY_CONTACTOS, emptySet())?.toList() ?: emptyList()
         val base = FirebaseFirestore.getInstance().collection("alertas")
-        // AUTORIDAD: escucha TODAS las alertas. CONTACTO DE CONFIANZA (ciudadano):
-        // solo las de los uids que la autoridad le asignó (whereIn, máx. 10) —
-        // justo lo que las reglas de Firestore le permiten leer (RF-11).
+        // Filtro según quién escucha:
+        //  · MUNICIPALIDAD (todos): TODAS las alertas del municipio.
+        //  · COCODE (aldea): SOLO las de su aldea (ruteo por aldea registrada del
+        //    ciudadano; la alerta guarda el campo `aldea`).
+        //  · CONTACTO DE CONFIANZA / ciudadano (contactos): solo las de los uids
+        //    que la autoridad le asignó (whereIn, hasta 30; RF-11). NO usa Blaze.
         val query = when {
             todos -> base
-            contactos.isNotEmpty() -> base.whereIn("idUsuario", contactos.take(10))
+            aldea.isNotEmpty() -> base.whereEqualTo("aldea", aldea)
+            contactos.isNotEmpty() ->
+                base.whereIn("idUsuario", contactos.take(MAX_CONTACTOS))
             else -> null
         }
         if (query == null) {
@@ -236,5 +242,11 @@ class AlertMonitorService : Service() {
         const val PREFS = "sire_monitor"
         const val KEY_TODOS = "todos"
         const val KEY_CONTACTOS = "contactos"
+        const val KEY_ALDEA = "aldea"
+
+        // Máximo de contactos de confianza que se escuchan a la vez. Es el tope de
+        // valores que Firestore admite en una consulta `whereIn` (30). Cubre de
+        // sobra grupos de vecinos/negocios y NO requiere plan de pago (Blaze).
+        const val MAX_CONTACTOS = 30
     }
 }
