@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../communities/aldeas_providers.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/entities/user_role.dart';
 import '../providers/approvals_providers.dart';
 import '../providers/users_providers.dart';
-
-/// Localidades canónicas del municipio (San Miguel Sigüilá).
-const _comunidades = ['Cabecera', 'La Ciénaga', 'La Emboscada', 'El Llano'];
 
 /// Aprobación de cuentas (R1) desde la app móvil.
 /// - Municipalidad: todas las solicitudes pendientes del municipio.
@@ -118,15 +116,13 @@ class _RevisarSheet extends ConsumerStatefulWidget {
 
 class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
   UserRole _rol = UserRole.ciudadano;
-  late String _aldea =
-      _comunidades.contains(widget.solicitante.aldeaSolicitada)
-          ? widget.solicitante.aldeaSolicitada
-          : '';
+  late String _aldea = widget.solicitante.aldeaSolicitada;
   bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final comunidades = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -166,7 +162,7 @@ class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
             Wrap(
               spacing: 8,
               children: [
-                for (final c in _comunidades)
+                for (final c in comunidades)
                   ChoiceChip(
                     label: Text(c),
                     selected: _aldea == c,
