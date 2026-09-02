@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
-import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/pages/approvals_page.dart';
 import '../../../users/presentation/pages/users_management_page.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
@@ -31,7 +30,6 @@ class BandejaPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final alertsAsync = ref.watch(allAlertsProvider);
     final autoridad = ref.watch(currentUserProfileProvider).asData?.value;
-    final esMunicipalidad = autoridad?.rol == UserRole.municipalidad;
     // Solicitudes pendientes que le tocan a esta autoridad (para el distintivo).
     final usuarios = ref.watch(allUsersProvider).asData?.value;
     final pendientes = (usuarios != null && autoridad != null)
@@ -55,16 +53,15 @@ class BandejaPage extends ConsumerWidget {
               ),
             ),
           ),
-          if (esMunicipalidad)
-            IconButton(
-              tooltip: 'Gestión de usuarios',
-              icon: const Icon(Icons.manage_accounts),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const UsersManagementPage(),
-                ),
+          IconButton(
+            tooltip: 'Gestión de usuarios',
+            icon: const Icon(Icons.manage_accounts),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const UsersManagementPage(),
               ),
             ),
+          ),
         ],
       ),
       body: Center(

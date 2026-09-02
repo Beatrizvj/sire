@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ import '../../../alerts/presentation/widgets/new_alert_alarm.dart';
 import '../../../audit/data/audit_repository.dart';
 import '../../../audit/domain/audit_entry.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../communities/aldeas_providers.dart';
 import '../../../identity/data/identity_repository.dart';
 import '../../../incidents/data/incident_category_repository.dart';
 import '../../../reports/presentation/reports_page.dart';
@@ -40,8 +42,6 @@ const _neut = (Color(0xFF6B5A57), Color(0xFFEDE5E3));
 
 /// Centro aproximado de San Miguel Sigüilá para el mapa en vivo del panel.
 const LatLng _centroMunicipioPanel = LatLng(14.8726, -91.6009);
-
-const _comunidades = ['Cabecera', 'La Ciénaga', 'La Emboscada', 'El Llano'];
 
 const _secciones = <(IconData, String)>[
   (Icons.dashboard_outlined, 'Dashboard'),
@@ -402,9 +402,28 @@ class _Dashboard extends ConsumerWidget {
     // filtradas por allAlertsProvider; los usuarios se filtran aquí).
     final users = usuariosVisiblesPara(
         ref.watch(allUsersProvider).asData?.value ?? const [], actor);
+
+    final total = alerts.length;
     final pendientes =
         alerts.where((a) => a.status == AlertStatus.pendiente).length;
+    final resueltas =
+        alerts.where((a) => a.status == AlertStatus.resuelta).length;
     final ciudadanos = users.where((u) => u.rol == UserRole.ciudadano).length;
+
+    // Tiempo de respuesta promedio (solo de las alertas ya atendidas).
+    final atendidas = alerts.where((a) => a.tiempoRespuesta != null).toList();
+    final tRespuesta = atendidas.isEmpty
+        ? '—'
+        : formatearDuracion(Duration(
+            milliseconds: (atendidas
+                        .map((a) => a.tiempoRespuesta!.inMilliseconds)
+                        .reduce((x, y) => x + y) /
+                    atendidas.length)
+                .round()));
+    // Tasa de resolución sobre el total.
+    final tasaResol =
+        total == 0 ? '—' : '${(resueltas / total * 100).round()}%';
+
     final ultimas = [...alerts]
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
@@ -424,8 +443,16 @@ class _Dashboard extends ConsumerWidget {
                   critico: true),
               _Kpi(
                   label: 'Alertas totales',
-                  valor: '${alerts.length}',
+                  valor: '$total',
                   nota: 'registradas'),
+              _Kpi(
+                  label: 'T. respuesta prom.',
+                  valor: tRespuesta,
+                  nota: 'desde el aviso'),
+              _Kpi(
+                  label: 'Tasa de resolución',
+                  valor: tasaResol,
+                  nota: 'alertas resueltas'),
               _Kpi(
                   label: 'Ciudadanos',
                   valor: '$ciudadanos',
@@ -435,6 +462,43 @@ class _Dashboard extends ConsumerWidget {
                   valor: '${users.length}',
                   nota: 'en el sistema'),
             ],
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, cons) {
+              final tendencia = _Card(
+                titulo: 'Alertas por día (últimos 7 días)',
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 14, 16, 14),
+                  child: SizedBox(
+                      height: 200, child: _TendenciaDias(alertas: alerts)),
+                ),
+              );
+              final distrib = _Card(
+                titulo: 'Distribución por estado',
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  child: _DistribucionEstado(alertas: alerts),
+                ),
+              );
+              if (cons.maxWidth < 900) {
+                return Column(
+                  children: [
+                    tendencia,
+                    const SizedBox(height: 20),
+                    distrib,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: tendencia),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 2, child: distrib),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           _Card(
@@ -448,6 +512,149 @@ class _Dashboard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Gráfica de barras de las alertas por día de los últimos 7 días: la tendencia
+/// rápida que el Dashboard muestra de un vistazo.
+class _TendenciaDias extends StatelessWidget {
+  const _TendenciaDias({required this.alertas});
+
+  final List<SosAlert> alertas;
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('dd/MM');
+    final hoy = DateTime.now();
+    final dias = <String, int>{};
+    for (var i = 6; i >= 0; i--) {
+      dias[fmt.format(hoy.subtract(Duration(days: i)))] = 0;
+    }
+    for (final a in alertas) {
+      final k = fmt.format(a.timestamp);
+      if (dias.containsKey(k)) dias[k] = dias[k]! + 1;
+    }
+    final entradas = dias.entries.toList();
+    final maxV =
+        dias.values.isEmpty ? 0 : dias.values.reduce((a, b) => a > b ? a : b);
+    if (maxV == 0) {
+      return const Center(
+        child: Text('Sin alertas en los últimos 7 días',
+            style: TextStyle(color: Color(0xFF6B5A57))),
+      );
+    }
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: (maxV * 1.2).ceilToDouble(),
+        barGroups: [
+          for (var i = 0; i < entradas.length; i++)
+            BarChartGroupData(x: i, barRods: [
+              BarChartRodData(
+                toY: entradas[i].value.toDouble(),
+                color: _brand,
+                width: 20,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+            ]),
+        ],
+        titlesData: FlTitlesData(
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 24,
+              getTitlesWidget: (v, meta) {
+                final i = v.toInt();
+                if (i < 0 || i >= entradas.length) return const SizedBox();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(entradas[i].key,
+                      style: const TextStyle(fontSize: 9)),
+                );
+              },
+            ),
+          ),
+        ),
+        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        borderData: FlBorderData(show: false),
+      ),
+    );
+  }
+}
+
+/// Desglose de las alertas por estado con barras proporcionales.
+class _DistribucionEstado extends StatelessWidget {
+  const _DistribucionEstado({required this.alertas});
+
+  final List<SosAlert> alertas;
+
+  static const _colores = <AlertStatus, Color>{
+    AlertStatus.pendiente: AppColors.statusPendiente,
+    AlertStatus.atendida: AppColors.statusAtendida,
+    AlertStatus.resuelta: AppColors.statusResuelta,
+    AlertStatus.falsaAlarma: AppColors.statusFalsaAlarma,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final total = alertas.length;
+    if (total == 0) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text('Aún no hay alertas.',
+              style: TextStyle(color: Color(0xFF6B5A57))),
+        ),
+      );
+    }
+    final conteo = <AlertStatus, int>{
+      for (final s in AlertStatus.values)
+        s: alertas.where((a) => a.status == s).length,
+    };
+    return Column(
+      children: [
+        for (final s in AlertStatus.values)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 92,
+                  child: Text(s.label, style: const TextStyle(fontSize: 12)),
+                ),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: conteo[s]! / total,
+                      minHeight: 10,
+                      backgroundColor: const Color(0xFFF0E9E7),
+                      valueColor: AlwaysStoppedAnimation<Color>(_colores[s]!),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 62,
+                  child: Text(
+                    '${conteo[s]} · ${(conteo[s]! / total * 100).round()}%',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -914,14 +1121,14 @@ class _EditarUsuario extends ConsumerStatefulWidget {
 
 class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
   late UserRole _rol = widget.usuario.rol;
-  late String _comunidad =
-      _comunidades.contains(widget.usuario.aldea) ? widget.usuario.aldea : '';
+  late String _comunidad = widget.usuario.aldea;
   late bool _verIdentidad = widget.usuario.puedeVerIdentidad;
   late final Set<String> _contactos = widget.usuario.contactosConfianza.toSet();
   bool _guardando = false;
 
   @override
   Widget build(BuildContext context) {
+    final comunidades = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     // RF-11: candidatos = ciudadanos aprobados de la MISMA comunidad (vecinos),
     // sin el propio usuario. El grupo es mutuo; lo arma la autoridad.
     final todos = ref.watch(allUsersProvider).asData?.value ?? const <AppUser>[];
@@ -966,7 +1173,7 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
                 selected: _comunidad.isEmpty,
                 onSelected: (_) => setState(() => _comunidad = ''),
               ),
-              for (final c in _comunidades)
+              for (final c in comunidades)
                 ChoiceChip(
                   label: Text(c),
                   selected: _comunidad == c,
@@ -1161,28 +1368,95 @@ class _ComunidadesBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final users = ref.watch(allUsersProvider).asData?.value ?? const [];
+    final comunidades = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Wrap(
-        spacing: 14,
-        runSpacing: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final c in _comunidades)
-            _ComunidadCard(
-              nombre: c,
-              usuarios: users.where((u) => u.aldea == c).length,
-              cocode: users
-                  .where((u) => u.aldea == c && u.rol == UserRole.cocode)
-                  .length,
-            ),
-          _ComunidadCard(
-            nombre: 'Sin asignar',
-            usuarios: users.where((u) => u.aldea.isEmpty).length,
-            cocode: 0,
+          Row(
+            children: [
+              const Text('Comunidades del municipio',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: _brand),
+                onPressed: () => _agregarAldea(context, ref),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Agregar aldea'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Las cuatro localidades base siempre están disponibles. Agrega nuevas '
+            'comunidades conforme el municipio crezca; aparecerán en el registro, '
+            'las aprobaciones y el ruteo de alertas.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              for (final c in comunidades)
+                _ComunidadCard(
+                  nombre: c,
+                  usuarios: users.where((u) => u.aldea == c).length,
+                  cocode: users
+                      .where((u) => u.aldea == c && u.rol == UserRole.cocode)
+                      .length,
+                ),
+              _ComunidadCard(
+                nombre: 'Sin asignar',
+                usuarios: users.where((u) => u.aldea.isEmpty).length,
+                cocode: 0,
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _agregarAldea(BuildContext context, WidgetRef ref) async {
+    final ctrl = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Agregar aldea'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Nombre de la aldea o comunidad',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (_) => Navigator.pop(dctx, ctrl.text.trim()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dctx),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _brand),
+            onPressed: () => Navigator.pop(dctx, ctrl.text.trim()),
+            child: const Text('Agregar'),
+          ),
+        ],
+      ),
+    );
+    if (nombre == null || nombre.isEmpty || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(aldeasRepositoryProvider).agregar(nombre);
+      messenger
+          .showSnackBar(SnackBar(content: Text('Aldea "$nombre" agregada.')));
+    } catch (e) {
+      messenger
+          .showSnackBar(SnackBar(content: Text('No se pudo agregar: $e')));
+    }
   }
 }
 
@@ -1356,13 +1630,14 @@ class _SolicitudTile extends ConsumerWidget {
   }
 
   Future<void> _aprobar(BuildContext context, WidgetRef ref) async {
+    final comunidades = ref.read(aldeasProvider).asData?.value ?? aldeasBase;
     // La Municipalidad puede asignar cualquier rol; el COCODE solo Ciudadano.
     final rolesPermitidos = actor.rol == UserRole.municipalidad
         ? [UserRole.ciudadano, UserRole.cocode, UserRole.municipalidad]
         : [UserRole.ciudadano];
     var rol = rolesPermitidos.first;
     var aldea = objetivo.aldeaSolicitada.isEmpty
-        ? (actor.aldea.isEmpty ? _comunidades.first : actor.aldea)
+        ? (actor.aldea.isEmpty ? comunidades.first : actor.aldea)
         : objetivo.aldeaSolicitada;
 
     final confirmado = await showDialog<bool>(
@@ -1386,11 +1661,11 @@ class _SolicitudTile extends ConsumerWidget {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 initialValue:
-                    _comunidades.contains(aldea) ? aldea : _comunidades.first,
+                    comunidades.contains(aldea) ? aldea : comunidades.first,
                 decoration: const InputDecoration(
                     labelText: 'Aldea / Comunidad',
                     border: OutlineInputBorder()),
-                items: _comunidades
+                items: comunidades
                     .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                     .toList(),
                 onChanged: (a) => setState(() => aldea = a ?? aldea),
@@ -1414,7 +1689,7 @@ class _SolicitudTile extends ConsumerWidget {
       await ref.read(approvalsServiceProvider).aprobar(
             objetivo,
             rol: rol,
-            aldea: _comunidades.contains(aldea) ? aldea : _comunidades.first,
+            aldea: comunidades.contains(aldea) ? aldea : comunidades.first,
             actor: actor,
           );
       if (!context.mounted) return;
@@ -2109,11 +2384,22 @@ class _BotonActivarSonido extends StatelessWidget {
 
 /// Mapa en vivo del panel: ubica las alertas activas (pendiente / en atención)
 /// sobre OpenStreetMap. No requiere Google Maps ni cuenta de facturación.
-class _MapaEnVivoBody extends ConsumerWidget {
+/// Modo de visualización del mapa: alertas activas (marcadores) o mapa de calor
+/// (densidad geográfica de todos los incidentes).
+enum _ModoMapa { activas, calor }
+
+class _MapaEnVivoBody extends ConsumerStatefulWidget {
   const _MapaEnVivoBody();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MapaEnVivoBody> createState() => _MapaEnVivoBodyState();
+}
+
+class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
+  _ModoMapa _modo = _ModoMapa.activas;
+
+  @override
+  Widget build(BuildContext context) {
     final alertsAsync = ref.watch(allAlertsProvider);
     return alertsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -2125,73 +2411,258 @@ class _MapaEnVivoBody extends ConsumerWidget {
         ),
       ),
       data: (alerts) {
-        final activas = alerts
+        // Incidentes con coordenadas válidas: base del mapa de calor.
+        final conCoords = alerts
+            .where((a) => !(a.latitude == 0 && a.longitude == 0))
+            .toList();
+        // Alertas activas (pendientes o en atención): marcadores del mapa en vivo.
+        final activas = conCoords
             .where((a) =>
-                (a.status == AlertStatus.pendiente ||
-                    a.status == AlertStatus.atendida) &&
-                !(a.latitude == 0 && a.longitude == 0))
+                a.status == AlertStatus.pendiente ||
+                a.status == AlertStatus.atendida)
             .toList()
           ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-        final centro = activas.isNotEmpty
-            ? LatLng(activas.first.latitude, activas.first.longitude)
+        final centro = conCoords.isNotEmpty
+            ? _centroide(conCoords)
             : _centroMunicipioPanel;
-        final marcadores = activas.take(120).toList();
+        final esCalor = _modo == _ModoMapa.calor;
 
         return Padding(
           padding: const EdgeInsets.all(16),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                FlutterMap(
-                  options: MapOptions(
-                    initialCenter: centro,
-                    initialZoom: 14,
-                    backgroundColor: _bg,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'gt.edu.miumg.sire',
-                      errorTileCallback: (tile, error, stackTrace) =>
-                          debugPrint('SIRE panel mapa · tile no cargó: $error'),
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        for (final a in marcadores)
-                          Marker(
-                            point: LatLng(a.latitude, a.longitude),
-                            width: 44,
-                            height: 44,
-                            child: Tooltip(
-                              message:
-                                  '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
-                                  '\n${a.address ?? ''}',
-                              child: Icon(
-                                Icons.location_on,
-                                size: 40,
-                                color: a.status == AlertStatus.pendiente
-                                    ? AppColors.statusPendiente
-                                    : AppColors.statusAtendida,
-                              ),
-                            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SelectorModoMapa(
+                modo: _modo,
+                onCambio: (m) => setState(() => _modo = m),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      FlutterMap(
+                        options: MapOptions(
+                          initialCenter: centro,
+                          initialZoom: esCalor ? 13.5 : 14,
+                          backgroundColor: _bg,
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'gt.edu.miumg.sire',
+                            errorTileCallback: (tile, error, stackTrace) =>
+                                debugPrint(
+                                    'SIRE panel mapa · tile no cargó: $error'),
                           ),
-                      ],
-                    ),
-                  ],
+                          if (esCalor)
+                            CircleLayer(circles: _circulosCalor(conCoords))
+                          else
+                            MarkerLayer(markers: _marcadores(activas)),
+                        ],
+                      ),
+                      if (!esCalor && activas.isEmpty)
+                        const Center(child: _TarjetaSinAlertasMapa()),
+                      if (esCalor && conCoords.isEmpty)
+                        const Center(child: _TarjetaSinIncidentesMapa()),
+                      Positioned(
+                        left: 12,
+                        bottom: 12,
+                        child: esCalor
+                            ? const _LeyendaCalor()
+                            : const _LeyendaMapa(),
+                      ),
+                    ],
+                  ),
                 ),
-                if (activas.isEmpty)
-                  const Center(child: _TarjetaSinAlertasMapa()),
-                const Positioned(left: 12, bottom: 12, child: _LeyendaMapa()),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
     );
   }
+
+  List<Marker> _marcadores(List<SosAlert> activas) => [
+        for (final a in activas.take(120))
+          Marker(
+            point: LatLng(a.latitude, a.longitude),
+            width: 44,
+            height: 44,
+            child: Tooltip(
+              message:
+                  '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
+                  '\n${a.address ?? ''}',
+              child: Icon(
+                Icons.location_on,
+                size: 40,
+                color: a.status == AlertStatus.pendiente
+                    ? AppColors.statusPendiente
+                    : AppColors.statusAtendida,
+              ),
+            ),
+          ),
+      ];
+
+  /// Construye los círculos del mapa de calor: la densidad geográfica de los
+  /// incidentes. Cada incidente aporta un círculo translúcido cuyo color va de
+  /// ámbar (poca concentración) a rojo (foco crítico), según cuántos incidentes
+  /// haya dentro de un radio de vecindad. Al superponerse, las zonas con más
+  /// robos se ven más intensas, revelando los focos que exige el análisis del
+  /// Capítulo V.
+  List<CircleMarker> _circulosCalor(List<SosAlert> incidentes) {
+    const radioVecindadM = 300.0; // vecindad para medir la concentración
+    const distancia = Distance();
+    final puntos = [
+      for (final a in incidentes) LatLng(a.latitude, a.longitude),
+    ];
+    final densidad = <int>[];
+    for (final p in puntos) {
+      var cerca = 0;
+      for (final q in puntos) {
+        if (distancia(p, q) <= radioVecindadM) cerca++;
+      }
+      densidad.add(cerca);
+    }
+    final maxD =
+        densidad.isEmpty ? 1 : densidad.reduce((a, b) => a > b ? a : b);
+    // Se pintan de menor a mayor densidad para que los focos queden encima.
+    final orden = [for (var i = 0; i < puntos.length; i++) i]
+      ..sort((a, b) => densidad[a].compareTo(densidad[b]));
+    return [
+      for (final i in orden)
+        CircleMarker(
+          point: puntos[i],
+          radius: 220,
+          useRadiusInMeter: true,
+          color: _colorCalor(densidad[i] / maxD).withValues(alpha: 0.28),
+          borderStrokeWidth: 0,
+          borderColor: const Color(0x00000000),
+        ),
+    ];
+  }
+
+  /// Gradiente de calor: ámbar → naranja → rojo según la densidad normalizada.
+  static Color _colorCalor(double t) {
+    const ambar = Color(0xFFFFC107);
+    const naranja = Color(0xFFEF6C00);
+    const rojo = Color(0xFFD32F2F);
+    return t <= 0.5
+        ? Color.lerp(ambar, naranja, t / 0.5) ?? naranja
+        : Color.lerp(naranja, rojo, (t - 0.5) / 0.5) ?? rojo;
+  }
+}
+
+/// Promedio de las coordenadas, para centrar el mapa en la nube de incidentes.
+LatLng _centroide(List<SosAlert> alertas) {
+  var lat = 0.0;
+  var lng = 0.0;
+  for (final a in alertas) {
+    lat += a.latitude;
+    lng += a.longitude;
+  }
+  return LatLng(lat / alertas.length, lng / alertas.length);
+}
+
+/// Conmutador entre "Alertas activas" (marcadores) y "Mapa de calor" (densidad).
+class _SelectorModoMapa extends StatelessWidget {
+  const _SelectorModoMapa({required this.modo, required this.onCambio});
+
+  final _ModoMapa modo;
+  final ValueChanged<_ModoMapa> onCambio;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SegmentedButton<_ModoMapa>(
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(
+            value: _ModoMapa.activas,
+            icon: Icon(Icons.location_on_outlined),
+            label: Text('Alertas activas'),
+          ),
+          ButtonSegment(
+            value: _ModoMapa.calor,
+            icon: Icon(Icons.local_fire_department_outlined),
+            label: Text('Mapa de calor'),
+          ),
+        ],
+        selected: {modo},
+        onSelectionChanged: (s) => onCambio(s.first),
+      ),
+    );
+  }
+}
+
+/// Leyenda del mapa de calor: gradiente de menor a mayor densidad de incidentes.
+class _LeyendaCalor extends StatelessWidget {
+  const _LeyendaCalor();
+
+  @override
+  Widget build(BuildContext context) => Card(
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Densidad de incidentes',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Container(
+                width: 150,
+                height: 10,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(5),
+                  gradient: const LinearGradient(colors: [
+                    Color(0xFFFFC107),
+                    Color(0xFFEF6C00),
+                    Color(0xFFD32F2F),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const SizedBox(
+                width: 150,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Menor', style: TextStyle(fontSize: 10)),
+                    Text('Mayor', style: TextStyle(fontSize: 10)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+/// Tarjeta cuando aún no hay incidentes que dibujar en el mapa de calor.
+class _TarjetaSinIncidentesMapa extends StatelessWidget {
+  const _TarjetaSinIncidentesMapa();
+
+  @override
+  Widget build(BuildContext context) => const Card(
+        color: Colors.white,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.local_fire_department_outlined),
+              SizedBox(width: 8),
+              Text('Aún no hay incidentes para el mapa de calor.'),
+            ],
+          ),
+        ),
+      );
 }
 
 class _TarjetaSinAlertasMapa extends StatelessWidget {

@@ -157,6 +157,15 @@ service cloud.firestore {
       allow delete: if esMunicipalidad();
     }
 
+    // ── Aldeas / comunidades del municipio (catálogo administrable) ──
+    // Los nombres de las comunidades son públicos y no sensibles: cualquiera los
+    // lee (el formulario de registro los necesita SIN sesión iniciada). Solo la
+    // Municipalidad agrega o edita comunidades (escalabilidad descrita en el Cap. III).
+    match /aldeas/{aldeaId} {
+      allow read:  if true;
+      allow write: if esMunicipalidad();
+    }
+
     // ── Todo lo demás: denegado por defecto ──
     match /{document=**} {
       allow read, write: if false;

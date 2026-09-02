@@ -10,7 +10,9 @@ class FirestoreCollections {
   static const String categoriasIncidente = 'categorias_incidente';
   // R2: fotos del DPI (anverso/reverso) para verificación de identidad.
   static const String identidad = 'identidad';
-  // Reservadas para hitos posteriores:
-  static const String comunidades = 'comunidades';
+  // Catálogo de aldeas/comunidades del municipio, administrable desde el panel
+  // (las 4 base más las que agregue la Municipalidad).
   static const String aldeas = 'aldeas';
+  // Reservada para hitos posteriores:
+  static const String comunidades = 'comunidades';
 }

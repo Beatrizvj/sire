@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../communities/aldeas_providers.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/entities/user_role.dart';
 import '../providers/users_providers.dart';
-
-/// Localidades canónicas del municipio (San Miguel Sigüilá).
-const _comunidades = ['Cabecera', 'La Ciénaga', 'La Emboscada', 'El Llano'];
 
 /// Gestión de usuarios: la Municipalidad asigna **rol** y **comunidad** a cada
 /// usuario desde la app (sin editar Firestore a mano). Se apoya en las reglas:
@@ -17,6 +16,7 @@ class UsersManagementPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final usersAsync = ref.watch(allUsersProvider);
+    final actor = ref.watch(currentUserProfileProvider).asData?.value;
     return Scaffold(
       appBar: AppBar(title: const Text('Gestión de usuarios')),
       body: Center(
@@ -28,21 +28,27 @@ class UsersManagementPage extends ConsumerWidget {
               message: '$e',
               onRetry: () => ref.invalidate(allUsersProvider),
             ),
-            data: (users) => users.isEmpty
-                ? const Center(child: Text('No hay usuarios registrados.'))
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
-                    itemCount: users.length,
-                    itemBuilder: (_, i) => _UserTile(
-                      user: users[i],
-                      onTap: () => showModalBottomSheet<void>(
-                        context: context,
-                        showDragHandle: true,
-                        isScrollControlled: true,
-                        builder: (_) => _EditSheet(user: users[i]),
-                      ),
-                    ),
+            data: (todos) {
+              // Mínimo privilegio: el COCODE solo ve/gestiona los de su aldea.
+              final users = usuariosVisiblesPara(todos, actor);
+              if (users.isEmpty) {
+                return const Center(
+                    child: Text('No hay usuarios registrados.'));
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
+                itemCount: users.length,
+                itemBuilder: (_, i) => _UserTile(
+                  user: users[i],
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    showDragHandle: true,
+                    isScrollControlled: true,
+                    builder: (_) => _EditSheet(user: users[i]),
                   ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -123,14 +129,18 @@ class _EditSheet extends ConsumerStatefulWidget {
 
 class _EditSheetState extends ConsumerState<_EditSheet> {
   late UserRole _rol = widget.user.rol;
-  late String _comunidad =
-      _comunidades.contains(widget.user.aldea) ? widget.user.aldea : '';
+  late String _comunidad = widget.user.aldea;
   late final Set<String> _contactos = widget.user.contactosConfianza.toSet();
   bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final actor = ref.watch(currentUserProfileProvider).asData?.value;
+    // Solo la Municipalidad cambia rol y comunidad; el COCODE se limita a armar
+    // los contactos de confianza de los vecinos de su aldea.
+    final esMuni = actor?.rol == UserRole.municipalidad;
+    final comunidades = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     // RF-11: candidatos = ciudadanos aprobados de la MISMA comunidad (vecinos),
     // sin incluir al propio usuario. Solo la autoridad arma estos grupos.
     final todos = ref.watch(allUsersProvider).asData?.value ?? const <AppUser>[];
@@ -164,39 +174,48 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
-              const SizedBox(height: 20),
-              _Label(text: 'Rol'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final r in UserRole.values)
+              if (esMuni) ...[
+                const SizedBox(height: 20),
+                _Label(text: 'Rol'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final r in UserRole.values)
+                      ChoiceChip(
+                        label: Text(r.label),
+                        selected: _rol == r,
+                        onSelected: (_) => setState(() => _rol = r),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _Label(text: 'Comunidad'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
                     ChoiceChip(
-                      label: Text(r.label),
-                      selected: _rol == r,
-                      onSelected: (_) => setState(() => _rol = r),
+                      label: const Text('Sin asignar'),
+                      selected: _comunidad.isEmpty,
+                      onSelected: (_) => setState(() => _comunidad = ''),
                     ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _Label(text: 'Comunidad'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Sin asignar'),
-                    selected: _comunidad.isEmpty,
-                    onSelected: (_) => setState(() => _comunidad = ''),
-                  ),
-                  for (final c in _comunidades)
-                    ChoiceChip(
-                      label: Text(c),
-                      selected: _comunidad == c,
-                      onSelected: (_) => setState(() => _comunidad = c),
-                    ),
-                ],
-              ),
+                    for (final c in comunidades)
+                      ChoiceChip(
+                        label: Text(c),
+                        selected: _comunidad == c,
+                        onSelected: (_) => setState(() => _comunidad = c),
+                      ),
+                  ],
+                ),
+              ] else ...[
+                const SizedBox(height: 10),
+                Text(
+                  '${widget.user.rol.label} · ${widget.user.aldea.isEmpty ? 'Sin aldea' : widget.user.aldea}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
               if (_rol == UserRole.ciudadano) ...[
                 const SizedBox(height: 20),
                 _Label(text: 'Contactos de confianza (RF-11)'),

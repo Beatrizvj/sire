@@ -12,6 +12,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../../core/validation/password_validator.dart';
+import '../../../communities/aldeas_providers.dart';
 import '../../../identity/data/identity_repository.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form_styles.dart';
@@ -19,9 +20,6 @@ import '../widgets/auth_form_styles.dart';
 /// Ancho a partir del cual, **solo en web**, el registro pasa a pantalla
 /// dividida (hero institucional + formulario), igual que el login.
 const double _kWideBreakpoint = 900;
-
-/// Localidades de San Miguel Sigüilá (aldea que declara el ciudadano).
-const _aldeas = <String>['Cabecera', 'La Ciénaga', 'La Emboscada', 'El Llano'];
 
 /// Registro de un nuevo usuario (crea identidad + perfil en `usuarios`).
 class RegisterPage extends ConsumerStatefulWidget {
@@ -234,6 +232,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   /// Formulario de registro. En [compact] (web) la marca vive en el hero, así
   /// que aquí solo va un encabezado breve; si no, la cabecera de marca completa.
   Widget _formContent(AuthState state, {required bool compact}) {
+    // Lista de aldeas dinámica: las base más las que la Municipalidad agregue.
+    final aldeas = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     return Form(
       key: _formKey,
       child: Column(
@@ -355,7 +355,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               label: 'Aldea / Localidad',
               icon: Icons.groups_outlined,
             ),
-            items: _aldeas
+            items: aldeas
                 .map((a) => DropdownMenuItem(value: a, child: Text(a)))
                 .toList(),
             onChanged: (a) => setState(() => _aldea = a),

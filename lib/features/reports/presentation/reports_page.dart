@@ -33,13 +33,40 @@ const _serie = <Color>[
   Color(0xFF8D6E63), // café
 ];
 
+/// Rango temporal de los reportes.
+enum _RangoReporte { d7, d30, d90, todo }
+
+extension _RangoReporteX on _RangoReporte {
+  String get label => switch (this) {
+        _RangoReporte.d7 => 'Últimos 7 días',
+        _RangoReporte.d30 => 'Últimos 30 días',
+        _RangoReporte.d90 => 'Últimos 90 días',
+        _RangoReporte.todo => 'Todo el historial',
+      };
+
+  /// Ventana hacia atrás desde hoy; `null` = sin límite (todo el historial).
+  Duration? get ventana => switch (this) {
+        _RangoReporte.d7 => const Duration(days: 7),
+        _RangoReporte.d30 => const Duration(days: 30),
+        _RangoReporte.d90 => const Duration(days: 90),
+        _RangoReporte.todo => null,
+      };
+}
+
 /// Módulo de Reportes con inteligencia de negocio (BI): indicadores, gráficas
-/// y exportación a CSV, Excel y PDF.
-class ReportesBody extends ConsumerWidget {
+/// y exportación a CSV, Excel y PDF, con filtro por rango de fechas.
+class ReportesBody extends ConsumerStatefulWidget {
   const ReportesBody({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportesBody> createState() => _ReportesBodyState();
+}
+
+class _ReportesBodyState extends ConsumerState<ReportesBody> {
+  _RangoReporte _rango = _RangoReporte.d30;
+
+  @override
+  Widget build(BuildContext context) {
     final actor = ref.watch(currentUserProfileProvider).asData?.value;
     final alertasAsync = ref.watch(allAlertsProvider);
     // Mínimo privilegio: el COCODE ve solo su aldea (las alertas ya vienen
@@ -54,8 +81,60 @@ class ReportesBody extends ConsumerWidget {
     return alertasAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error al cargar: $e')),
-      data: (alertas) => _ReportesContenido(
-          alertas: alertas, usuarios: usuarios, ambito: ambito),
+      data: (todas) {
+        // Filtro por rango de fechas seleccionado.
+        final ventana = _rango.ventana;
+        final desde =
+            ventana == null ? null : DateTime.now().subtract(ventana);
+        final alertas = desde == null
+            ? todas
+            : todas.where((a) => a.timestamp.isAfter(desde)).toList();
+        return _ReportesContenido(
+          alertas: alertas,
+          usuarios: usuarios,
+          ambito: ambito,
+          rango: _rango,
+          onRango: (r) => setState(() => _rango = r),
+        );
+      },
+    );
+  }
+}
+
+/// Selector del rango temporal del reporte (últimos 7/30/90 días o todo).
+class _SelectorRango extends StatelessWidget {
+  const _SelectorRango({required this.rango, required this.onRango});
+
+  final _RangoReporte rango;
+  final ValueChanged<_RangoReporte> onRango;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_RangoReporte>(
+      initialValue: rango,
+      tooltip: 'Cambiar rango de fechas',
+      onSelected: onRango,
+      itemBuilder: (context) => [
+        for (final r in _RangoReporte.values)
+          PopupMenuItem(value: r, child: Text(r.label)),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_outlined, size: 15),
+            const SizedBox(width: 6),
+            Text(rango.label, style: const TextStyle(fontSize: 13)),
+            const Icon(Icons.arrow_drop_down, size: 18),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -65,6 +144,8 @@ class _ReportesContenido extends StatelessWidget {
     required this.alertas,
     required this.usuarios,
     required this.ambito,
+    required this.rango,
+    required this.onRango,
   });
 
   final List<SosAlert> alertas;
@@ -72,6 +153,10 @@ class _ReportesContenido extends StatelessWidget {
 
   /// Ámbito del reporte: "San Miguel Sigüilá" (Municipalidad) o "Aldea X" (COCODE).
   final String ambito;
+
+  /// Rango temporal seleccionado y callback para cambiarlo.
+  final _RangoReporte rango;
+  final ValueChanged<_RangoReporte> onRango;
 
   // ── Agregaciones (BI) ──
   Map<String, int> get _porEstado {
@@ -150,10 +235,15 @@ class _ReportesContenido extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Barra de exportación.
-          Row(
+          // Barra de título, filtro de rango y exportación (adaptable).
+          Wrap(
+            spacing: 16,
+            runSpacing: 12,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Reportes',
@@ -164,22 +254,27 @@ class _ReportesContenido extends StatelessWidget {
                           fontSize: 12, color: Color(0xFF6B5A57))),
                 ],
               ),
-              const Spacer(),
-              _BotonExport(
-                  icono: Icons.grid_on,
-                  texto: 'CSV',
-                  onTap: () => _exportarCsv()),
-              const SizedBox(width: 8),
-              _BotonExport(
-                  icono: Icons.table_chart,
-                  texto: 'Excel',
-                  onTap: () => _exportarExcel()),
-              const SizedBox(width: 8),
-              _BotonExport(
-                  icono: Icons.picture_as_pdf,
-                  texto: 'PDF',
-                  onTap: () => _exportarPdf(),
-                  primario: true),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _SelectorRango(rango: rango, onRango: onRango),
+                  _BotonExport(
+                      icono: Icons.grid_on,
+                      texto: 'CSV',
+                      onTap: () => _exportarCsv()),
+                  _BotonExport(
+                      icono: Icons.table_chart,
+                      texto: 'Excel',
+                      onTap: () => _exportarExcel()),
+                  _BotonExport(
+                      icono: Icons.picture_as_pdf,
+                      texto: 'PDF',
+                      onTap: () => _exportarPdf(),
+                      primario: true),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -340,7 +435,7 @@ class _ReportesContenido extends StatelessWidget {
                     style: pw.TextStyle(
                         fontSize: 18, fontWeight: pw.FontWeight.bold)),
                 pw.Text(
-                    '$ambito · Generado ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
+                    '$ambito · ${rango.label} · Generado ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
                     style: const pw.TextStyle(fontSize: 10)),
               ],
             ),
