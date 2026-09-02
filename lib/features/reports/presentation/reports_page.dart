@@ -278,24 +278,21 @@ class _ReportesContenido extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          // KPIs.
-          Row(
+          // KPIs (se envuelven en pantallas chicas: teléfono/tablet/PC).
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
             children: [
               _Kpi(titulo: 'Alertas totales', valor: '$total', color: _dark),
-              const SizedBox(width: 14),
-              _Kpi(
-                  titulo: 'Pendientes', valor: '$pendientes', color: _brand),
-              const SizedBox(width: 14),
+              _Kpi(titulo: 'Pendientes', valor: '$pendientes', color: _brand),
               _Kpi(
                   titulo: 'Resueltas',
                   valor: '$resueltas',
                   color: const Color(0xFF2E7D32)),
-              const SizedBox(width: 14),
               _Kpi(
                   titulo: 'T. respuesta prom.',
                   valor: promTexto,
                   color: const Color(0xFFEF6C00)),
-              const SizedBox(width: 14),
               _Kpi(
                   titulo: 'Usuarios',
                   valor: '${usuarios.length}',
@@ -303,33 +300,44 @@ class _ReportesContenido extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          // Gráficas.
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              _PanelGrafica(
-                titulo: 'Alertas por estado',
-                child: _Pastel(datos: _porEstado),
-              ),
-              _PanelGrafica(
-                titulo: 'Alertas por tipo de incidente',
-                child: _Barras(datos: _porCategoria),
-              ),
-              _PanelGrafica(
-                titulo: 'Alertas por comunidad',
-                child: _Barras(datos: _porComunidad),
-              ),
-              _PanelGrafica(
-                titulo: 'Alertas por origen',
-                child: _Pastel(datos: _porOrigen),
-              ),
-              _PanelGrafica(
-                titulo: 'Alertas por día (últimos 7 días)',
-                ancho: 720,
-                child: _Barras(datos: _porDia),
-              ),
-            ],
+          // Gráficas: el ancho se adapta al tamaño de pantalla (teléfono,
+          // tablet, PC). Ocupan todo el ancho cuando no caben dos por fila.
+          LayoutBuilder(
+            builder: (context, cons) {
+              final normal = cons.maxWidth < 712 ? cons.maxWidth : 348.0;
+              final anchoDia = cons.maxWidth < 720 ? cons.maxWidth : 720.0;
+              return Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _PanelGrafica(
+                    titulo: 'Alertas por estado',
+                    ancho: normal,
+                    child: _Pastel(datos: _porEstado),
+                  ),
+                  _PanelGrafica(
+                    titulo: 'Alertas por tipo de incidente',
+                    ancho: normal,
+                    child: _Barras(datos: _porCategoria),
+                  ),
+                  _PanelGrafica(
+                    titulo: 'Alertas por comunidad',
+                    ancho: normal,
+                    child: _Barras(datos: _porComunidad),
+                  ),
+                  _PanelGrafica(
+                    titulo: 'Alertas por origen',
+                    ancho: normal,
+                    child: _Pastel(datos: _porOrigen),
+                  ),
+                  _PanelGrafica(
+                    titulo: 'Alertas por día (últimos 7 días)',
+                    ancho: anchoDia,
+                    child: _Barras(datos: _porDia),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -483,26 +491,25 @@ class _Kpi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(titulo.toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 11, color: Color(0xFF6B5A57), letterSpacing: .5)),
-            const SizedBox(height: 6),
-            Text(valor,
-                style: TextStyle(
-                    fontSize: 30, fontWeight: FontWeight.w800, color: color)),
-          ],
-        ),
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo.toUpperCase(),
+              style: const TextStyle(
+                  fontSize: 11, color: Color(0xFF6B5A57), letterSpacing: .5)),
+          const SizedBox(height: 6),
+          Text(valor,
+              style: TextStyle(
+                  fontSize: 30, fontWeight: FontWeight.w800, color: color)),
+        ],
       ),
     );
   }

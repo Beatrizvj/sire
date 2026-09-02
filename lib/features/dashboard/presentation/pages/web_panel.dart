@@ -675,7 +675,7 @@ class _Kpi extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 200,
+      width: 150,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -823,6 +823,27 @@ class _TablaAlertas extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    return LayoutBuilder(
+      builder: (context, cons) {
+        // En teléfono la tabla no cabe (se cortaba): cada alerta se muestra
+        // como tarjeta apilada. En tablet/PC se conserva la tabla.
+        if (cons.maxWidth < 720) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Column(
+              children: [
+                for (final a in alertas)
+                  _AlertaCard(alerta: a, ref: ref, conAcciones: conAcciones),
+              ],
+            ),
+          );
+        }
+        return _tabla(ref);
+      },
+    );
+  }
+
+  Widget _tabla(WidgetRef ref) {
     final df = DateFormat('dd/MM/yyyy HH:mm');
     const cell = TextStyle(fontSize: 13);
     return _FillTable(
@@ -879,6 +900,101 @@ class _TablaAlertas extends ConsumerWidget {
             ),
             if (conAcciones) _AccionesAlerta(alerta: a, ref: ref),
           ],
+      ],
+    );
+  }
+}
+
+/// Tarjeta de alerta para pantallas chicas (teléfono): reemplaza la fila de la
+/// tabla apilando los datos para que nada se corte.
+class _AlertaCard extends StatelessWidget {
+  const _AlertaCard({
+    required this.alerta,
+    required this.ref,
+    required this.conAcciones,
+  });
+
+  final SosAlert alerta;
+  final WidgetRef ref;
+  final bool conAcciones;
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('dd/MM/yyyy HH:mm');
+    final nombre = (alerta.userName != null && alerta.userName!.isNotEmpty)
+        ? alerta.userName!
+        : 'Ciudadano';
+    final ubic = alerta.address ??
+        ((alerta.latitude == 0 && alerta.longitude == 0)
+            ? 'Sin ubicación'
+            : '${alerta.latitude.toStringAsFixed(5)}, ${alerta.longitude.toStringAsFixed(5)}');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(nombre,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+              _EstadoChip(status: alerta.status),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _CampoAlerta(icono: Icons.place_outlined, texto: ubic),
+          const SizedBox(height: 4),
+          _CampoAlerta(
+            icono: Icons.sensors_outlined,
+            texto: '${alerta.source.label} · ${df.format(alerta.timestamp)}',
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _CategoriaChip(categoria: alerta.categoria),
+              const Spacer(),
+              if (alerta.tiempoRespuesta != null)
+                Text(formatearDuracion(alerta.tiempoRespuesta!),
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF6B5A57))),
+            ],
+          ),
+          if (conAcciones) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _AccionesAlerta(alerta: alerta, ref: ref),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Fila "ícono + texto" dentro de la tarjeta de alerta.
+class _CampoAlerta extends StatelessWidget {
+  const _CampoAlerta({required this.icono, required this.texto});
+
+  final IconData icono;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icono, size: 15, color: const Color(0xFF6B5A57)),
+        const SizedBox(width: 6),
+        Expanded(child: Text(texto, style: const TextStyle(fontSize: 12.5))),
       ],
     );
   }
@@ -1051,13 +1167,13 @@ class _UsuariosBody extends ConsumerWidget {
               child: _Card(
                 titulo: '${users.length} usuarios registrados',
                 child: _FillTable(
-                  minWidth: 820,
+                  minWidth: 900,
                   columns: const [
                     (22, 'Nombre'),
-                    (26, 'Correo'),
+                    (20, 'Correo'),
                     (16, 'Comunidad'),
                     (14, 'Rol'),
-                    (20, 'Acción'),
+                    (26, 'Acción'),
                   ],
                   rows: [
                     for (final u in users)
@@ -1395,24 +1511,41 @@ class _ComunidadesBody extends ConsumerWidget {
             style: TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: [
-              for (final c in comunidades)
-                _ComunidadCard(
-                  nombre: c,
-                  usuarios: users.where((u) => u.aldea == c).length,
-                  cocode: users
-                      .where((u) => u.aldea == c && u.rol == UserRole.cocode)
-                      .length,
-                ),
-              _ComunidadCard(
-                nombre: 'Sin asignar',
-                usuarios: users.where((u) => u.aldea.isEmpty).length,
-                cocode: 0,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, cons) {
+              // Ancho de tarjeta según el dispositivo: 2 por fila en teléfono,
+              // 3 en tablet, 4 en PC; siempre llenan el ancho sin huecos.
+              final w = cons.maxWidth;
+              final cols = w < 560 ? 2 : (w < 860 ? 3 : 4);
+              final cardW = (w - (cols - 1) * 14) / cols;
+              return Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  for (final c in comunidades)
+                    _ComunidadCard(
+                      nombre: c,
+                      ancho: cardW,
+                      usuarios: users.where((u) => u.aldea == c).length,
+                      cocode: users
+                          .where(
+                              (u) => u.aldea == c && u.rol == UserRole.cocode)
+                          .length,
+                      // Las 4 aldeas base no se pueden eliminar; las agregadas sí.
+                      onEliminar: aldeasBase.contains(c)
+                          ? null
+                          : () => _eliminarAldea(context, ref, c,
+                              users.where((u) => u.aldea == c).length),
+                    ),
+                  _ComunidadCard(
+                    nombre: 'Sin asignar',
+                    ancho: cardW,
+                    usuarios: users.where((u) => u.aldea.isEmpty).length,
+                    cocode: 0,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1458,6 +1591,43 @@ class _ComunidadesBody extends ConsumerWidget {
           .showSnackBar(SnackBar(content: Text('No se pudo agregar: $e')));
     }
   }
+
+  Future<void> _eliminarAldea(BuildContext context, WidgetRef ref,
+      String nombre, int usuarios) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: Text('Eliminar "$nombre"'),
+        content: Text(
+          usuarios == 0
+              ? '¿Seguro que deseas eliminar esta comunidad? Dejará de aparecer '
+                  'en el registro, las aprobaciones y el panel.'
+              : 'Esta comunidad tiene $usuarios usuario(s) asignado(s), que '
+                  'quedarán sin comunidad válida. ¿Eliminarla de todos modos?',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _crit.$1),
+            onPressed: () => Navigator.pop(dctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(aldeasRepositoryProvider).eliminar(nombre);
+      messenger
+          .showSnackBar(SnackBar(content: Text('Aldea "$nombre" eliminada.')));
+    } catch (e) {
+      messenger
+          .showSnackBar(SnackBar(content: Text('No se pudo eliminar: $e')));
+    }
+  }
 }
 
 class _ComunidadCard extends StatelessWidget {
@@ -1465,16 +1635,22 @@ class _ComunidadCard extends StatelessWidget {
     required this.nombre,
     required this.usuarios,
     required this.cocode,
+    this.ancho = 240,
+    this.onEliminar,
   });
 
   final String nombre;
   final int usuarios;
   final int cocode;
+  final double ancho;
+
+  /// Acción de eliminar; `null` en las aldeas base y en "Sin asignar" (sin botón).
+  final VoidCallback? onEliminar;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 240,
+      width: ancho,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1494,6 +1670,16 @@ class _ComunidadCard extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700)),
               ),
+              if (onEliminar != null)
+                IconButton(
+                  onPressed: onEliminar,
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  color: _crit.$1,
+                  tooltip: 'Eliminar aldea',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -1570,61 +1756,83 @@ class _SolicitudTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    const avatar = CircleAvatar(
+      radius: 20,
+      backgroundColor: Color(0xFFEDE5E3),
+      child: Icon(Icons.person_outline, color: Color(0xFF6B5A57)),
+    );
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(objetivo.nombre.isEmpty ? '(sin nombre)' : objetivo.nombre,
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(
+          '${objetivo.email ?? "—"}  ·  Tel: ${objetivo.telefono.isEmpty ? "—" : objetivo.telefono}',
+          style: const TextStyle(color: Color(0xFF6B5A57), fontSize: 12),
+        ),
+        Text(
+          'Aldea declarada: ${objetivo.aldeaSolicitada.isEmpty ? "—" : objetivo.aldeaSolicitada}',
+          style: const TextStyle(color: Color(0xFF6B5A57), fontSize: 12),
+        ),
+      ],
+    );
+    final botones = <Widget>[
+      if (actor.puedeVerIdentidad)
+        OutlinedButton.icon(
+          onPressed: () =>
+              verDpi(context, ref, objetivo: objetivo, actor: actor),
+          icon: const Icon(Icons.badge_outlined, size: 18),
+          label: const Text('Ver DPI'),
+        ),
+      OutlinedButton(
+        onPressed: () => _rechazar(context, ref),
+        style: OutlinedButton.styleFrom(foregroundColor: _crit.$1),
+        child: const Text('Rechazar'),
+      ),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: _brand),
+        onPressed: () => _aprobar(context, ref),
+        icon: const Icon(Icons.check, size: 18),
+        label: const Text('Aprobar'),
+      ),
+    ];
     return Container(
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: _line)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 20,
-            backgroundColor: Color(0xFFEDE5E3),
-            child: Icon(Icons.person_outline, color: Color(0xFF6B5A57)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, cons) {
+          // Teléfono: datos arriba y botones abajo (ya no se aprieta el nombre
+          // hasta partirlo letra por letra). Tablet/PC: todo en una fila.
+          if (cons.maxWidth < 560) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(objetivo.nombre.isEmpty ? '(sin nombre)' : objetivo.nombre,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(
-                  '${objetivo.email ?? "—"}  ·  Tel: ${objetivo.telefono.isEmpty ? "—" : objetivo.telefono}',
-                  style: const TextStyle(color: Color(0xFF6B5A57), fontSize: 12),
+                Row(
+                  children: [
+                    avatar,
+                    const SizedBox(width: 14),
+                    Expanded(child: info),
+                  ],
                 ),
-                Text(
-                  'Aldea declarada: ${objetivo.aldeaSolicitada.isEmpty ? "—" : objetivo.aldeaSolicitada}',
-                  style: const TextStyle(color: Color(0xFF6B5A57), fontSize: 12),
-                ),
+                const SizedBox(height: 12),
+                Wrap(spacing: 8, runSpacing: 8, children: botones),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          if (actor.puedeVerIdentidad)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: OutlinedButton.icon(
-                onPressed: () =>
-                    verDpi(context, ref, objetivo: objetivo, actor: actor),
-                icon: const Icon(Icons.badge_outlined, size: 18),
-                label: const Text('Ver DPI'),
-              ),
-            ),
-          OutlinedButton(
-            onPressed: () => _rechazar(context, ref),
-            style: OutlinedButton.styleFrom(foregroundColor: _crit.$1),
-            child: const Text('Rechazar'),
-          ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: _brand),
-            onPressed: () => _aprobar(context, ref),
-            icon: const Icon(Icons.check, size: 18),
-            label: const Text('Aprobar'),
-          ),
-        ],
+            );
+          }
+          return Row(
+            children: [
+              avatar,
+              const SizedBox(width: 14),
+              Expanded(child: info),
+              const SizedBox(width: 12),
+              Wrap(spacing: 8, children: botones),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1806,11 +2014,12 @@ class _VerDpiDialogState extends ConsumerState<_VerDpiDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final anchoPantalla = MediaQuery.sizeOf(context).width;
     return AlertDialog(
       scrollable: true,
       title: Text('DPI de ${widget.objetivo.nombre}'),
       content: SizedBox(
-        width: 520,
+        width: anchoPantalla < 608 ? anchoPantalla - 88 : 520,
         child: _cargando
             ? const Padding(
                 padding: EdgeInsets.all(32),

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../../users/domain/entities/app_user.dart';
 import '../../../users/presentation/pages/approvals_page.dart';
 import '../../../users/presentation/pages/users_management_page.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
@@ -203,6 +205,12 @@ class _AccionesSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             _InfoRow(icon: Icons.my_location, text: coords),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _llamarCiudadano(context, ref),
+              icon: const Icon(Icons.call),
+              label: const Text('Llamar al ciudadano'),
+            ),
             const Divider(height: 32),
             Text('Cambiar estado', style: theme.textTheme.titleSmall),
             const SizedBox(height: 12),
@@ -259,6 +267,32 @@ class _AccionesSheet extends ConsumerWidget {
       messenger.showSnackBar(
         SnackBar(content: Text('No se pudo actualizar: $e')),
       );
+    }
+  }
+
+  /// Busca el teléfono del ciudadano en su ficha y abre el marcador (CU-06,
+  /// llamada directa). En el teléfono de la autoridad marca directo.
+  Future<void> _llamarCiudadano(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final usuarios =
+        ref.read(allUsersProvider).asData?.value ?? const <AppUser>[];
+    var telefono = '';
+    for (final u in usuarios) {
+      if (u.id == alert.userId) {
+        telefono = u.telefono;
+        break;
+      }
+    }
+    final limpio = telefono.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (limpio.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Este ciudadano no tiene teléfono registrado.')));
+      return;
+    }
+    final ok = await launchUrl(Uri(scheme: 'tel', path: limpio));
+    if (!ok) {
+      messenger.showSnackBar(SnackBar(
+          content: Text('No se pudo abrir el marcador para $limpio.')));
     }
   }
 }

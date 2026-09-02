@@ -34,6 +34,10 @@ class AldeasRepository {
       'creadoEn': FieldValue.serverTimestamp(),
     });
   }
+
+  /// Elimina una comunidad AGREGADA. Las base ([aldeasBase]) no viven en esta
+  /// colección, así que nunca se borran: siempre reaparecen en [aldeasProvider].
+  Future<void> eliminar(String nombre) => _col.doc(nombre.trim()).delete();
 }
 
 final aldeasRepositoryProvider = Provider<AldeasRepository>(
