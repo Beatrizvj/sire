@@ -205,6 +205,14 @@ class _AccionesSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             _InfoRow(icon: Icons.my_location, text: coords),
+            if (alert.atendidaPorNombre != null &&
+                alert.atendidaPorNombre!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _InfoRow(
+                icon: Icons.verified_user_outlined,
+                text: 'Atendida por: ${alert.atendidaPorNombre}',
+              ),
+            ],
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => _llamarCiudadano(context, ref),

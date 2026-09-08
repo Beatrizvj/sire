@@ -156,8 +156,19 @@ class AlertsController extends Notifier<AlertsState> {
   }
 
   /// Cambia el estado de una alerta (usado por la Bandeja de la autoridad).
-  Future<void> updateStatus(String id, AlertStatus status) =>
-      ref.read(alertRepositoryProvider).updateStatus(id, status);
+  /// Al marcarla "atendida" adjunta la trazabilidad de quién lo hizo (uid +
+  /// nombre de la autoridad en sesión), para el requisito "atendida por […]".
+  Future<void> updateStatus(String id, AlertStatus status) {
+    final actorUid = ref.read(authControllerProvider).user?.uid;
+    final actorNombre =
+        ref.read(currentUserProfileProvider).asData?.value?.nombre;
+    return ref.read(alertRepositoryProvider).updateStatus(
+          id,
+          status,
+          atendidaPor: actorUid,
+          atendidaPorNombre: actorNombre,
+        );
+  }
 
   /// R3: clasifica una alerta con una categoría de incidente. Actualiza también
   /// la copia local para reflejarlo de inmediato en el historial del ciudadano.
