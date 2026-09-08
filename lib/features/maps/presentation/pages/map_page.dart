@@ -10,27 +10,71 @@ import '../../../alerts/domain/entities/sos_alert.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
 
 /// Centro aproximado del municipio de San Miguel Sigüilá (Quetzaltenango).
-/// Encuadre inicial del mapa cuando aún no hay alertas activas con ubicación.
+/// Encuadre inicial del mapa cuando aún no hay alertas con ubicación.
 const LatLng _centroMunicipio = LatLng(14.8726, -91.6009);
 
 /// Máximo de marcadores dibujados a la vez, para que el mapa no se sature cuando
 /// hay muchas alertas activas (se muestran las más recientes).
 const int _maxMarcadores = 80;
 
-/// Mapa de alertas activas para las autoridades (COCODE / Municipalidad), sobre
-/// OpenStreetMap. Coloca un marcador por cada alerta pendiente o en atención con
-/// ubicación válida y se actualiza en vivo. Cumple la sección 3.4 del PG2: los
-/// coordinadores visualizan la ubicación del incidente en tiempo real.
-class MapPage extends ConsumerWidget {
+/// Máximo de puntos considerados para el mapa de calor.
+const int _maxPuntosCalor = 500;
+
+/// Vista del mapa: mapa de calor (densidad de incidentes) o marcadores puntuales.
+enum _VistaMapa { calor, marcadores }
+
+/// Mapa de alertas para las autoridades (COCODE / Municipalidad) sobre
+/// OpenStreetMap. Ofrece dos vistas (RF mapa de calor):
+///  • **Calor**: densidad de incidentes: las zonas con más alertas se ven más
+///    intensas (círculos translúcidos superpuestos). Usa todo el historial
+///    reciente con ubicación válida.
+///  • **Marcadores**: un pin por alerta ACTIVA (pendiente o en atención), con
+///    detalle al tocarlo. Ambas vistas se actualizan en vivo.
+class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends ConsumerState<MapPage> {
+  _VistaMapa _vista = _VistaMapa.calor;
+
+  bool _conUbicacion(SosAlert a) => !(a.latitude == 0 && a.longitude == 0);
+
+  LatLng _centro(List<SosAlert> puntos) {
+    if (puntos.isEmpty) return _centroMunicipio;
+    final lat =
+        puntos.map((a) => a.latitude).reduce((x, y) => x + y) / puntos.length;
+    final lng =
+        puntos.map((a) => a.longitude).reduce((x, y) => x + y) / puntos.length;
+    return LatLng(lat, lng);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final alertsAsync = ref.watch(allAlertsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mapa de alertas activas')),
+      appBar: AppBar(
+        title: const Text('Mapa de alertas'),
+        actions: [
+          IconButton(
+            tooltip: 'Mapa de calor',
+            isSelected: _vista == _VistaMapa.calor,
+            icon: const Icon(Icons.blur_on),
+            onPressed: () => setState(() => _vista = _VistaMapa.calor),
+          ),
+          IconButton(
+            tooltip: 'Marcadores',
+            isSelected: _vista == _VistaMapa.marcadores,
+            icon: const Icon(Icons.place_outlined),
+            onPressed: () => setState(() => _vista = _VistaMapa.marcadores),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: alertsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
@@ -44,29 +88,31 @@ class MapPage extends ConsumerWidget {
           ),
         ),
         data: (alerts) {
-          // Solo alertas activas (pendiente o en atención) con ubicación válida,
-          // ordenadas de la más reciente a la más antigua.
+          // Puntos para el mapa de calor: TODO el historial reciente con
+          // ubicación válida (densidad de incidentes por zona).
+          final puntosCalor =
+              alerts.where(_conUbicacion).take(_maxPuntosCalor).toList();
+
+          // Marcadores: solo alertas ACTIVAS (pendiente o en atención) con
+          // ubicación, de la más reciente a la más antigua.
           final activas = alerts
               .where((a) =>
                   (a.status == AlertStatus.pendiente ||
                       a.status == AlertStatus.atendida) &&
-                  !(a.latitude == 0 && a.longitude == 0))
+                  _conUbicacion(a))
               .toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-          final centro = activas.isNotEmpty
-              ? LatLng(activas.first.latitude, activas.first.longitude)
-              : _centroMunicipio;
-
-          // Se dibujan solo las más recientes para que el mapa no se sature.
-          final marcadores = activas.take(_maxMarcadores).toList();
+          final esCalor = _vista == _VistaMapa.calor;
+          final base = esCalor ? puntosCalor : activas;
+          final vacio = base.isEmpty;
 
           return Stack(
             children: [
               FlutterMap(
                 options: MapOptions(
-                  initialCenter: centro,
-                  initialZoom: 14,
+                  initialCenter: _centro(base),
+                  initialZoom: esCalor ? 13 : 14,
                   backgroundColor: scheme.surfaceContainerHighest,
                 ),
                 children: [
@@ -77,36 +123,88 @@ class MapPage extends ConsumerWidget {
                     errorTileCallback: (tile, error, stackTrace) =>
                         debugPrint('SIRE mapa · un tile no cargó: $error'),
                   ),
-                  MarkerLayer(
-                    markers: [
-                      for (final a in marcadores)
-                        Marker(
-                          point: LatLng(a.latitude, a.longitude),
-                          width: 44,
-                          height: 44,
-                          child: GestureDetector(
-                            onTap: () => _mostrarDetalle(context, a),
-                            child: Icon(
-                              Icons.location_on,
-                              size: 44,
-                              color: a.status == AlertStatus.pendiente
-                                  ? AppColors.statusPendiente
-                                  : AppColors.statusAtendida,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                  if (esCalor)
+                    CircleLayer(circles: _circulosCalor(puntosCalor))
+                  else
+                    MarkerLayer(markers: _marcadores(activas)),
                 ],
               ),
-              if (activas.isEmpty) const _SinAlertas(),
-              const Positioned(left: 12, bottom: 12, child: _Leyenda()),
+              if (vacio) const _SinAlertas(),
+              Positioned(
+                left: 12,
+                bottom: 12,
+                child: esCalor ? const _LeyendaCalor() : const _LeyendaPines(),
+              ),
             ],
           );
         },
       ),
     );
   }
+
+  /// Capa de calor: densidad geográfica de incidentes. Cada punto aporta un
+  /// círculo cuyo color va de ámbar (poca concentración) a rojo (foco crítico)
+  /// según cuántos incidentes haya en su vecindad (300 m); al superponerse, las
+  /// zonas con más robos se ven más intensas. Mismo criterio que la consola web.
+  List<CircleMarker> _circulosCalor(List<SosAlert> incidentes) {
+    const radioVecindadM = 300.0;
+    const distancia = Distance();
+    final puntos = [
+      for (final a in incidentes) LatLng(a.latitude, a.longitude),
+    ];
+    final densidad = <int>[];
+    for (final p in puntos) {
+      var cerca = 0;
+      for (final q in puntos) {
+        if (distancia(p, q) <= radioVecindadM) cerca++;
+      }
+      densidad.add(cerca);
+    }
+    final maxD =
+        densidad.isEmpty ? 1 : densidad.reduce((a, b) => a > b ? a : b);
+    // Se pintan de menor a mayor densidad para que los focos queden encima.
+    final orden = [for (var i = 0; i < puntos.length; i++) i]
+      ..sort((a, b) => densidad[a].compareTo(densidad[b]));
+    return [
+      for (final i in orden)
+        CircleMarker(
+          point: puntos[i],
+          radius: 220,
+          useRadiusInMeter: true,
+          color: _colorCalor(densidad[i] / maxD).withValues(alpha: 0.28),
+          borderStrokeWidth: 0,
+        ),
+    ];
+  }
+
+  /// Gradiente de calor: ámbar → naranja → rojo según la densidad normalizada.
+  static Color _colorCalor(double t) {
+    const ambar = Color(0xFFFFC107);
+    const naranja = Color(0xFFEF6C00);
+    const rojo = Color(0xFFD32F2F);
+    return t <= 0.5
+        ? Color.lerp(ambar, naranja, t / 0.5) ?? naranja
+        : Color.lerp(naranja, rojo, (t - 0.5) / 0.5) ?? rojo;
+  }
+
+  List<Marker> _marcadores(List<SosAlert> activas) => [
+        for (final a in activas.take(_maxMarcadores))
+          Marker(
+            point: LatLng(a.latitude, a.longitude),
+            width: 44,
+            height: 44,
+            child: GestureDetector(
+              onTap: () => _mostrarDetalle(context, a),
+              child: Icon(
+                Icons.location_on,
+                size: 44,
+                color: a.status == AlertStatus.pendiente
+                    ? AppColors.statusPendiente
+                    : AppColors.statusAtendida,
+              ),
+            ),
+          ),
+      ];
 
   void _mostrarDetalle(BuildContext context, SosAlert alert) {
     showModalBottomSheet<void>(
@@ -117,7 +215,7 @@ class MapPage extends ConsumerWidget {
   }
 }
 
-/// Aviso central cuando no hay alertas activas que mostrar en el mapa.
+/// Aviso central cuando no hay datos que mostrar en la vista actual.
 class _SinAlertas extends StatelessWidget {
   const _SinAlertas();
 
@@ -132,7 +230,7 @@ class _SinAlertas extends StatelessWidget {
             children: [
               Icon(Icons.check_circle_outline),
               SizedBox(width: 8),
-              Text('No hay alertas activas en el mapa.'),
+              Text('No hay alertas con ubicación que mostrar.'),
             ],
           ),
         ),
@@ -141,9 +239,51 @@ class _SinAlertas extends StatelessWidget {
   }
 }
 
-/// Leyenda de colores de los marcadores.
-class _Leyenda extends StatelessWidget {
-  const _Leyenda();
+/// Leyenda del mapa de calor.
+class _LeyendaCalor extends StatelessWidget {
+  const _LeyendaCalor();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Densidad de incidentes',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 90,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(5),
+                    gradient: const LinearGradient(colors: [
+                      Color(0xFFFFC107),
+                      Color(0xFFEF6C00),
+                      Color(0xFFD32F2F),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text('menos → más', style: TextStyle(fontSize: 11)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Leyenda de colores de los marcadores (vista de pines).
+class _LeyendaPines extends StatelessWidget {
+  const _LeyendaPines();
 
   @override
   Widget build(BuildContext context) {
