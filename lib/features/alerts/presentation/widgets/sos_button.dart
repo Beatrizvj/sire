@@ -20,10 +20,19 @@ class SosButton extends StatefulWidget {
 
 class _SosButtonState extends State<SosButton>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1500),
-  )..repeat();
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Se crea en initState (no de forma perezosa en `build`) para que SIEMPRE
+    // quede inicializado y se libere sin problemas en dispose, incluso si el
+    // botón nace en estado `isSending` (cuando el anillo pulsante no se dibuja).
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
 
   @override
   void dispose() {
