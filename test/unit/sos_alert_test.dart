@@ -39,6 +39,16 @@ void main() {
       expect(b.longitude, a.longitude);
       expect(b.source, a.source);
     });
+
+    test('registra la trazabilidad de atención (atendida por)', () {
+      final b = _alerta().copyWith(
+        status: AlertStatus.atendida,
+        atendidaPor: 'cocode-1',
+        atendidaPorNombre: 'Ana COCODE',
+      );
+      expect(b.atendidaPor, 'cocode-1');
+      expect(b.atendidaPorNombre, 'Ana COCODE');
+    });
   });
 
   group('formatearDuracion', () {

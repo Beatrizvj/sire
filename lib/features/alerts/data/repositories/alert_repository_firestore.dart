@@ -46,6 +46,8 @@ class AlertRepositoryFirestore implements AlertRepository {
         'resueltaEn': alert.resueltaEn == null
             ? null
             : Timestamp.fromDate(alert.resueltaEn!),
+        'atendidaPor': alert.atendidaPor,
+        'atendidaPorNombre': alert.atendidaPorNombre,
         'creadoEn': FieldValue.serverTimestamp(),
       };
 
@@ -71,6 +73,8 @@ class AlertRepositoryFirestore implements AlertRepository {
       categoria: data['categoria'] as String?,
       atendidaEn: (data['atendidaEn'] as Timestamp?)?.toDate(),
       resueltaEn: (data['resueltaEn'] as Timestamp?)?.toDate(),
+      atendidaPor: data['atendidaPor'] as String?,
+      atendidaPorNombre: data['atendidaPorNombre'] as String?,
     );
   }
 
@@ -133,11 +137,23 @@ class AlertRepositoryFirestore implements AlertRepository {
       });
 
   @override
-  Future<void> updateStatus(String id, AlertStatus status) {
+  Future<void> updateStatus(
+    String id,
+    AlertStatus status, {
+    String? atendidaPor,
+    String? atendidaPorNombre,
+  }) {
     final data = <String, dynamic>{'estado': status.value};
-    // Marca de tiempo para medir el tiempo de respuesta (la fija el servidor).
+    // Marca de tiempo para medir el tiempo de respuesta (la fija el servidor)
+    // y trazabilidad de quién atendió la alerta.
     if (status == AlertStatus.atendida) {
       data['atendidaEn'] = FieldValue.serverTimestamp();
+      if (atendidaPor != null && atendidaPor.isNotEmpty) {
+        data['atendidaPor'] = atendidaPor;
+      }
+      if (atendidaPorNombre != null && atendidaPorNombre.isNotEmpty) {
+        data['atendidaPorNombre'] = atendidaPorNombre;
+      }
     } else if (status == AlertStatus.resuelta) {
       data['resueltaEn'] = FieldValue.serverTimestamp();
     }

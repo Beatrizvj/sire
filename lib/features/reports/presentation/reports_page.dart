@@ -352,6 +352,7 @@ class _ReportesContenido extends StatelessWidget {
     'Origen',
     'Tipo de incidente',
     'Estado',
+    'Atendida por',
     'Tiempo de respuesta',
     'Latitud',
     'Longitud',
@@ -372,6 +373,7 @@ class _ReportesContenido extends StatelessWidget {
               ? 'Sin especificar'
               : a.categoria!,
           a.status.label,
+          a.atendidaPorNombre ?? '',
           a.tiempoRespuesta != null
               ? formatearDuracion(a.tiempoRespuesta!)
               : '',

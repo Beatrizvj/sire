@@ -24,6 +24,8 @@ class SosAlert extends Equatable {
     this.categoria,
     this.atendidaEn,
     this.resueltaEn,
+    this.atendidaPor,
+    this.atendidaPorNombre,
   });
 
   final String id;
@@ -60,6 +62,12 @@ class SosAlert extends Equatable {
   final DateTime? atendidaEn;
   final DateTime? resueltaEn;
 
+  /// Trazabilidad de la atención: autoridad (COCODE/Municipalidad) que marcó la
+  /// alerta como "atendida". [atendidaPor] es su uid; [atendidaPorNombre] su
+  /// nombre, guardado de forma denormalizada para mostrarlo sin otra consulta.
+  final String? atendidaPor;
+  final String? atendidaPorNombre;
+
   /// Tiempo de respuesta = desde que se creó la alerta hasta que se atendió.
   Duration? get tiempoRespuesta => atendidaEn?.difference(timestamp);
 
@@ -68,6 +76,8 @@ class SosAlert extends Equatable {
     String? categoria,
     DateTime? atendidaEn,
     DateTime? resueltaEn,
+    String? atendidaPor,
+    String? atendidaPorNombre,
   }) =>
       SosAlert(
         id: id,
@@ -85,6 +95,8 @@ class SosAlert extends Equatable {
         categoria: categoria ?? this.categoria,
         atendidaEn: atendidaEn ?? this.atendidaEn,
         resueltaEn: resueltaEn ?? this.resueltaEn,
+        atendidaPor: atendidaPor ?? this.atendidaPor,
+        atendidaPorNombre: atendidaPorNombre ?? this.atendidaPorNombre,
       );
 
   @override
@@ -104,6 +116,8 @@ class SosAlert extends Equatable {
         categoria,
         atendidaEn,
         resueltaEn,
+        atendidaPor,
+        atendidaPorNombre,
       ];
 }
 
