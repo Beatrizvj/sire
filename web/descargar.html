@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Descargar SIRE — App móvil</title>
+  <meta name="description" content="Descarga la app SIRE para Android — Sistema Integral de Respuesta ante Emergencias, San Miguel Sigüilá." />
+  <style>
+    :root {
+      --rojo: #C62828;
+      --rojo-osc: #8E1B1B;
+      --fondo: #1A1210;
+      --tarjeta: #241A18;
+      --texto: #F5EAE8;
+      --tenue: #C9B6B2;
+      --linea: #3A2A27;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--fondo);
+      color: var(--texto);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 28px 20px 48px; }
+    header { text-align: center; margin-bottom: 24px; }
+    .logo {
+      width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 12px;
+      background: var(--rojo); display: flex; align-items: center; justify-content: center;
+      font-size: 30px; font-weight: 800; color: #fff; letter-spacing: 1px;
+    }
+    h1 { font-size: 22px; margin: 6px 0 2px; }
+    .sub { color: var(--tenue); font-size: 14px; margin: 0; }
+    .muni { color: var(--tenue); font-size: 12.5px; margin-top: 6px; }
+    .card {
+      background: var(--tarjeta); border: 1px solid var(--linea);
+      border-radius: 16px; padding: 22px; margin-top: 18px;
+    }
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 16px; border-radius: 12px; border: none;
+      background: var(--rojo); color: #fff; font-size: 17px; font-weight: 700;
+      text-decoration: none; cursor: pointer;
+    }
+    .btn:active { background: var(--rojo-osc); }
+    .hint { color: var(--tenue); font-size: 12.5px; text-align: center; margin-top: 10px; }
+    h2 { font-size: 15px; margin: 0 0 12px; }
+    ol { margin: 0; padding-left: 20px; }
+    ol li { margin-bottom: 8px; font-size: 14.5px; }
+    .qr { text-align: center; }
+    .qr img {
+      width: 200px; height: 200px; background: #fff; padding: 10px;
+      border-radius: 12px; image-rendering: pixelated;
+    }
+    .qr p { color: var(--tenue); font-size: 12.5px; margin-top: 10px; }
+    .aut {
+      display: block; text-align: center; margin-top: 22px;
+      color: var(--tenue); font-size: 13px; text-decoration: none;
+    }
+    .aut a { color: #FF8A80; }
+    .pie { text-align: center; color: #6F5A56; font-size: 11.5px; margin-top: 26px; }
+    .badge {
+      display: inline-block; background: #2E7D32; color: #fff; font-size: 11px;
+      padding: 2px 8px; border-radius: 999px; margin-left: 6px; vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">S</div>
+      <h1>SIRE</h1>
+      <p class="sub">Sistema Integral de Respuesta ante Emergencias</p>
+      <p class="muni">San Miguel Sigüilá, Quetzaltenango</p>
+    </header>
+
+    <div class="card">
+      <a class="btn" href="sire.apk" download>⬇️ Descargar la app (Android)</a>
+      <p class="hint">Android <span class="badge">APK</span> · ábrelo desde tu teléfono</p>
+    </div>
+
+    <div class="card">
+      <h2>Cómo instalarla</h2>
+      <ol>
+        <li>Toca <b>Descargar la app</b> arriba (desde tu teléfono).</li>
+        <li>Abre el archivo descargado (<b>sire.apk</b>).</li>
+        <li>Si Android te avisa, permite <b>"Instalar apps desconocidas"</b> para tu navegador.</li>
+        <li>Toca <b>Instalar</b> y luego <b>Abrir</b>.</li>
+        <li>Regístrate con tu DPI; tu cuenta quedará <b>en revisión</b> hasta que una autoridad la apruebe.</li>
+      </ol>
+    </div>
+
+    <div class="card qr">
+      <h2>Comparte SIRE</h2>
+      <img src="qr-sire.png" alt="Código QR para descargar SIRE" />
+      <p>Escanea este código para abrir esta página de descarga.<br />Ideal para afiches y volantes de la Municipalidad.</p>
+    </div>
+
+    <a class="aut" href="/">¿Eres COCODE o Municipalidad? <a href="/">Entra a la consola web →</a></a>
+
+    <p class="pie">Municipalidad de San Miguel Sigüilá · SIRE v1.0.0</p>
+  </div>
+</body>
+</html>
