@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_config.dart';
 import 'core/router/app_router.dart';
+import 'core/services/alert_monitor_bridge.dart';
 import 'core/services/messaging_service.dart';
+import 'core/services/power_button_bridge.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_controller.dart';
 import 'features/auth/presentation/providers/auth_providers.dart';
@@ -25,6 +27,10 @@ class SireApp extends ConsumerWidget {
         svc.registrarTokenPara(uid);
       } else {
         svc.olvidarSesion();
+        // Al cerrar sesión, detén los servicios nativos para que NO se envíen
+        // ni suenen alertas sin una sesión activa (inconveniente reportado).
+        ref.read(powerButtonBridgeProvider).stopDetection();
+        ref.read(alertMonitorBridgeProvider).stop();
       }
     });
     final uidActual = ref.read(authControllerProvider).user?.uid;
