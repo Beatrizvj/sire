@@ -26,16 +26,19 @@ String _inicioPorRol(UserRole rol) => switch (rol) {
       UserRole.cocode || UserRole.municipalidad => AppRoutes.dashboard,
     };
 
-/// ¿Puede este rol entrar a esta ruta? El Perfil es compartido. El SOS es solo
-/// del ciudadano; la Bandeja (dashboard) y el Mapa de alertas activas son solo
-/// de las autoridades (COCODE/Municipalidad), conforme a la Tabla 8 del PG2.
+/// ¿Puede este rol entrar a esta ruta? El Perfil es compartido. El SOS lo pueden
+/// usar el ciudadano y TAMBIÉN las autoridades (para reportar su propia
+/// emergencia); la Bandeja (dashboard) y el Mapa de alertas activas son solo de
+/// las autoridades (COCODE/Municipalidad).
 bool _rolPuedeAcceder(UserRole rol, String location) {
   if (location == AppRoutes.profile) return true;
   return switch (rol) {
     UserRole.ciudadano => location == AppRoutes.sos,
     UserRole.cocode ||
     UserRole.municipalidad =>
-      location == AppRoutes.dashboard || location == AppRoutes.map,
+      location == AppRoutes.dashboard ||
+          location == AppRoutes.map ||
+          location == AppRoutes.sos,
   };
 }
 

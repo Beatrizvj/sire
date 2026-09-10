@@ -92,10 +92,12 @@ class _NavItem {
   final String label;
 }
 
-/// Pestañas visibles según el rol (Tabla 8 del PG2):
-/// - Ciudadano: SOS y Perfil (registrarse, emitir SOS, compartir ubicación y
-///   consultar su perfil; la ubicación se adjunta sola al SOS, RF-03).
-/// - COCODE / Municipalidad: Inicio (Bandeja), Mapa de alertas activas y Perfil.
+/// Pestañas visibles según el rol:
+/// - Ciudadano: SOS y Perfil (emitir SOS con ubicación, RF-03, y su perfil).
+/// - COCODE / Municipalidad: Inicio (Bandeja), SOS, Mapa y Perfil. Además de
+///   gestionar las emergencias, las autoridades pueden emitir su PROPIO SOS
+///   (también son personas que pueden sufrir un robo); su alerta se rutea por su
+///   aldea (COCODE) o la atiende la Municipalidad.
 List<_NavItem> _navItemsPorRol(UserRole rol) {
   const inicio = _NavItem(0, Icons.home_outlined, Icons.home, 'Inicio');
   const sos = _NavItem(1, Icons.sos_outlined, Icons.sos, 'SOS');
@@ -103,7 +105,7 @@ List<_NavItem> _navItemsPorRol(UserRole rol) {
   const perfil = _NavItem(3, Icons.person_outline, Icons.person, 'Perfil');
   return switch (rol) {
     UserRole.ciudadano => [sos, perfil],
-    UserRole.cocode || UserRole.municipalidad => [inicio, mapa, perfil],
+    UserRole.cocode || UserRole.municipalidad => [inicio, sos, mapa, perfil],
   };
 }
 
