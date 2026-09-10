@@ -32,4 +32,10 @@ class AppConfig {
 
   /// Hito 6: mensajería por WhatsApp vía Cloud Functions.
   static bool get whatsappEnabled => false;
+
+  /// Notificaciones push (FCM) mediante la Cloud Function `notificarNuevaAlerta`.
+  /// Al entrar `true`, la app registra el token FCM del dispositivo en el perfil
+  /// del usuario para que la función pueda avisar a las autoridades.
+  /// Requiere plan Blaze y desplegar `functions/` (ver docs/PUSH_SETUP.md).
+  static bool get pushEnabled => false;
 }
