@@ -69,35 +69,76 @@ class _SolicitudTile extends StatelessWidget {
     final aldea = solicitante.aldeaSolicitada.isEmpty
         ? 'Sin aldea declarada'
         : solicitante.aldeaSolicitada;
+    void abrirRevision() => showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (_) => _RevisarSheet(
+            solicitante: solicitante,
+            autoridad: autoridad,
+          ),
+        );
+
     return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          child: Text(
-            solicitante.nombre.isNotEmpty
-                ? solicitante.nombre[0].toUpperCase()
-                : '?',
-            style: TextStyle(
-              color: scheme.onPrimaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
+      child: InkWell(
+        onTap: abrirRevision,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: scheme.primaryContainer,
+                child: Text(
+                  solicitante.nombre.isNotEmpty
+                      ? solicitante.nombre[0].toUpperCase()
+                      : '?',
+                  style: TextStyle(
+                    color: scheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Expanded da ancho real al texto: sin esto, el botón de la
+              // derecha lo dejaba en una columna de 1 carácter (texto vertical).
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      solicitante.nombre,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 15),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      solicitante.telefono,
+                      style: TextStyle(
+                          color: scheme.onSurfaceVariant, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'Aldea solicitada: $aldea',
+                      style: TextStyle(
+                          color: scheme.onSurfaceVariant, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: abrirRevision,
+                child: const Text('Revisar'),
+              ),
+            ],
           ),
-        ),
-        title: Text(solicitante.nombre,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('${solicitante.telefono}\nAldea solicitada: $aldea'),
-        isThreeLine: true,
-        trailing: FilledButton(
-          onPressed: () => showModalBottomSheet<void>(
-            context: context,
-            showDragHandle: true,
-            isScrollControlled: true,
-            builder: (_) => _RevisarSheet(
-              solicitante: solicitante,
-              autoridad: autoridad,
-            ),
-          ),
-          child: const Text('Revisar'),
         ),
       ),
     );
