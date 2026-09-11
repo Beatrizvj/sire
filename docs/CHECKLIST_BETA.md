@@ -34,8 +34,10 @@ Consola web / app (COCODE y Municipalidad):
 
 ## Evidencia de entrega
 
-- [x] Reporte de pruebas: [docs/PRUEBAS_BETA.md](PRUEBAS_BETA.md)
+- [x] Reporte de pruebas (funcionalidad): [docs/PRUEBAS_BETA.md](PRUEBAS_BETA.md)
 - [x] Plan de pruebas manual de flujos críticos (en el mismo reporte)
+- [x] Pruebas de seguridad: [docs/PRUEBAS_SEGURIDAD.md](PRUEBAS_SEGURIDAD.md)
+- [x] Guion de demostración: [docs/GUION_DEMO.md](GUION_DEMO.md)
 - [x] APK release (`build/app/outputs/flutter-apk/app-release.apk`)
 - [ ] Capturas de los flujos ejecutados en dispositivo/emulador *(pendiente de ejecutar el plan manual)*
 
