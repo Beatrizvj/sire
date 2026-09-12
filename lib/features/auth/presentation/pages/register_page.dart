@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -84,31 +85,37 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ),
     );
     if (fuente == null) return;
-    // Achica la imagen al capturarla para que la foto (guardada como base64 en
-    // Firestore) NUNCA supere el límite de 1 MB por documento.
     final foto = await _picker.pickImage(
         source: fuente, maxWidth: 1000, maxHeight: 1000, imageQuality: 70);
     if (foto == null) return;
 
-    // Pantalla de recorte para ajustar bien el DPI. La compresión fuerte deja
-    // la imagen liviana para Firestore (muy por debajo de 1 MB por documento).
-    final recortada = await ImageCropper().cropImage(
-      sourcePath: foto.path,
-      compressFormat: ImageCompressFormat.jpg,
-      compressQuality: 40,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Ajustar foto del DPI',
-          toolbarColor: const Color(0xFFC62828),
-          toolbarWidgetColor: Colors.white,
-          activeControlsWidgetColor: const Color(0xFFC62828),
-          lockAspectRatio: false,
-        ),
-        IOSUiSettings(title: 'Ajustar foto del DPI'),
-      ],
-    );
-    if (recortada == null) return; // canceló el recorte
-    final bytes = await recortada.readAsBytes();
+    final Uint8List bytes;
+    if (kIsWeb) {
+      // En web, image_cropper requiere una librería extra (cropper.js) que no
+      // está incluida, y image_picker NO reduce la imagen. Por eso aquí se lee y
+      // se reduce/comprime la foto en Dart, para que —guardada como base64 en
+      // Firestore— quede muy por debajo del límite de 1 MB por documento.
+      bytes = _reducirParaWeb(await foto.readAsBytes());
+    } else {
+      // Móvil: pantalla de recorte para ajustar bien el DPI + compresión fuerte.
+      final recortada = await ImageCropper().cropImage(
+        sourcePath: foto.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 40,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Ajustar foto del DPI',
+            toolbarColor: const Color(0xFFC62828),
+            toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: const Color(0xFFC62828),
+            lockAspectRatio: false,
+          ),
+          IOSUiSettings(title: 'Ajustar foto del DPI'),
+        ],
+      );
+      if (recortada == null) return; // canceló el recorte
+      bytes = await recortada.readAsBytes();
+    }
     if (!mounted) return;
     setState(() {
       if (lado == IdentityRepository.anverso) {
@@ -117,6 +124,24 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         _reverso = bytes;
       }
     });
+  }
+
+  /// Reduce y comprime una imagen para la WEB (donde no hay recorte y donde
+  /// image_picker no redimensiona), de modo que la foto del DPI quepa holgada
+  /// como base64 en un documento de Firestore (muy por debajo de 1 MB).
+  Uint8List _reducirParaWeb(Uint8List original) {
+    final decoded = img.decodeImage(original);
+    if (decoded == null) return original;
+    final necesitaResize = decoded.width > 1000 || decoded.height > 1000;
+    final anchoMayor = decoded.width >= decoded.height;
+    final redim = necesitaResize
+        ? img.copyResize(
+            decoded,
+            width: anchoMayor ? 1000 : null,
+            height: anchoMayor ? null : 1000,
+          )
+        : decoded;
+    return Uint8List.fromList(img.encodeJpg(redim, quality: 50));
   }
 
   void _descartar(String lado) {
