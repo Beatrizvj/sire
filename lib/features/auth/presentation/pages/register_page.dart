@@ -57,33 +57,43 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _tomarFoto(String lado) async {
-    final fuente = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: kAuthSurface,
-      showDragHandle: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading:
-                  const Icon(Icons.photo_camera_outlined, color: Colors.white70),
-              title: const Text('Tomar foto',
-                  style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
-                  color: Colors.white70),
-              title: const Text('Elegir de la galería',
-                  style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
+    // En WEB el explorador de archivos DEBE abrirse dentro del MISMO gesto del
+    // toque; si se intercala un menú (bottom sheet), el navegador BLOQUEA la
+    // apertura del selector (por eso "no pasaba nada"). Por eso en web se va
+    // directo a "galería" (en escritorio, cámara y galería abren el mismo
+    // explorador de archivos). En móvil sí se muestra el menú cámara/galería.
+    final ImageSource? fuente;
+    if (kIsWeb) {
+      fuente = ImageSource.gallery;
+    } else {
+      fuente = await showModalBottomSheet<ImageSource>(
+        context: context,
+        backgroundColor: kAuthSurface,
+        showDragHandle: true,
+        builder: (sheetCtx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: Colors.white70),
+                title: const Text('Tomar foto',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: Colors.white70),
+                title: const Text('Elegir de la galería',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    }
     if (fuente == null) return;
     final foto = await _picker.pickImage(
         source: fuente, maxWidth: 1000, maxHeight: 1000, imageQuality: 70);
