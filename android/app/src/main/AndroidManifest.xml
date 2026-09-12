@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Reiniciar la detección del botón de encendido tras reiniciar el teléfono -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:label="SIRE"
@@ -69,6 +71,18 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Monitoreo de alertas SOS entrantes para autoridades comunitarias (COCODE y Municipalidad) con aviso sonoro cuando la app esta en segundo plano." />
         </service>
+
+        <!-- Reinicia la detección del botón de encendido tras reiniciar el
+             teléfono, si el ciudadano la tenía activada. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Recorte de imágenes (image_cropper / uCrop): pantalla para ajustar
              la foto del DPI antes de subirla. -->

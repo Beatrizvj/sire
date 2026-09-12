@@ -32,6 +32,9 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
   StreamSubscription<String>? _powerSub;
   bool _detectionOn = false;
   bool _togglingDetection = false;
+  // App exenta de la optimización de batería (necesario para que la detección
+  // sobreviva en segundo plano en teléfonos con gestión agresiva).
+  bool _bateriaExenta = true;
 
   @override
   void initState() {
@@ -44,6 +47,7 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
         );
     // Refleja en el switch el estado REAL del servicio (por si ya venía activo).
     _syncDetectionState();
+    _syncBateria();
   }
 
   /// Pone el switch acorde al estado real del servicio nativo (consultado por el
@@ -54,6 +58,22 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
         await ref.read(powerButtonBridgeProvider).isDetectionRunning();
     if (!mounted) return;
     setState(() => _detectionOn = running);
+  }
+
+  /// Comprueba si la app está EXENTA de la optimización de batería. Si no lo
+  /// está, la detección puede no sobrevivir en segundo plano en teléfonos con
+  /// gestión agresiva de energía → se muestra un aviso con botón para arreglarlo.
+  Future<void> _syncBateria() async {
+    final ok = await ref
+        .read(powerButtonBridgeProvider)
+        .isIgnoringBatteryOptimizations();
+    if (!mounted) return;
+    setState(() => _bateriaExenta = ok);
+  }
+
+  Future<void> _solucionarBateria() async {
+    await ref.read(powerButtonBridgeProvider).requestIgnoreBatteryOptimizations();
+    await _syncBateria();
   }
 
   @override
@@ -70,6 +90,7 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
     if (state == AppLifecycleState.resumed) {
       ref.read(alertsControllerProvider.notifier).refresh();
       _syncDetectionState();
+      _syncBateria();
     }
   }
 
@@ -237,6 +258,7 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
         SnackBar(content: Text(errorMsg)),
       );
     }
+    _syncBateria();
   }
 
   /// Menú al tocar una alerta del historial: clasificar el incidente y/o
@@ -414,6 +436,8 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
               value: _detectionOn,
               busy: _togglingDetection,
               onChanged: _toggleDetection,
+              bateriaExenta: _bateriaExenta,
+              onSolucionar: _solucionarBateria,
             ),
             const SizedBox(height: 24),
           ],
@@ -452,14 +476,19 @@ class _DetectionCard extends StatelessWidget {
     required this.value,
     required this.busy,
     required this.onChanged,
+    required this.bateriaExenta,
+    required this.onSolucionar,
   });
 
   final bool value;
   final bool busy;
   final ValueChanged<bool> onChanged;
+  final bool bateriaExenta;
+  final VoidCallback onSolucionar;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       child: Column(
         children: [
@@ -477,6 +506,47 @@ class _DetectionCard extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: LinearProgressIndicator(),
+            ),
+          // Aviso: sin exención de batería, el sistema puede MATAR la detección
+          // cuando la app está en segundo plano (típico en Xiaomi/Samsung/Oppo…).
+          if (value && !bateriaExenta && !busy)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: scheme.errorContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.battery_alert,
+                          size: 18, color: scheme.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Para que el SOS funcione con la app cerrada, desactiva '
+                          'la optimización de batería para SIRE.',
+                          style: TextStyle(
+                              color: scheme.onErrorContainer, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.tonalIcon(
+                      onPressed: onSolucionar,
+                      icon: const Icon(Icons.settings, size: 18),
+                      label: const Text('Solucionar'),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
