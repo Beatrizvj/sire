@@ -17,6 +17,8 @@ import '../../../communities/aldeas_providers.dart';
 import '../../../identity/data/identity_repository.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form_styles.dart';
+// Selector de archivo del DPI para WEB (input del DOM); en móvil, stub no-op.
+import 'dpi_web_picker_stub.dart' if (dart.library.html) 'dpi_web_picker.dart';
 
 /// Ancho a partir del cual, **solo en web**, el registro pasa a pantalla
 /// dividida (hero institucional + formulario), igual que el login.
@@ -57,16 +59,19 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _tomarFoto(String lado) async {
-    // En WEB el explorador de archivos DEBE abrirse dentro del MISMO gesto del
-    // toque; si se intercala un menú (bottom sheet), el navegador BLOQUEA la
-    // apertura del selector (por eso "no pasaba nada"). Por eso en web se va
-    // directo a "galería" (en escritorio, cámara y galería abren el mismo
-    // explorador de archivos). En móvil sí se muestra el menú cámara/galería.
-    final ImageSource? fuente;
+    final Uint8List bytes;
     if (kIsWeb) {
-      fuente = ImageSource.gallery;
+      // WEB: se abre un <input type=file> REAL del DOM (elegirImagenWeb), porque
+      // image_picker dispara el selector con un click sintético desde el lienzo
+      // de Flutter que el navegador BLOQUEA (no se abría nada). Luego se
+      // reduce/comprime la foto en Dart (image_picker no lo hace en web) para
+      // que —guardada como base64 en Firestore— quede muy por debajo de 1 MB.
+      final original = await elegirImagenWeb();
+      if (original == null) return; // canceló o no eligió archivo
+      bytes = _reducirParaWeb(original);
     } else {
-      fuente = await showModalBottomSheet<ImageSource>(
+      // MÓVIL: menú cámara/galería + pantalla de recorte para ajustar el DPI.
+      final fuente = await showModalBottomSheet<ImageSource>(
         context: context,
         backgroundColor: kAuthSurface,
         showDragHandle: true,
@@ -93,21 +98,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ),
         ),
       );
-    }
-    if (fuente == null) return;
-    final foto = await _picker.pickImage(
-        source: fuente, maxWidth: 1000, maxHeight: 1000, imageQuality: 70);
-    if (foto == null) return;
-
-    final Uint8List bytes;
-    if (kIsWeb) {
-      // En web, image_cropper requiere una librería extra (cropper.js) que no
-      // está incluida, y image_picker NO reduce la imagen. Por eso aquí se lee y
-      // se reduce/comprime la foto en Dart, para que —guardada como base64 en
-      // Firestore— quede muy por debajo del límite de 1 MB por documento.
-      bytes = _reducirParaWeb(await foto.readAsBytes());
-    } else {
-      // Móvil: pantalla de recorte para ajustar bien el DPI + compresión fuerte.
+      if (fuente == null) return;
+      final foto = await _picker.pickImage(
+          source: fuente, maxWidth: 1000, maxHeight: 1000, imageQuality: 70);
+      if (foto == null) return;
       final recortada = await ImageCropper().cropImage(
         sourcePath: foto.path,
         compressFormat: ImageCompressFormat.jpg,
