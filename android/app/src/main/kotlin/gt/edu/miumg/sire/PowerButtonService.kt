@@ -492,6 +492,10 @@ class PowerButtonService : Service() {
         const val KEY_NOMBRE = "nombre"
         const val KEY_ALDEA = "aldea"
 
+        // Recuerda si el ciudadano dejó la detección ACTIVADA, para reiniciarla
+        // tras un reinicio del teléfono (ver BootReceiver).
+        const val KEY_ENABLED = "enabled"
+
         // Debe coincidir con AppConfig en Dart (sosButtonPresses / sosDetectionWindow).
         private const val REQUIRED_TOGGLES = 3
 
