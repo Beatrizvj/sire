@@ -55,8 +55,14 @@ service cloud.firestore {
                        && nombreValido(request.resource.data.nombre);
 
       // Lo lee su dueño; COCODE y Municipalidad (aprobados) pueden consultarlo.
+      // Además, cualquier usuario aprobado puede leer el perfil del COCODE de SU
+      // propia aldea (para tener su teléfono de contacto de emergencia); esto
+      // NO expone a otros ciudadanos, solo al COCODE de la aldea del solicitante.
       allow read:   if signedIn() && (request.auth.uid == userId
-                       || esMunicipalidad() || esCocode());
+                       || esMunicipalidad() || esCocode()
+                       || (aprobado()
+                           && resource.data.get('rol', 'ciudadano') == 'cocode'
+                           && resource.data.get('aldea', '') == miAldea()));
 
       // El dueño edita SUS datos, pero NO su rol, su estado, la capacidad de
       // ver identidad ni sus contactos de confianza (RF-11): esos grupos solo

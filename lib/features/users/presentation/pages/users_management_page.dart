@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../communities/aldeas_providers.dart';
@@ -62,10 +63,22 @@ class _UserTile extends StatelessWidget {
   final AppUser user;
   final VoidCallback onTap;
 
+  Future<void> _llamar(BuildContext context) async {
+    final tel = user.telefono.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (tel.isEmpty) return;
+    final ok = await launchUrl(Uri(scheme: 'tel', path: tel));
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo abrir el marcador para $tel.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final comunidad = user.aldea.isEmpty ? 'Sin comunidad' : user.aldea;
+    final tel = user.telefono.trim();
     return Card(
       child: ListTile(
         onTap: onTap,
@@ -80,9 +93,23 @@ class _UserTile extends StatelessWidget {
           ),
         ),
         title: Text(user.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('${user.email ?? ''}\n$comunidad'),
-        trailing: _RolChip(rol: user.rol),
+        subtitle: Text(
+          '${user.email ?? ''}\n'
+          '${tel.isEmpty ? 'Sin teléfono' : tel} · $comunidad',
+        ),
         isThreeLine: true,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (tel.isNotEmpty)
+              IconButton(
+                tooltip: 'Llamar',
+                icon: Icon(Icons.call, color: scheme.primary),
+                onPressed: () => _llamar(context),
+              ),
+            _RolChip(rol: user.rol),
+          ],
+        ),
       ),
     );
   }
