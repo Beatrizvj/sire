@@ -532,10 +532,10 @@ class _CocodeContactoCard extends StatelessWidget {
                     Text(c.telefono.trim().isEmpty ? 'Sin teléfono' : c.telefono),
                 trailing: c.telefono.trim().isEmpty
                     ? null
-                    : FilledButton.tonalIcon(
+                    : IconButton.filledTonal(
+                        tooltip: 'Llamar',
                         onPressed: () => _llamar(context, c.telefono),
-                        icon: const Icon(Icons.call, size: 18),
-                        label: const Text('Llamar'),
+                        icon: const Icon(Icons.call),
                       ),
               ),
           ],
