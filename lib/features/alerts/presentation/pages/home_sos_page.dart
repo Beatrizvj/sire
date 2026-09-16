@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/services/permission_service.dart';
@@ -9,6 +10,8 @@ import '../../../../core/services/power_button_bridge.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../incidents/data/incident_category_repository.dart';
 import '../../../incidents/domain/incident_category.dart';
+import '../../../users/domain/entities/app_user.dart';
+import '../../../users/presentation/providers/users_providers.dart';
 import '../../domain/entities/alert_status.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../../domain/entities/sos_source.dart';
@@ -398,6 +401,9 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
     final theme = Theme.of(context);
     final state = ref.watch(alertsControllerProvider);
     final sosMode = ref.watch(sosTriggerModeProvider);
+    // Contacto del COCODE de tu aldea (para llamar en una emergencia).
+    final cocodes =
+        ref.watch(cocodesDeMiAldeaProvider).asData?.value ?? const <AppUser>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -441,6 +447,10 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
             ),
             const SizedBox(height: 24),
           ],
+          if (cocodes.isNotEmpty) ...[
+            _CocodeContactoCard(cocodes: cocodes),
+            const SizedBox(height: 24),
+          ],
           Row(
             children: [
               Text('Historial', style: theme.textTheme.titleMedium),
@@ -466,6 +476,70 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
                   onTap: () => _onAlertTap(alert),
                 )),
         ],
+      ),
+    );
+  }
+}
+
+/// Tarjeta con el contacto del/los COCODE de la aldea del ciudadano, con botón
+/// para llamar directo (útil en una emergencia).
+class _CocodeContactoCard extends StatelessWidget {
+  const _CocodeContactoCard({required this.cocodes});
+
+  final List<AppUser> cocodes;
+
+  Future<void> _llamar(BuildContext context, String telefono) async {
+    final tel = telefono.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (tel.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Este COCODE no tiene teléfono registrado.')),
+      );
+      return;
+    }
+    final ok = await launchUrl(Uri(scheme: 'tel', path: tel));
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo abrir el marcador para $tel.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.contact_phone_outlined,
+                    size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('COCODE de tu aldea', style: theme.textTheme.titleSmall),
+              ],
+            ),
+            for (final c in cocodes)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: const Icon(Icons.person_outline),
+                title: Text(c.nombre),
+                subtitle:
+                    Text(c.telefono.trim().isEmpty ? 'Sin teléfono' : c.telefono),
+                trailing: c.telefono.trim().isEmpty
+                    ? null
+                    : FilledButton.tonalIcon(
+                        onPressed: () => _llamar(context, c.telefono),
+                        icon: const Icon(Icons.call, size: 18),
+                        label: const Text('Llamar'),
+                      ),
+              ),
+          ],
+        ),
       ),
     );
   }

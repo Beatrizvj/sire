@@ -16,4 +16,9 @@ abstract interface class UserRepository {
 
   /// Todos los usuarios en tiempo real (para la Gestión de la Municipalidad).
   Stream<List<AppUser>> watchAllUsers();
+
+  /// COCODE(s) aprobados de una aldea, en tiempo real. Sirve para que el
+  /// CIUDADANO vea el contacto (teléfono) del COCODE de su aldea sin poder leer
+  /// el resto de usuarios. Filtra por rol y aldea en la consulta.
+  Stream<List<AppUser>> watchCocodesDeAldea(String aldea);
 }

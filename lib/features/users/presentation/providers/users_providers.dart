@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/repositories/user_repository_firestore.dart';
 import '../../data/repositories/user_repository_local.dart';
 import '../../domain/entities/app_user.dart';
@@ -21,6 +22,15 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
 final allUsersProvider = StreamProvider.autoDispose<List<AppUser>>(
   (ref) => ref.watch(userRepositoryProvider).watchAllUsers(),
 );
+
+/// COCODE(s) aprobados de la aldea del usuario EN SESIÓN. Sirve para que el
+/// CIUDADANO vea el contacto (teléfono) del COCODE de su aldea. Vacío si el
+/// usuario no tiene una aldea asignada.
+final cocodesDeMiAldeaProvider = StreamProvider.autoDispose<List<AppUser>>((ref) {
+  final aldea = ref.watch(currentUserProfileProvider).asData?.value?.aldea ?? '';
+  if (aldea.isEmpty) return Stream.value(const <AppUser>[]);
+  return ref.watch(userRepositoryProvider).watchCocodesDeAldea(aldea);
+});
 
 /// Usuarios que una autoridad puede ver/gestionar (mínimo privilegio):
 /// - Municipalidad: TODOS los del municipio.

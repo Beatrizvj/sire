@@ -1,7 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -1167,13 +1166,14 @@ class _UsuariosBody extends ConsumerWidget {
               child: _Card(
                 titulo: '${users.length} usuarios registrados',
                 child: _FillTable(
-                  minWidth: 900,
+                  minWidth: 980,
                   columns: const [
-                    (22, 'Nombre'),
-                    (20, 'Correo'),
-                    (16, 'Comunidad'),
-                    (14, 'Rol'),
-                    (26, 'Acción'),
+                    (20, 'Nombre'),
+                    (18, 'Correo'),
+                    (15, 'Teléfono'),
+                    (13, 'Comunidad'),
+                    (12, 'Rol'),
+                    (22, 'Acción'),
                   ],
                   rows: [
                     for (final u in users)
@@ -1187,6 +1187,7 @@ class _UsuariosBody extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13)),
+                        _TelefonoCelda(telefono: u.telefono),
                         Text(u.aldea.isEmpty ? '—' : u.aldea,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1223,6 +1224,46 @@ class _UsuariosBody extends ConsumerWidget {
             );
           },
         );
+  }
+}
+
+/// Celda de teléfono para la tabla de usuarios: muestra el número con un botón
+/// para copiarlo (útil en la consola de escritorio para llamar/pegar).
+class _TelefonoCelda extends StatelessWidget {
+  const _TelefonoCelda({required this.telefono});
+
+  final String telefono;
+
+  @override
+  Widget build(BuildContext context) {
+    final tel = telefono.trim();
+    if (tel.isEmpty) {
+      return const Text('—', style: TextStyle(fontSize: 13));
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(tel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13)),
+        ),
+        InkWell(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: tel));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Teléfono copiado')),
+            );
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.copy, size: 15, color: Color(0xFF6B5A57)),
+          ),
+        ),
+      ],
+    );
   }
 }
 
