@@ -95,3 +95,8 @@ exports.notificarNuevaAlerta = onDocumentCreated(
       );
     },
 );
+
+// Bot de WhatsApp (RF-12): avisa a las autoridades por WhatsApp (Twilio).
+// Inerte hasta configurar las credenciales de Twilio en functions/.env.
+exports.notificarWhatsAppNuevaAlerta =
+    require("./whatsapp").notificarWhatsAppNuevaAlerta;

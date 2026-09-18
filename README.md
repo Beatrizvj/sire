@@ -91,6 +91,6 @@ con `AppConfig.firebaseEnabled` (por defecto, Firebase).
 | 4 | Roles, aprobación de cuentas y fotos del DPI | ✅ |
 | 5 | Mapa de alertas (OpenStreetMap) | ✅ |
 | 6 | Panel web (Flutter Web) | ✅ desplegado |
-| 7 | Notificaciones push (FCM) | ⏳ requiere plan Blaze |
-| 8 | Bot de WhatsApp (Cloud Functions) | ⏳ requiere plan Blaze |
+| 7 | Notificaciones push (FCM) | ✅ desplegado y probado |
+| 8 | Bot de WhatsApp (Cloud Functions) | 🔧 código listo (falta activar proveedor Twilio) |
 | 9 | Mapas de calor / analítica | ⏳ |

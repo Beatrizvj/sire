@@ -37,5 +37,5 @@ class AppConfig {
   /// Al entrar `true`, la app registra el token FCM del dispositivo en el perfil
   /// del usuario para que la función pueda avisar a las autoridades.
   /// Requiere plan Blaze y desplegar `functions/` (ver docs/PUSH_SETUP.md).
-  static bool get pushEnabled => false;
+  static bool get pushEnabled => true;
 }
