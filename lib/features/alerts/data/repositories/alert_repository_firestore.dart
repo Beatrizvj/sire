@@ -25,31 +25,39 @@ class AlertRepositoryFirestore implements AlertRepository {
 
   String? get _uid => _auth.currentUser?.uid;
 
-  Map<String, dynamic> _toFirestore(SosAlert alert) => {
-        'idUsuario': alert.userId ?? _uid,
-        'nombreUsuario': _auth.currentUser?.displayName ?? '',
-        // Aldea registrada del ciudadano: rutea la alerta a su COCODE (la
-        // Municipalidad ve todas; cada COCODE, solo su aldea).
-        'aldea': alert.aldea ?? '',
-        'fecha': Timestamp.fromDate(alert.timestamp),
-        'latitud': alert.latitude,
-        'longitud': alert.longitude,
-        'estado': alert.status.value,
-        'tipo': alert.type,
-        'origen': alert.source.name,
-        'direccion': alert.address,
-        'precision': alert.accuracy,
-        'categoria': alert.categoria,
-        'atendidaEn': alert.atendidaEn == null
-            ? null
-            : Timestamp.fromDate(alert.atendidaEn!),
-        'resueltaEn': alert.resueltaEn == null
-            ? null
-            : Timestamp.fromDate(alert.resueltaEn!),
-        'atendidaPor': alert.atendidaPor,
-        'atendidaPorNombre': alert.atendidaPorNombre,
-        'creadoEn': FieldValue.serverTimestamp(),
-      };
+  Map<String, dynamic> _toFirestore(SosAlert alert) {
+    final data = <String, dynamic>{
+      'idUsuario': alert.userId ?? _uid,
+      'nombreUsuario': _auth.currentUser?.displayName ?? '',
+      // Aldea registrada del ciudadano: rutea la alerta a su COCODE (la
+      // Municipalidad ve todas; cada COCODE, solo su aldea).
+      'aldea': alert.aldea ?? '',
+      'fecha': Timestamp.fromDate(alert.timestamp),
+      'estado': alert.status.value,
+      'tipo': alert.type,
+      'origen': alert.source.name,
+      'direccion': alert.address,
+      'categoria': alert.categoria,
+      'atendidaEn': alert.atendidaEn == null
+          ? null
+          : Timestamp.fromDate(alert.atendidaEn!),
+      'resueltaEn': alert.resueltaEn == null
+          ? null
+          : Timestamp.fromDate(alert.resueltaEn!),
+      'atendidaPor': alert.atendidaPor,
+      'atendidaPorNombre': alert.atendidaPorNombre,
+      'creadoEn': FieldValue.serverTimestamp(),
+    };
+    // Las coordenadas solo se guardan si existen. Sin ubicación (0,0) se OMITEN,
+    // igual que el servicio nativo del botón de encendido, para que el panel
+    // muestre "Sin ubicación" en vez de un punto falso en el mar.
+    if (alert.tieneUbicacion) {
+      data['latitud'] = alert.latitude;
+      data['longitud'] = alert.longitude;
+      data['precision'] = alert.accuracy;
+    }
+    return data;
+  }
 
   SosAlert _fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();

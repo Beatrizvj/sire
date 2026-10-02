@@ -16,9 +16,10 @@ class AlertTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final dateFormat = DateFormat('dd/MM/yyyy · HH:mm:ss');
-    final coords =
-        '${alert.latitude.toStringAsFixed(5)}, ${alert.longitude.toStringAsFixed(5)}';
-    final accuracy = alert.accuracy != null
+    final coords = alert.tieneUbicacion
+        ? '${alert.latitude.toStringAsFixed(5)}, ${alert.longitude.toStringAsFixed(5)}'
+        : 'Sin ubicación';
+    final accuracy = (alert.tieneUbicacion && alert.accuracy != null)
         ? ' · ±${alert.accuracy!.toStringAsFixed(0)} m'
         : '';
 

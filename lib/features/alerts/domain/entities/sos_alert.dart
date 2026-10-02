@@ -71,6 +71,10 @@ class SosAlert extends Equatable {
   /// Tiempo de respuesta = desde que se creó la alerta hasta que se atendió.
   Duration? get tiempoRespuesta => atendidaEn?.difference(timestamp);
 
+  /// La alerta trae una ubicación real. 0,0 es el valor centinela para "sin
+  /// ubicación" (GPS apagado y sin última conocida), igual que el botón físico.
+  bool get tieneUbicacion => latitude != 0 || longitude != 0;
+
   SosAlert copyWith({
     AlertStatus? status,
     String? categoria,

@@ -18,21 +18,23 @@ class LocationRepositoryGeolocator implements LocationRepository {
   Future<LocationReading> getCurrentLocation() async {
     var serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // Recomendación post-Beta: en lugar de bloquear el SOS y pedirle al
-      // usuario que active el GPS a mano, mostramos el diálogo de sistema de UN
-      // TOQUE (Google Play Services) para encenderlo sin salir de la app; así la
-      // alerta sale de inmediato con ubicación. Android no permite activarlo de
-      // forma 100 % silenciosa: el de un toque es el máximo que ofrece.
+      // Se ofrece el diálogo de UN TOQUE para activar la ubicación. Si el
+      // ciudadano ACTIVA, el flujo de abajo obtiene la ubicación precisa (sin
+      // tener que reenviar el SOS). Si NO activa, se usa la última ubicación
+      // conocida; y si tampoco existe, se lanza para que el SOS se envíe IGUAL,
+      // "sin ubicación" (ver TriggerSos), de modo que la alerta llegue sí o sí.
+      // Android NO permite encender el GPS de forma automática: el de un toque
+      // es el máximo para una app instalada por el ciudadano en su teléfono.
       serviceEnabled = await _activarUbicacionUnToque();
-    }
-    if (!serviceEnabled) {
-      // Aun sin GPS no perdemos la emergencia: si hay una última ubicación
-      // conocida, la alerta se envía con ella; solo si tampoco existe, fallamos.
-      final ultima = await Geolocator.getLastKnownPosition();
-      if (ultima == null) {
+      if (!serviceEnabled) {
+        try {
+          final ultima = await Geolocator.getLastKnownPosition();
+          if (ultima != null) return _lecturaDesde(ultima);
+        } catch (_) {
+          // sin última ubicación: el SOS se enviará sin ubicación.
+        }
         throw const LocationServiceDisabledException();
       }
-      return _lecturaDesde(ultima);
     }
 
     var permission = await Geolocator.checkPermission();

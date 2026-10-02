@@ -180,8 +180,10 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
     final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
     if (result != null) {
       final alert = result.alert;
-      final location = alert.address ??
-          '${alert.latitude.toStringAsFixed(5)}, ${alert.longitude.toStringAsFixed(5)}';
+      final location = !alert.tieneUbicacion
+          ? 'sin ubicación'
+          : (alert.address ??
+              '${alert.latitude.toStringAsFixed(5)}, ${alert.longitude.toStringAsFixed(5)}');
       if (result.enCola) {
         // Sin señal: Firestore ya la guardó y la enviará al reconectar.
         messenger.showSnackBar(
