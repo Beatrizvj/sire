@@ -48,8 +48,14 @@ conviene **tomar captura** 📸 para el expediente de evidencia.
     (https://sire-app-179d3.web.app/descargar.html). 📸
 14. **Repositorio:** rama `beta/pruebas-preliminares` + Pull Request (control de
     versiones/Scrum). 📸
-15. **Pendientes documentados:** push y WhatsApp (requieren plan **Blaze**, en
-    trámite) — no bloquean la Beta.
+15. **Notificaciones push (FCM) — EN VIVO:** con Blaze activo y la Cloud Function
+    `notificarNuevaAlerta` desplegada, al entrar un SOS le llega al teléfono de la
+    autoridad la notificación **"🚨 Nueva alerta SOS"** aunque tenga la app
+    cerrada (COCODE de la aldea + Municipalidad). 📸  ⚠️ Instala el APK nuevo
+    (`build/app/outputs/flutter-apk/app-release.apk`) en el teléfono de la
+    autoridad **antes** de la demo, para que registre su token.
+16. **Bot de WhatsApp (RF-12):** código listo (`functions/whatsapp.js`); se activa
+    configurando el proveedor Twilio — ver `docs/WHATSAPP_SETUP.md`.
 
 ## Al terminar
 - **Borra las cuentas/datos de prueba** de producción (perfil + fotos DPI desde

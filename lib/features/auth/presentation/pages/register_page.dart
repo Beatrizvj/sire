@@ -14,6 +14,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../../core/validation/password_validator.dart';
 import '../../../communities/aldeas_providers.dart';
+import '../../../identity/data/dpi_watermark.dart';
 import '../../../identity/data/identity_repository.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form_styles.dart';
@@ -121,11 +122,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       bytes = await recortada.readAsBytes();
     }
     if (!mounted) return;
+    // Recomendación post-Beta: se hornea la marca de agua ANTES de guardar y
+    // subir la foto, para que el servidor nunca almacene una copia limpia del
+    // DPI (ni la Municipalidad ni el COCODE pueden reutilizarla).
+    final marcada = marcarDpiConAguaSire(bytes);
     setState(() {
       if (lado == IdentityRepository.anverso) {
-        _anverso = bytes;
+        _anverso = marcada;
       } else {
-        _reverso = bytes;
+        _reverso = marcada;
       }
     });
   }

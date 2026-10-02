@@ -72,6 +72,7 @@ class PowerButtonService : Service() {
             if (segundosRestantes <= 0) {
                 sosPendiente = false
                 showAlertNotification() // reemplaza la cuenta regresiva por "Enviando…"
+                sendBroadcast(Intent(ACTION_SOS_RESUELTO).setPackage(packageName))
                 captureLocationAndSave()
                 return
             }
@@ -247,6 +248,8 @@ class PowerButtonService : Service() {
             vibrar(longArrayOf(0, 80, 80, 80)) // vibración breve = SOS cancelado
             Log.i(TAG, "SOS cancelado por el usuario dentro de la ventana")
         }
+        // Cierra el overlay de cuenta regresiva si aún está sobre el bloqueo.
+        sendBroadcast(Intent(ACTION_SOS_RESUELTO).setPackage(packageName))
     }
 
     /** Notificación con acción "Cancelar" durante la ventana previa al envío (RF-13). */
@@ -260,6 +263,20 @@ class PowerButtonService : Service() {
             cancelIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        // RF-13: full-screen intent → muestra la cuenta regresiva SOBRE la
+        // pantalla de bloqueo mediante SosCountdownActivity (showWhenLocked +
+        // turnScreenOn). Sin esto, en Samsung/One UI la notificación no se
+        // despliega ni enciende la pantalla con el teléfono bloqueado.
+        val overlayIntent = Intent(this, SosCountdownActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(SosCountdownActivity.EXTRA_SEGUNDOS, CANCEL_WINDOW_SECONDS)
+        }
+        val overlayPending = PendingIntent.getActivity(
+            this,
+            2,
+            overlayIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         val notification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
             .setContentTitle("SOS detectado")
             .setContentText("Se enviará en $segundos s. Toca CANCELAR si fue un error.")
@@ -270,6 +287,8 @@ class PowerButtonService : Service() {
             .setOnlyAlertOnce(true) // solo vibra/heads-up al inicio; los ticks, silenciosos
             .setOngoing(true)
             .setAutoCancel(false)
+            .setContentIntent(overlayPending)
+            .setFullScreenIntent(overlayPending, true)
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 "Cancelar",
@@ -484,6 +503,7 @@ class PowerButtonService : Service() {
         // RF-13: acción de la notificación para cancelar el envío y duración de la
         // ventana de cancelación (pocos segundos antes de difundir la alerta).
         private const val ACTION_CANCEL_SOS = "gt.edu.miumg.sire.CANCEL_SOS"
+        private const val ACTION_SOS_RESUELTO = "gt.edu.miumg.sire.SOS_RESUELTO"
         private const val CANCEL_WINDOW_SECONDS = 8
 
         // SharedPreferences compartido con MainActivity (uid del usuario en sesión).
