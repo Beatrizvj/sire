@@ -26,7 +26,7 @@
 | 6 | Asesor (post-Beta) | Con el GPS apagado el SOS no salía | Diálogo de sistema de **un toque** para activar la ubicación; la alerta se envía **siempre** (con ubicación, última conocida o "Sin ubicación") | `785aadb`, `2922883` |
 | 7 | RF-13 | La cuenta regresiva no se veía con el teléfono bloqueado | Pantalla de SOS sobre la pantalla de bloqueo (`SosCountdownActivity`) | `785aadb` |
 | 8 | Pendiente de la Beta | Push FCM preparado pero no activo | Plan Blaze + función desplegada; probado en dispositivo | `591b2be` (+ deploy) |
-| 9 | Pendiente de la Beta (RF-12) | Bot de WhatsApp no implementado | Cloud Function con **Twilio** (sandbox) o **Meta Cloud API**, enrutamiento por aldea y Alcaldía Auxiliar; probado en dispositivo el 6-oct-2026 | este commit |
+| 9 | Pendiente de la Beta (RF-12) | Bot de WhatsApp no implementado | Cloud Function con **Twilio** (sandbox) o **Meta Cloud API**, enrutamiento por aldea y Alcaldía Auxiliar; probado en dispositivo el 6-oct-2026 | `524a4d0` |
 
 Notas técnicas para la defensa:
 - Android **no permite** encender el GPS en silencio desde una app; el estándar
