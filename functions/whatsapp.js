@@ -1,8 +1,8 @@
 /**
- * Bot de WhatsApp de SIRE (RF-12) — Meta WhatsApp Cloud API.
+ * Bot de WhatsApp de SIRE (RF-12) — Twilio o Meta WhatsApp Cloud API.
  *
- * Al crearse una alerta en `alertas/{id}`, envía un mensaje de WhatsApp (por
- * PLANTILLA aprobada) a las autoridades que deben atenderla.
+ * Al crearse una alerta en `alertas/{id}`, envía un mensaje de WhatsApp a las
+ * autoridades que deben atenderla.
  *
  * ENRUTAMIENTO (por rol y aldea):
  *   - Municipalidad: SIEMPRE recibe.
@@ -12,14 +12,22 @@
  *   - COCODE de la aldea: solo si la aldea NO tiene Alcaldía Auxiliar.
  * (El push —functions/index.js— no cambia: COCODE de la aldea + Municipalidad.)
  *
- * PROVEEDOR: Meta WhatsApp Cloud API (Graph API). Los mensajes iniciados por el
- * negocio EXIGEN una plantilla aprobada. Config por variables de entorno (en
- * `functions/.env`, que NO se sube a git; ver docs/WHATSAPP_SETUP.md):
- *   WHATSAPP_TOKEN            → token de acceso de Meta (permanente en producción)
- *   WHATSAPP_PHONE_NUMBER_ID  → ID del número remitente (NO el número: su ID)
- *   WHATSAPP_TEMPLATE         → nombre de la plantilla (def. "sire_alerta_sos")
- *   WHATSAPP_TEMPLATE_LANG    → idioma de la plantilla (def. "es")
- * Si faltan el token o el phone number ID, la función no hace nada (no-op).
+ * PROVEEDOR: se elige con WHATSAPP_PROVIDER ("twilio" | "meta"). Si no se
+ * indica, se usa Twilio cuando están sus credenciales y, si no, Meta. Config por
+ * variables de entorno (en `functions/.env`, que NO se sube a git; ver
+ * docs/WHATSAPP_SETUP.md):
+ *   Twilio:
+ *     TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
+ *     TWILIO_WHATSAPP_FROM      → "whatsapp:+14155238886" (sandbox) o el propio
+ *     TWILIO_CONTENT_SID        → (opcional, producción) plantilla aprobada
+ *                                 "HX…"; sin ella se envía texto libre, que es
+ *                                 lo que admite el sandbox.
+ *   Meta (las plantillas son obligatorias):
+ *     WHATSAPP_TOKEN            → token de acceso (permanente en producción)
+ *     WHATSAPP_PHONE_NUMBER_ID  → ID del número remitente (NO el número: su ID)
+ *     WHATSAPP_TEMPLATE         → nombre de la plantilla (def. "sire_alerta_sos")
+ *     WHATSAPP_TEMPLATE_LANG    → idioma de la plantilla (def. "es")
+ * Si faltan las credenciales del proveedor, la función no hace nada (no-op).
  */
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {getFirestore} = require("firebase-admin/firestore");
@@ -78,15 +86,71 @@ async function enviarPlantillaMeta({token, phoneNumberId, plantilla, idioma, to,
   return resp.json();
 }
 
+/**
+ * Arma el emisor según el proveedor configurado. Devuelve
+ * { nombre, enviar(to, params) } o null si faltan credenciales.
+ * params = [nombre, categoría, comunidad, ubicación].
+ */
+function crearEmisor() {
+  const env = process.env;
+  const hayTwilio =
+    env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM;
+  const proveedor =
+    (env.WHATSAPP_PROVIDER || (hayTwilio ? "twilio" : "meta")).toLowerCase();
+
+  if (proveedor === "twilio") {
+    if (!hayTwilio) return null;
+    const cliente = require("twilio")(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
+    const contentSid = env.TWILIO_CONTENT_SID;
+    return {
+      nombre: "Twilio",
+      enviar: (to, params) => {
+        const base = {from: env.TWILIO_WHATSAPP_FROM, to: `whatsapp:${to}`};
+        if (contentSid) {
+          // Plantilla aprobada: mismas variables {{1}}..{{4}} que en Meta.
+          const variables = {};
+          params.forEach((v, i) => (variables[String(i + 1)] = v));
+          return cliente.messages.create({
+            ...base,
+            contentSid,
+            contentVariables: JSON.stringify(variables),
+          });
+        }
+        const [nombre, categoria, comunidad, ubicacion] = params;
+        return cliente.messages.create({
+          ...base,
+          body:
+            "🚨 *Nueva alerta SOS - SIRE*\n" +
+            `Ciudadano: ${nombre}\n` +
+            `Categoría: ${categoria}\n` +
+            `Comunidad: ${comunidad}\n` +
+            `Ubicación: ${ubicacion}`,
+        });
+      },
+    };
+  }
+
+  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID) return null;
+  return {
+    nombre: "Meta",
+    enviar: (to, params) =>
+      enviarPlantillaMeta({
+        token: env.WHATSAPP_TOKEN,
+        phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
+        plantilla: env.WHATSAPP_TEMPLATE || "sire_alerta_sos",
+        idioma: env.WHATSAPP_TEMPLATE_LANG || "es",
+        to,
+        params,
+      }),
+  };
+}
+
 exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
     "alertas/{alertaId}",
     async (event) => {
-      const token = process.env.WHATSAPP_TOKEN;
-      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-      const plantilla = process.env.WHATSAPP_TEMPLATE || "sire_alerta_sos";
-      const idioma = process.env.WHATSAPP_TEMPLATE_LANG || "es";
-      if (!token || !phoneNumberId) {
-        logger.info("WhatsApp desactivado: faltan credenciales de Meta.");
+      const emisor = crearEmisor();
+      if (!emisor) {
+        logger.info("WhatsApp desactivado: faltan credenciales del proveedor.");
         return;
       }
 
@@ -153,16 +217,7 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
       const params = [nombre, categoria, comunidad, ubicacion];
 
       const resultados = await Promise.allSettled(
-          unicos.map((tel) =>
-            enviarPlantillaMeta({
-              token,
-              phoneNumberId,
-              plantilla,
-              idioma,
-              to: tel,
-              params,
-            }),
-          ),
+          unicos.map((tel) => emisor.enviar(tel, params)),
       );
 
       let ok = 0;
@@ -176,7 +231,7 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
         }
       });
       logger.info(
-          `WhatsApp (Meta) enviado: ${ok}/${unicos.length} ` +
+          `WhatsApp (${emisor.nombre}) enviado: ${ok}/${unicos.length} ` +
           `(aldea="${aldea}", auxiliar=${tieneAuxiliar}).`,
       );
     },
