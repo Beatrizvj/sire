@@ -59,6 +59,7 @@
       color: var(--tenue); font-size: 13px; text-decoration: none;
     }
     .aut a { color: #FF8A80; }
+    .txt { font-size: 14.5px; margin: 0 0 10px; }
     .pie { text-align: center; color: #6F5A56; font-size: 11.5px; margin-top: 26px; }
     .badge {
       display: inline-block; background: #2E7D32; color: #fff; font-size: 11px;
@@ -93,13 +94,46 @@
 
     <div class="card qr">
       <h2>Comparte SIRE</h2>
-      <img src="qr-sire.png" alt="Código QR para descargar SIRE" />
+      <img src="qr-descarga-sire.png" alt="Código QR para descargar SIRE" />
       <p>Escanea este código para abrir esta página de descarga.<br />Ideal para afiches y volantes de la Municipalidad.</p>
     </div>
 
-    <a class="aut" href="/">¿Eres COCODE o Municipalidad? <a href="/">Entra a la consola web →</a></a>
+    <div class="card" id="acerca">
+      <h2>Acerca de SIRE</h2>
+      <p class="txt">SIRE es un sistema de alertas de emergencia para las aldeas de
+        San Miguel Sigüilá, Quetzaltenango, Guatemala. Un ciudadano registrado envía
+        un <b>SOS</b> desde la app y el sistema avisa al COCODE de su aldea y a la
+        Municipalidad con su ubicación.</p>
+      <p class="txt">Proyecto de graduación de Ingeniería en Sistemas de la
+        Universidad Mariano Gálvez de Guatemala, desarrollado por
+        <b>Beatriz Vicente Jiménez</b>.</p>
+    </div>
 
-    <p class="pie">Municipalidad de San Miguel Sigüilá · SIRE v1.0.0</p>
+    <div class="card" id="whatsapp">
+      <h2>Mensajes de WhatsApp</h2>
+      <p class="txt">SIRE envía mensajes de WhatsApp <b>solo a las autoridades</b>
+        (COCODE, Alcaldía Auxiliar y Municipalidad) cuando entra una alerta SOS, con
+        el nombre de quien la envía, la categoría, la comunidad y un enlace a la
+        ubicación. No se envían mensajes publicitarios.</p>
+    </div>
+
+    <div class="card" id="privacidad">
+      <h2>Privacidad</h2>
+      <p class="txt">Los datos del registro (nombre, teléfono, aldea y foto del DPI
+        con marca de agua) se usan únicamente para verificar la identidad del
+        ciudadano y atender sus alertas. Solo las autoridades autorizadas pueden
+        verlos. Los datos no se venden ni se comparten con terceros.</p>
+    </div>
+
+    <div class="card" id="contacto">
+      <h2>Contacto</h2>
+      <p class="txt">San Miguel Sigüilá, Quetzaltenango, Guatemala<br />
+        WhatsApp de SIRE: <b>+502 5366 2007</b></p>
+    </div>
+
+    <p class="aut">¿Eres COCODE o Municipalidad? <a href="/">Entra a la consola web →</a></p>
+
+    <p class="pie">SIRE · San Miguel Sigüilá · v1.0.0</p>
   </div>
 </body>
 </html>
