@@ -27,8 +27,10 @@ El sandbox se activa en minutos y es **gratis** para pruebas.
    `join <dos-palabras>`.
 3. Cada teléfono que vaya a **recibir** mensajes debe enviar por WhatsApp
    `join <dos-palabras>` a ese número.
-   - ⚠️ La unión al sandbox **vence a las 72 h**: el día de la demo, vuelve a
-     enviar `join …` desde cada teléfono de autoridad **antes** de presentar.
+   - ⚠️ El sandbox tiene DOS límites: la unión **vence a las 72 h**, y además
+     solo entrega mensajes **dentro de las 24 h** siguientes al último mensaje
+     que ese teléfono envió al sandbox (error **63016**). El día de la demo,
+     30–60 min antes, cada teléfono de autoridad vuelve a enviar `join …`.
 
 ### Paso 2 — Credenciales en `functions/.env` (NO se sube a git)
 ```
@@ -60,8 +62,14 @@ firebase deploy --only functions
    ```bash
    firebase functions:log --only notificarWhatsAppNuevaAlerta
    ```
-   `WhatsApp (Twilio) enviado: N/N` = OK. Error `63015` = el destinatario no se
-   unió al sandbox (o venció su unión).
+   `WhatsApp (Twilio) enviado: N/N` solo significa que Twilio **aceptó** los
+   mensajes; la entrega real se ve con:
+   ```bash
+   cd functions
+   node scripts/estado-whatsapp.js
+   ```
+   Error `63015` = el destinatario no se unió al sandbox. Error `63016` = pasaron
+   más de 24 h desde su último mensaje al sandbox (volver a enviar `join …`).
 
 ## Producción
 - **Twilio**: registrar un número propio como remitente de WhatsApp, crear una
