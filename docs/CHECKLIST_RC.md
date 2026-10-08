@@ -1,7 +1,7 @@
 # SIRE — Versión Candidata a Liberación (10 de octubre de 2026)
 
 > "Versión candidata a liberación con correcciones y mejoras basadas en las
-> pruebas." Estado al 6 de octubre de 2026 · versión de la app **1.0.0+2**.
+> pruebas." Estado al 8 de octubre de 2026 · versión de la app **1.0.0+2**.
 
 ## Entregable de software
 
@@ -12,7 +12,14 @@
       (QR: [docs/qr-descarga-sire.png](qr-descarga-sire.png))
 - [x] Cloud Functions desplegadas en plan **Blaze**: `notificarNuevaAlerta`
       (push FCM) y `notificarWhatsAppNuevaAlerta` (WhatsApp)
-- [x] Trabajo en rama `beta/pruebas-preliminares` con commits claros
+- [x] Página pública con *Acerca de*, uso de WhatsApp, privacidad y contacto
+      (`f5b6082`)
+- [x] Diagnóstico de entregas de WhatsApp: `node functions/scripts/estado-whatsapp.js`
+      (`79bda79`)
+- [x] Datos de prueba eliminados (8-oct-2026): quedan 3 cuentas reales, 0 alertas
+      y 0 registros de auditoría; respaldo local previo fuera del repositorio
+- [x] Trabajo en rama `beta/pruebas-preliminares` con commits claros; etiqueta
+      `v1.0.0-rc1`
 
 ## Correcciones y mejoras desde la Beta (12-sep-2026)
 
@@ -27,13 +34,14 @@
 | 7 | RF-13 | La cuenta regresiva no se veía con el teléfono bloqueado | Pantalla de SOS sobre la pantalla de bloqueo (`SosCountdownActivity`) | `785aadb` |
 | 8 | Pendiente de la Beta | Push FCM preparado pero no activo | Plan Blaze + función desplegada; probado en dispositivo | `591b2be` (+ deploy) |
 | 9 | Pendiente de la Beta (RF-12) | Bot de WhatsApp no implementado | Cloud Function con **Twilio** (sandbox) o **Meta Cloud API**, enrutamiento por aldea y Alcaldía Auxiliar; probado en dispositivo el 6-oct-2026 | `524a4d0` |
+| 10 | Pruebas de WhatsApp | El log decía "enviado" aunque el mensaje no llegara (destinatario no unido / ventana de 24 h vencida) | Script de diagnóstico que consulta la entrega real en Twilio por destinatario (errores 63015 / 63016) | `79bda79` |
 
 Notas técnicas para la defensa:
 - Android **no permite** encender el GPS en silencio desde una app; el estándar
   (Maps, Uber) es el diálogo de un toque (`SettingsClient.checkLocationSettings`).
 - La marca de agua aplica a las **fotos nuevas**; las ya subidas no se modifican.
 
-## Pruebas de regresión (6-oct-2026)
+## Pruebas de regresión (6 al 8-oct-2026)
 
 | Prueba | Resultado |
 |---|---|
@@ -43,6 +51,7 @@ Notas técnicas para la defensa:
 | `flutter analyze` / `flutter test` | ✅ 0 problemas / 47 de 47 |
 | SOS con GPS apagado → "Activar" envía con ubicación; "No gracias" envía "Sin ubicación" | ✅ (02-oct-2026) |
 | Marca de agua visible en fotos claras y oscuras del DPI | ✅ (02-oct-2026) |
+| Entrega real de WhatsApp a los 2 números de la Municipalidad (diagnóstico Twilio: `delivered`) | ✅ (08-oct-2026) |
 
 ## Observaciones abiertas
 
@@ -52,12 +61,21 @@ Notas técnicas para la defensa:
       envía. **Volver a probar:** 1 SOS en pantalla y 1 por botón de encendido con
       el GPS apagado → debe aparecer exactamente 1 alerta por cada uno.
 - [ ] WhatsApp en **sandbox**: cada destinatario debe enviar `join <código>` al
-      +1 415 523 8886 y la unión vence a las 72 h. Producción: número propio +
-      plantilla aprobada (ver [WHATSAPP_SETUP.md](WHATSAPP_SETUP.md)).
+      +1 415 523 8886 (QR: [docs/qr-join-sandbox.png](qr-join-sandbox.png)). La
+      unión vence a las 72 h y solo se entregan mensajes dentro de las 24 h
+      siguientes al último mensaje del teléfono (error 63016).
+- [ ] **Número propio en trámite** (puesta en producción): remitente
+      +502 5366 2007 "SIRE SMS" registrado en Twilio y plantilla
+      `alerta_notificacion_sire` (Utility) enviada a revisión. Meta mantiene la
+      cuenta de WhatsApp Business **restringida hasta verificar el negocio**;
+      se agregó el sitio web público y se abrió el ticket Twilio #29874390. El
+      código ya soporta la plantilla (`TWILIO_CONTENT_SID`): al aprobarse solo
+      cambia la configuración, sin modificar el software.
 
 ## Antes de entregar
 
 - [ ] Rotar el Auth Token de Twilio y volver a desplegar las funciones
-- [ ] Volver a unir al sandbox los teléfonos de las autoridades
-- [ ] Borrar datos y cuentas de prueba (p. ej. teléfono 12345678)
-- [ ] Etiqueta `v1.0.0-rc1` + `git push` + Pull Request hacia `main`
+- [ ] El día de la presentación, 30–60 min antes: `join write-lake` desde cada
+      teléfono de autoridad + diagnóstico + SOS de prueba
+- [x] Borrar datos y cuentas de prueba (8-oct-2026)
+- [x] Etiqueta `v1.0.0-rc1` + `git push` (Pull Request hacia `main` desde GitHub)
