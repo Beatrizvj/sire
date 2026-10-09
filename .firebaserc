@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "sire-app-179d3"
-  }
+  },
+  "targets": {
+    "sire-app-179d3": {
+      "hosting": {
+        "principal": [
+          "sire-app-179d3"
+        ],
+        "sanmiguel": [
+          "sire-sanmiguel"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
