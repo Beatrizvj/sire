@@ -1882,7 +1882,12 @@ class _SolicitudTile extends ConsumerWidget {
     final comunidades = ref.read(aldeasProvider).asData?.value ?? aldeasBase;
     // La Municipalidad puede asignar cualquier rol; el COCODE solo Ciudadano.
     final rolesPermitidos = actor.rol == UserRole.municipalidad
-        ? [UserRole.ciudadano, UserRole.cocode, UserRole.municipalidad]
+        ? [
+            UserRole.ciudadano,
+            UserRole.cocode,
+            UserRole.auxiliatura,
+            UserRole.municipalidad,
+          ]
         : [UserRole.ciudadano];
     var rol = rolesPermitidos.first;
     var aldea = objetivo.aldeaSolicitada.isEmpty
@@ -2558,7 +2563,7 @@ class _RolChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (fg, bg) = switch (rol) {
       UserRole.ciudadano => _neut,
-      UserRole.cocode => _warn,
+      UserRole.cocode || UserRole.auxiliatura => _warn,
       UserRole.municipalidad => _crit,
     };
     return _pill(rol.label, fg, bg);

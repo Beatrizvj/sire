@@ -15,7 +15,6 @@ import '../../alerts/domain/entities/sos_alert.dart';
 import '../../alerts/presentation/providers/alerts_providers.dart';
 import '../../auth/presentation/providers/auth_providers.dart';
 import '../../users/domain/entities/app_user.dart';
-import '../../users/domain/entities/user_role.dart';
 import '../../users/presentation/providers/users_providers.dart';
 
 // Paleta del panel.
@@ -74,7 +73,8 @@ class _ReportesBodyState extends ConsumerState<ReportesBody> {
     final usuarios = usuariosVisiblesPara(
         ref.watch(allUsersProvider).asData?.value ?? const [], actor);
     // Ámbito del reporte, para el título y la exportación.
-    final ambito = actor?.rol == UserRole.cocode && actor!.aldea.isNotEmpty
+    final ambito = (actor?.rol.esAutoridadDeAldea ?? false) &&
+            actor!.aldea.isNotEmpty
         ? 'Aldea ${actor.aldea}'
         : 'San Miguel Sigüilá';
 

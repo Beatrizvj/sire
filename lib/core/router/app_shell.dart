@@ -39,8 +39,7 @@ class AppShell extends ConsumerWidget {
 
     // En web: el acceso al panel depende del rol.
     if (kIsWeb) {
-      final esAutoridad = perfil.rol == UserRole.cocode ||
-          perfil.rol == UserRole.municipalidad;
+      final esAutoridad = perfil.rol.esAutoridad;
       return esAutoridad ? const WebPanel() : const _AccesoSoloAutoridad();
     }
 
@@ -105,7 +104,10 @@ List<_NavItem> _navItemsPorRol(UserRole rol) {
   const perfil = _NavItem(3, Icons.person_outline, Icons.person, 'Perfil');
   return switch (rol) {
     UserRole.ciudadano => [sos, perfil],
-    UserRole.cocode || UserRole.municipalidad => [inicio, sos, mapa, perfil],
+    UserRole.cocode ||
+    UserRole.auxiliatura ||
+    UserRole.municipalidad =>
+      [inicio, sos, mapa, perfil],
   };
 }
 
@@ -266,8 +268,8 @@ class _AlertMonitorGateState extends ConsumerState<_AlertMonitorGate> {
       // Municipalidad: autoridad central, oye TODAS las alertas del municipio.
       todos = true;
       config = 'todos';
-    } else if (perfil.rol == UserRole.cocode) {
-      // Ruteo por aldea: el COCODE oye SOLO las alertas de su aldea. Sin aldea
+    } else if (perfil.rol.esAutoridadDeAldea) {
+      // Ruteo por aldea: el COCODE (o la Alcaldía Auxiliar) oye SOLO las alertas de su aldea. Sin aldea
       // asignada no puede filtrar, así que no se arranca el monitoreo.
       aldea = perfil.aldea;
       config = aldea.isEmpty ? 'off' : 'aldea:$aldea';

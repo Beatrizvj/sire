@@ -128,7 +128,10 @@ class _RolChip extends StatelessWidget {
           scheme.surfaceContainerHighest,
           scheme.onSurfaceVariant,
         ),
-      UserRole.cocode => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
+      UserRole.cocode || UserRole.auxiliatura => (
+          scheme.tertiaryContainer,
+          scheme.onTertiaryContainer,
+        ),
       UserRole.municipalidad => (scheme.errorContainer, scheme.onErrorContainer),
     };
     return Container(

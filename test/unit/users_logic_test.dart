@@ -27,6 +27,7 @@ AppUser _u({
 void main() {
   final muni = _u(id: 'muni', rol: UserRole.municipalidad);
   final cocodeA = _u(id: 'cocodeA', rol: UserRole.cocode, aldea: 'A');
+  final auxB = _u(id: 'auxB', rol: UserRole.auxiliatura, aldea: 'B');
   final pendA =
       _u(id: 'pendA', estado: AccountStatus.pendienteRevision, aldeaSolicitada: 'A');
   final pendB =
@@ -46,6 +47,11 @@ void main() {
       expect(r.map((u) => u.id).toList(), ['pendA']);
     });
 
+    test('Alcaldía Auxiliar ve solo los pendientes de su aldea', () {
+      final r = pendientesPara(todos, auxB);
+      expect(r.map((u) => u.id).toList(), ['pendB']);
+    });
+
     test('un ciudadano no ve solicitudes pendientes', () {
       expect(pendientesPara(todos, aprobadoA), isEmpty);
     });
@@ -60,6 +66,13 @@ void main() {
       final ids = usuariosVisiblesPara(todos, cocodeA).map((u) => u.id).toSet();
       expect(ids, containsAll(['pendA', 'aprA']));
       expect(ids.contains('pendB'), isFalse);
+    });
+
+    test('Alcaldía Auxiliar ve solo los de su aldea', () {
+      final ids = usuariosVisiblesPara(todos, auxB).map((u) => u.id).toSet();
+      expect(ids, contains('pendB'));
+      expect(ids.contains('pendA'), isFalse);
+      expect(ids.contains('aprA'), isFalse);
     });
 
     test('sin actor => lista vacía', () {

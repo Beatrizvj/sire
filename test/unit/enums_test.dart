@@ -22,6 +22,22 @@ void main() {
     test('fromValue con valor desconocido cae en ciudadano', () {
       expect(UserRole.fromValue('desconocido'), UserRole.ciudadano);
     });
+
+    test('Alcaldía Auxiliar: valor, etiqueta y lectura', () {
+      expect(UserRole.auxiliatura.value, 'auxiliatura');
+      expect(UserRole.auxiliatura.label, 'Alcaldía Auxiliar');
+      expect(UserRole.fromValue('Auxiliatura'), UserRole.auxiliatura);
+    });
+
+    test('autoridad de aldea = COCODE o Alcaldía Auxiliar', () {
+      expect(UserRole.cocode.esAutoridadDeAldea, isTrue);
+      expect(UserRole.auxiliatura.esAutoridadDeAldea, isTrue);
+      expect(UserRole.municipalidad.esAutoridadDeAldea, isFalse);
+      expect(UserRole.ciudadano.esAutoridadDeAldea, isFalse);
+      expect(UserRole.municipalidad.esAutoridad, isTrue);
+      expect(UserRole.auxiliatura.esAutoridad, isTrue);
+      expect(UserRole.ciudadano.esAutoridad, isFalse);
+    });
   });
 
   group('AccountStatus', () {

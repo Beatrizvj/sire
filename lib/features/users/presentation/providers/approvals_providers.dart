@@ -77,7 +77,7 @@ List<AppUser> pendientesPara(List<AppUser> todos, AppUser autoridad) {
       .where((u) => u.estadoCuenta == AccountStatus.pendienteRevision)
       .toList();
   if (autoridad.rol == UserRole.municipalidad) return pendientes;
-  if (autoridad.rol == UserRole.cocode) {
+  if (autoridad.rol.esAutoridadDeAldea) {
     return pendientes
         .where((u) =>
             u.aldeaSolicitada.trim().toLowerCase() ==

@@ -23,7 +23,10 @@ class _RouterRefresh extends ChangeNotifier {
 /// las autoridades (COCODE/Municipalidad) en la bandeja de alertas.
 String _inicioPorRol(UserRole rol) => switch (rol) {
       UserRole.ciudadano => AppRoutes.sos,
-      UserRole.cocode || UserRole.municipalidad => AppRoutes.dashboard,
+      UserRole.cocode ||
+      UserRole.auxiliatura ||
+      UserRole.municipalidad =>
+        AppRoutes.dashboard,
     };
 
 /// ¿Puede este rol entrar a esta ruta? El Perfil es compartido. El SOS lo pueden
@@ -35,6 +38,7 @@ bool _rolPuedeAcceder(UserRole rol, String location) {
   return switch (rol) {
     UserRole.ciudadano => location == AppRoutes.sos,
     UserRole.cocode ||
+    UserRole.auxiliatura ||
     UserRole.municipalidad =>
       location == AppRoutes.dashboard ||
           location == AppRoutes.map ||
