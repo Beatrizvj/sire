@@ -1,13 +1,13 @@
 # SIRE — Versión Candidata a Liberación (10 de octubre de 2026)
 
 > "Versión candidata a liberación con correcciones y mejoras basadas en las
-> pruebas." Estado al 8 de octubre de 2026 · versión de la app **1.0.0+2**.
+> pruebas." Estado al 9 de octubre de 2026 · versión de la app **1.0.0+3**.
 
 ## Entregable de software
 
 - [x] `flutter analyze` sin problemas (6-oct-2026)
 - [x] `flutter test` — **47 pruebas** en verde (unit + widget)
-- [x] `flutter build apk --release` — APK **1.0.0+2** (~61 MB)
+- [x] `flutter build apk --release` — APK **1.0.0+3** (~61 MB)
 - [x] APK publicado en `https://sire-app-179d3.web.app/descargar.html`
       (QR: [docs/qr-descarga-sire.png](qr-descarga-sire.png))
 - [x] Cloud Functions desplegadas en plan **Blaze**: `notificarNuevaAlerta`
@@ -34,6 +34,7 @@
 | 7 | RF-13 | La cuenta regresiva no se veía con el teléfono bloqueado | Pantalla de SOS sobre la pantalla de bloqueo (`SosCountdownActivity`) | `785aadb` |
 | 8 | Pendiente de la Beta | Push FCM preparado pero no activo | Plan Blaze + función desplegada; probado en dispositivo | `591b2be` (+ deploy) |
 | 9 | Pendiente de la Beta (RF-12) | Bot de WhatsApp no implementado | Cloud Function con **Twilio** (sandbox) o **Meta Cloud API**, enrutamiento por aldea y Alcaldía Auxiliar; probado en dispositivo el 6-oct-2026 | `524a4d0` |
+| 11 | Prueba con usuaria nueva (8-oct-2026) | En un teléfono recién instalado, 2 de 3 SOS por **botón de encendido** llegaron **sin ubicación** (los 4 SOS en pantalla sí la llevaban). Causa: la app nunca pedía la ubicación "todo el tiempo"; al reiniciar Android el servicio en segundo plano, este perdía el acceso al GPS | La app pide "Permitir todo el tiempo" al activar la detección (con explicación) y muestra un aviso con **Solucionar** si falta; la captura nativa acepta una posición de hasta 2 min, espera hasta 20 s por GPS y recurre a red celular/wifi antes de la última conocida | ver commit |
 | 10 | Pruebas de WhatsApp | El log decía "enviado" aunque el mensaje no llegara (destinatario no unido / ventana de 24 h vencida) | Script de diagnóstico que consulta la entrega real en Twilio por destinatario (errores 63015 / 63016) | `79bda79` |
 
 Notas técnicas para la defensa:
@@ -51,6 +52,7 @@ Notas técnicas para la defensa:
 | `flutter analyze` / `flutter test` | ✅ 0 problemas / 47 de 47 |
 | SOS con GPS apagado → "Activar" envía con ubicación; "No gracias" envía "Sin ubicación" | ✅ (02-oct-2026) |
 | Marca de agua visible en fotos claras y oscuras del DPI | ✅ (02-oct-2026) |
+| SOS por botón de encendido con ubicación en teléfono recién instalado (tras la corrección #11) | ⏳ por verificar en dispositivo |
 | Entrega real de WhatsApp a los 2 números de la Municipalidad (diagnóstico Twilio: `delivered`) | ✅ (08-oct-2026) |
 
 ## Observaciones abiertas

@@ -38,6 +38,9 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
   // App exenta de la optimización de batería (necesario para que la detección
   // sobreviva en segundo plano en teléfonos con gestión agresiva).
   bool _bateriaExenta = true;
+  // Ubicación "Permitir todo el tiempo": sin ella el SOS del botón de encendido
+  // puede llegar sin ubicación cuando Android reinicia el servicio.
+  bool _ubicacionSiempre = true;
 
   @override
   void initState() {
@@ -51,6 +54,7 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
     // Refleja en el switch el estado REAL del servicio (por si ya venía activo).
     _syncDetectionState();
     _syncBateria();
+    _syncUbicacionSiempre();
   }
 
   /// Pone el switch acorde al estado real del servicio nativo (consultado por el
@@ -79,6 +83,43 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
     await _syncBateria();
   }
 
+  Future<void> _syncUbicacionSiempre() async {
+    final ok = await ref.read(permissionServiceProvider).hasBackgroundLocation();
+    if (!mounted) return;
+    setState(() => _ubicacionSiempre = ok);
+  }
+
+  /// Explica por qué se necesita "Permitir todo el tiempo" y lo pide. Android
+  /// abre los ajustes de ubicación de la app para elegir esa opción.
+  Future<void> _pedirUbicacionSiempre() async {
+    final aceptar = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        icon: const Icon(Icons.location_on),
+        title: const Text('Ubicación todo el tiempo'),
+        content: const Text(
+          'Para que el SOS del botón de encendido envíe tu ubicación con la '
+          'pantalla apagada, SIRE necesita acceso a la ubicación "todo el '
+          'tiempo".\n\nEn la siguiente pantalla elige "Permitir todo el tiempo".',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, false),
+            child: const Text('Ahora no'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dctx, true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+    if (aceptar == true) {
+      await ref.read(permissionServiceProvider).ensureBackgroundLocation();
+    }
+    await _syncUbicacionSiempre();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -94,6 +135,7 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
       ref.read(alertsControllerProvider.notifier).refresh();
       _syncDetectionState();
       _syncBateria();
+      _syncUbicacionSiempre();
     }
   }
 
@@ -232,6 +274,12 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
         if (!await bridge.isIgnoringBatteryOptimizations()) {
           await bridge.requestIgnoreBatteryOptimizations();
         }
+        // Ubicación "todo el tiempo": sin ella el SOS del botón de encendido
+        // puede salir sin coordenadas. No bloquea: si la niega, se muestra un
+        // aviso en la tarjeta para concederla después.
+        if (!await permisos.hasBackgroundLocation() && mounted) {
+          await _pedirUbicacionSiempre();
+        }
         final user = ref.read(authControllerProvider).user;
         // Aldea registrada del ciudadano: viaja al servicio nativo para etiquetar
         // la alerta del botón de encendido y rutearla a su COCODE.
@@ -264,6 +312,7 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
       );
     }
     _syncBateria();
+    _syncUbicacionSiempre();
   }
 
   /// Menú al tocar una alerta del historial: clasificar el incidente y/o
@@ -446,6 +495,8 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
               onChanged: _toggleDetection,
               bateriaExenta: _bateriaExenta,
               onSolucionar: _solucionarBateria,
+              ubicacionSiempre: _ubicacionSiempre,
+              onSolucionarUbicacion: _pedirUbicacionSiempre,
             ),
             const SizedBox(height: 24),
           ],
@@ -554,6 +605,8 @@ class _DetectionCard extends StatelessWidget {
     required this.onChanged,
     required this.bateriaExenta,
     required this.onSolucionar,
+    required this.ubicacionSiempre,
+    required this.onSolucionarUbicacion,
   });
 
   final bool value;
@@ -561,10 +614,11 @@ class _DetectionCard extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final bool bateriaExenta;
   final VoidCallback onSolucionar;
+  final bool ubicacionSiempre;
+  final VoidCallback onSolucionarUbicacion;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Card(
       child: Column(
         children: [
@@ -586,44 +640,74 @@ class _DetectionCard extends StatelessWidget {
           // Aviso: sin exención de batería, el sistema puede MATAR la detección
           // cuando la app está en segundo plano (típico en Xiaomi/Samsung/Oppo…).
           if (value && !bateriaExenta && !busy)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: scheme.errorContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.battery_alert,
-                          size: 18, color: scheme.onErrorContainer),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Para que el SOS funcione con la app cerrada, desactiva '
-                          'la optimización de batería para SIRE.',
-                          style: TextStyle(
-                              color: scheme.onErrorContainer, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.tonalIcon(
-                      onPressed: onSolucionar,
-                      icon: const Icon(Icons.settings, size: 18),
-                      label: const Text('Solucionar'),
-                    ),
-                  ),
-                ],
-              ),
+            _AvisoPermiso(
+              icono: Icons.battery_alert,
+              texto: 'Para que el SOS funcione con la app cerrada, desactiva '
+                  'la optimización de batería para SIRE.',
+              onSolucionar: onSolucionar,
             ),
+          // Aviso: sin "Permitir todo el tiempo", el SOS del botón de encendido
+          // puede llegar sin ubicación cuando Android reinicia el servicio.
+          if (value && !ubicacionSiempre && !busy)
+            _AvisoPermiso(
+              icono: Icons.location_off,
+              texto: 'Para que el SOS del botón de encendido envíe tu '
+                  'ubicación, permite la ubicación "todo el tiempo".',
+              onSolucionar: onSolucionarUbicacion,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Recuadro de aviso con botón "Solucionar" dentro de la tarjeta de detección.
+class _AvisoPermiso extends StatelessWidget {
+  const _AvisoPermiso({
+    required this.icono,
+    required this.texto,
+    required this.onSolucionar,
+  });
+
+  final IconData icono;
+  final String texto;
+  final VoidCallback onSolucionar;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icono, size: 18, color: scheme.onErrorContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  texto,
+                  style: TextStyle(color: scheme.onErrorContainer, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonalIcon(
+              onPressed: onSolucionar,
+              icon: const Icon(Icons.settings, size: 18),
+              label: const Text('Solucionar'),
+            ),
+          ),
         ],
       ),
     );
