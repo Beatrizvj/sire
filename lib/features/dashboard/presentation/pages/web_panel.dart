@@ -8,7 +8,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/link.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/como_llegar.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
@@ -1271,16 +1270,16 @@ class _TelefonoCelda extends StatelessWidget {
         // `Link` es un enlace real (<a target="_blank">): el navegador lo abre
         // como cualquier enlace y no lo bloquea como ventana emergente.
         if (enlaceWhatsApp(tel, nombre) case final uri?)
-          Tooltip(
-            message: 'Escribir por WhatsApp',
-            child: Link(
-              uri: uri,
-              target: LinkTarget.blank,
-              builder: (context, followLink) => InkWell(
-                onTap: followLink,
-                borderRadius: BorderRadius.circular(6),
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
+          Link(
+            uri: uri,
+            target: LinkTarget.blank,
+            builder: (context, followLink) => InkWell(
+              onTap: followLink,
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Tooltip(
+                  message: 'Escribir por WhatsApp',
                   child: Icon(Icons.chat, size: 15, color: Color(0xFF25D366)),
                 ),
               ),
@@ -2797,27 +2796,13 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
             child: Tooltip(
               message:
                   '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
-                  '\n${a.address ?? ''}'
-                  '\nClic: cómo llegar (Google Maps)',
-              // "Cómo llegar": abre Google Maps en una pestaña nueva; el mapa
-              // del panel no se recarga ni pierde su estado.
-              // Enlace real (Link): el navegador no lo bloquea.
-              child: Link(
-                uri: enlaceComoLlegar(a.latitude, a.longitude),
-                target: LinkTarget.blank,
-                builder: (context, followLink) => MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: followLink,
-                    child: Icon(
-                      Icons.location_on,
-                      size: 40,
-                      color: a.status == AlertStatus.pendiente
-                          ? AppColors.statusPendiente
-                          : AppColors.statusAtendida,
-                    ),
-                  ),
-                ),
+                  '\n${a.address ?? ''}',
+              child: Icon(
+                Icons.location_on,
+                size: 40,
+                color: a.status == AlertStatus.pendiente
+                    ? AppColors.statusPendiente
+                    : AppColors.statusAtendida,
               ),
             ),
           ),
