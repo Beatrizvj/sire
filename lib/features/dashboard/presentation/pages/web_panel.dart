@@ -26,6 +26,7 @@ import '../../../users/domain/entities/app_user.dart';
 import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
 import '../../../users/presentation/providers/users_providers.dart';
+import '../../../../core/utils/whatsapp_link.dart';
 
 // Paleta del panel (según el prototipo): barra lateral oscura, contenido claro.
 const _side = Color(0xFF2B1917);
@@ -1188,7 +1189,7 @@ class _UsuariosBody extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13)),
-                        _TelefonoCelda(telefono: u.telefono),
+                        _TelefonoCelda(telefono: u.telefono, nombre: u.nombre),
                         Text(u.aldea.isEmpty ? '—' : u.aldea,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1231,9 +1232,10 @@ class _UsuariosBody extends ConsumerWidget {
 /// Celda de teléfono para la tabla de usuarios: muestra el número con un botón
 /// para copiarlo (útil en la consola de escritorio para llamar/pegar).
 class _TelefonoCelda extends StatelessWidget {
-  const _TelefonoCelda({required this.telefono});
+  const _TelefonoCelda({required this.telefono, this.nombre = ''});
 
   final String telefono;
+  final String nombre;
 
   @override
   Widget build(BuildContext context) {
@@ -1261,6 +1263,19 @@ class _TelefonoCelda extends StatelessWidget {
           child: const Padding(
             padding: EdgeInsets.all(4),
             child: Icon(Icons.copy, size: 15, color: Color(0xFF6B5A57)),
+          ),
+        ),
+        // WhatsApp (wa.me, gratis): abre el chat en una pestaña nueva, aparte
+        // del botón de copiar.
+        Tooltip(
+          message: 'Escribir por WhatsApp',
+          child: InkWell(
+            onTap: () => abrirWhatsApp(tel, nombre),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.chat, size: 15, color: Color(0xFF25D366)),
+            ),
           ),
         ),
       ],

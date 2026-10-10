@@ -14,6 +14,7 @@ import '../../domain/entities/sos_alert.dart';
 import '../../domain/entities/sos_source.dart';
 import '../providers/alerts_providers.dart';
 import '../widgets/alert_status_chip.dart';
+import '../../../../core/utils/whatsapp_link.dart';
 
 /// Coordenadas legibles; "Ubicación no registrada" si la alerta se guardó sin GPS.
 String _coords(SosAlert alert) => (alert.latitude == 0 && alert.longitude == 0)
@@ -219,6 +220,12 @@ class _AccionesSheet extends ConsumerWidget {
               icon: const Icon(Icons.call),
               label: const Text('Llamar al ciudadano'),
             ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => _whatsappCiudadano(context, ref),
+              icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+              label: const Text('Escribir por WhatsApp'),
+            ),
             const Divider(height: 32),
             Text('Cambiar estado', style: theme.textTheme.titleSmall),
             const SizedBox(height: 12),
@@ -301,6 +308,26 @@ class _AccionesSheet extends ConsumerWidget {
     if (!ok) {
       messenger.showSnackBar(SnackBar(
           content: Text('No se pudo abrir el marcador para $limpio.')));
+    }
+  }
+
+  /// Abre el chat de WhatsApp con el ciudadano que envió la alerta (wa.me).
+  Future<void> _whatsappCiudadano(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final usuarios =
+        ref.read(allUsersProvider).asData?.value ?? const <AppUser>[];
+    AppUser? ciudadano;
+    for (final u in usuarios) {
+      if (u.id == alert.userId) {
+        ciudadano = u;
+        break;
+      }
+    }
+    final ok = ciudadano != null &&
+        await abrirWhatsApp(ciudadano.telefono, ciudadano.nombre);
+    if (!ok) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('No se pudo abrir WhatsApp para este ciudadano.')));
     }
   }
 }

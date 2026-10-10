@@ -7,6 +7,7 @@ import '../../../communities/aldeas_providers.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/entities/user_role.dart';
 import '../providers/users_providers.dart';
+import '../../../../core/utils/whatsapp_link.dart';
 
 /// Gestión de usuarios: la Municipalidad asigna **rol** y **comunidad** a cada
 /// usuario desde la app (sin editar Firestore a mano). Se apoya en las reglas:
@@ -106,6 +107,12 @@ class _UserTile extends StatelessWidget {
                 tooltip: 'Llamar',
                 icon: Icon(Icons.call, color: scheme.primary),
                 onPressed: () => _llamar(context),
+              ),
+            if (tel.isNotEmpty)
+              IconButton(
+                tooltip: 'WhatsApp',
+                icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                onPressed: () => abrirWhatsApp(user.telefono, user.nombre),
               ),
             _RolChip(rol: user.rol),
           ],
