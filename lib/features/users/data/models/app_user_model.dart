@@ -23,6 +23,7 @@ class AppUserModel {
         'aprobadoEn':
             user.aprobadoEn == null ? null : Timestamp.fromDate(user.aprobadoEn!),
         'puedeVerIdentidad': user.puedeVerIdentidad,
+        'esResponsable': user.esResponsable,
         'contactosConfianza': user.contactosConfianza,
       };
 
@@ -42,6 +43,7 @@ class AppUserModel {
         aprobadoPor: map['aprobadoPor'] as String?,
         aprobadoEn: _toDate(map['aprobadoEn']),
         puedeVerIdentidad: map['puedeVerIdentidad'] as bool? ?? false,
+        esResponsable: map['esResponsable'] as bool? ?? false,
         contactosConfianza:
             (map['contactosConfianza'] as List<dynamic>?)?.cast<String>() ??
                 const [],

@@ -69,6 +69,19 @@ class ApprovalsService {
 final approvalsServiceProvider =
     Provider<ApprovalsService>(ApprovalsService.new);
 
+/// Roles que [actor] puede asignar al aprobar una cuenta (mínimo privilegio):
+/// - Municipalidad: cualquiera.
+/// - Responsable de la Alcaldía Auxiliar: integrante de la Alcaldía Auxiliar
+///   (primero, por defecto) o ciudadano.
+/// - COCODE y demás integrantes de la Alcaldía Auxiliar: solo ciudadano.
+List<UserRole> rolesAsignablesPor(AppUser actor) {
+  if (actor.rol == UserRole.municipalidad) return UserRole.values;
+  if (actor.rol == UserRole.auxiliatura && actor.esResponsable) {
+    return const [UserRole.auxiliatura, UserRole.ciudadano];
+  }
+  return const [UserRole.ciudadano];
+}
+
 /// Usuarios pendientes de revisión que le corresponden a [autoridad]:
 /// - Municipalidad: todos los pendientes del municipio.
 /// - COCODE: solo los que declararon su misma aldea.

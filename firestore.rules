@@ -36,6 +36,20 @@ service cloud.firestore {
     function miAldea() {
       return perfil().get('aldea', '');
     }
+    // Responsable de la Alcaldía Auxiliar: lo marca la Municipalidad. Aprueba a
+    // los integrantes de SU aldea (como Alcaldía Auxiliar o ciudadano).
+    function esResponsableAux() {
+      return aprobado() && perfil().rol == 'auxiliatura'
+             && perfil().get('esResponsable', false) == true;
+    }
+    // Ni el dueño ni una autoridad de aldea pueden tocar estas capacidades:
+    // solo la Municipalidad las otorga.
+    function capacidadesIntactas() {
+      return request.resource.data.get('puedeVerIdentidad', false)
+               == resource.data.get('puedeVerIdentidad', false)
+             && request.resource.data.get('esResponsable', false)
+               == resource.data.get('esResponsable', false);
+    }
     // R2: verificador de identidad = autoridad aprobada con la capacidad
     // `puedeVerIdentidad` que otorga la Municipalidad.
     function esVerificador() {
@@ -75,8 +89,7 @@ service cloud.firestore {
                             == resource.data.get('rol', 'ciudadano')
                        && request.resource.data.get('estadoCuenta', 'aprobado')
                             == resource.data.get('estadoCuenta', 'aprobado')
-                       && request.resource.data.get('puedeVerIdentidad', false)
-                            == resource.data.get('puedeVerIdentidad', false)
+                       && capacidadesIntactas()
                        && request.resource.data.get('contactosConfianza', [])
                             == resource.data.get('contactosConfianza', [])
                        && nombreValido(request.resource.data.nombre);
@@ -87,7 +100,17 @@ service cloud.firestore {
       // El COCODE solo aprueba/rechaza CIUDADANOS de su misma aldea declarada.
       allow update: if esCocode()
                        && resource.data.get('aldeaSolicitada', '') == miAldea()
-                       && request.resource.data.get('rol', 'ciudadano') == 'ciudadano';
+                       && request.resource.data.get('rol', 'ciudadano') == 'ciudadano'
+                       && capacidadesIntactas();
+
+      // El responsable de la Alcaldía Auxiliar aprueba a los integrantes de SU
+      // aldea: como Alcaldía Auxiliar o como ciudadano, siempre en su aldea.
+      allow update: if esResponsableAux()
+                       && resource.data.get('aldeaSolicitada', '') == miAldea()
+                       && request.resource.data.get('aldea', '') == miAldea()
+                       && request.resource.data.get('rol', 'ciudadano')
+                            in ['ciudadano', 'auxiliatura']
+                       && capacidadesIntactas();
 
       // RF-11: el COCODE arma los grupos de "contactos de confianza" de los
       // CIUDADANOS aprobados de SU aldea. Mínimo privilegio: SOLO puede cambiar

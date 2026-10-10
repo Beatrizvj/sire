@@ -123,8 +123,13 @@ class _RevisarSheet extends ConsumerStatefulWidget {
 }
 
 class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
-  UserRole _rol = UserRole.ciudadano;
-  late String _aldea = widget.solicitante.aldeaSolicitada;
+  late final List<UserRole> _roles = rolesAsignablesPor(widget.autoridad);
+  late UserRole _rol = _roles.first;
+  // Solo la Municipalidad asigna cualquier aldea; una autoridad de aldea
+  // aprueba únicamente dentro de la suya.
+  late final bool _esMuni = widget.autoridad.rol == UserRole.municipalidad;
+  late String _aldea =
+      _esMuni ? widget.solicitante.aldeaSolicitada : widget.autoridad.aldea;
   bool _saving = false;
 
   @override
@@ -188,7 +193,7 @@ class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
             Wrap(
               spacing: 8,
               children: [
-                for (final r in UserRole.values)
+                for (final r in _roles)
                   ChoiceChip(
                     label: Text(r.label),
                     selected: _rol == r,
@@ -202,7 +207,7 @@ class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
             Wrap(
               spacing: 8,
               children: [
-                for (final c in comunidades)
+                for (final c in _esMuni ? comunidades : [_aldea])
                   ChoiceChip(
                     label: Text(c),
                     selected: _aldea == c,

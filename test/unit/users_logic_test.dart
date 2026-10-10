@@ -11,6 +11,7 @@ AppUser _u({
   String aldea = '',
   String aldeaSolicitada = '',
   AccountStatus estado = AccountStatus.aprobado,
+  bool esResponsable = false,
 }) =>
     AppUser(
       id: id,
@@ -20,6 +21,7 @@ AppUser _u({
       aldea: aldea,
       aldeaSolicitada: aldeaSolicitada,
       estadoCuenta: estado,
+      esResponsable: esResponsable,
     );
 
 /// Pruebas de la lógica de ruteo por rol/aldea (mínimo privilegio), compartida
@@ -77,6 +79,25 @@ void main() {
 
     test('sin actor => lista vacía', () {
       expect(usuariosVisiblesPara(todos, null), isEmpty);
+    });
+  });
+
+  group('rolesAsignablesPor', () {
+    test('Municipalidad asigna cualquier rol', () {
+      expect(rolesAsignablesPor(muni), UserRole.values);
+    });
+
+    test('responsable de la Alcaldía Auxiliar: integrante (por defecto) o ciudadano',
+        () {
+      final resp = _u(
+          id: 'resp', rol: UserRole.auxiliatura, aldea: 'B', esResponsable: true);
+      expect(rolesAsignablesPor(resp),
+          [UserRole.auxiliatura, UserRole.ciudadano]);
+    });
+
+    test('integrante común de la Alcaldía Auxiliar y COCODE: solo ciudadano', () {
+      expect(rolesAsignablesPor(auxB), [UserRole.ciudadano]);
+      expect(rolesAsignablesPor(cocodeA), [UserRole.ciudadano]);
     });
   });
 }

@@ -6,9 +6,10 @@
  *
  * ENRUTAMIENTO (por rol y aldea):
  *   - Municipalidad: SIEMPRE recibe.
- *   - Alcaldía Auxiliar de la aldea: usuarios con rol `auxiliatura` y, además,
- *     contactos de SOLO-RECEPCIÓN en `config/whatsapp_auxiliar`
- *     = { "<aldea>": ["+502..."] } (sin cuenta en la app). Caso La Emboscada.
+ *   - Alcaldía Auxiliar de la aldea: solo sus RESPONSABLES (rol `auxiliatura`
+ *     con `esResponsable`, los marca la Municipalidad) y los contactos de
+ *     SOLO-RECEPCIÓN de `config/whatsapp_auxiliar` = { "<aldea>": ["+502..."] }.
+ *     Los demás integrantes reciben solo el push (gratis). Caso La Emboscada.
  *   - COCODE de la aldea: solo si la aldea NO tiene Alcaldía Auxiliar (ni por
  *     rol ni por config); si la tiene, el WhatsApp va a la Auxiliatura.
  * (El push —functions/index.js— va a la Municipalidad y a TODAS las autoridades
@@ -178,18 +179,19 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
           .get();
       const autoridades = snap.docs.map((doc) => doc.data());
       const deLaAldea = (u) => (u.aldea || "") === aldea;
-      const auxiliaturaPorRol =
-        autoridades.filter((u) => u.rol === "auxiliatura" && deLaAldea(u));
+      const esResponsableAux = (u) =>
+        u.rol === "auxiliatura" && u.esResponsable === true && deLaAldea(u);
+      const auxiliaturaPorRol = autoridades.filter(esResponsableAux);
       const tieneAuxiliar =
         numerosAuxiliar.length > 0 || auxiliaturaPorRol.length > 0;
 
       const telefonos = [];
 
-      // Municipalidad (siempre) + Alcaldía Auxiliar de la aldea + COCODE de la
-      // aldea (solo si NO hay Auxiliatura).
+      // Municipalidad (siempre) + responsables de la Alcaldía Auxiliar de la
+      // aldea + COCODE de la aldea (solo si NO hay Auxiliatura).
       autoridades.forEach((u) => {
         const esMuni = u.rol === "municipalidad";
-        const esAuxAldea = u.rol === "auxiliatura" && deLaAldea(u);
+        const esAuxAldea = esResponsableAux(u);
         const esCocodeAldea =
           u.rol === "cocode" && deLaAldea(u) && !tieneAuxiliar;
         if (esMuni || esAuxAldea || esCocodeAldea) {
