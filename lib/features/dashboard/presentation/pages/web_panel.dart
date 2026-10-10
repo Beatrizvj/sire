@@ -5,7 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/link.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/validation/name_validator.dart';
@@ -26,7 +25,6 @@ import '../../../users/domain/entities/app_user.dart';
 import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
 import '../../../users/presentation/providers/users_providers.dart';
-import '../../../../core/utils/whatsapp_link.dart';
 
 // Paleta del panel (según el prototipo): barra lateral oscura, contenido claro.
 const _side = Color(0xFF2B1917);
@@ -1189,7 +1187,7 @@ class _UsuariosBody extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13)),
-                        _TelefonoCelda(telefono: u.telefono, nombre: u.nombre),
+                        _TelefonoCelda(telefono: u.telefono),
                         Text(u.aldea.isEmpty ? '—' : u.aldea,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1232,10 +1230,9 @@ class _UsuariosBody extends ConsumerWidget {
 /// Celda de teléfono para la tabla de usuarios: muestra el número con un botón
 /// para copiarlo (útil en la consola de escritorio para llamar/pegar).
 class _TelefonoCelda extends StatelessWidget {
-  const _TelefonoCelda({required this.telefono, this.nombre = ''});
+  const _TelefonoCelda({required this.telefono});
 
   final String telefono;
-  final String nombre;
 
   @override
   Widget build(BuildContext context) {
@@ -1265,26 +1262,6 @@ class _TelefonoCelda extends StatelessWidget {
             child: Icon(Icons.copy, size: 15, color: Color(0xFF6B5A57)),
           ),
         ),
-        // WhatsApp (wa.me, gratis): abre el chat en una pestaña nueva, aparte
-        // del botón de copiar.
-        // `Link` es un enlace real (<a target="_blank">): el navegador lo abre
-        // como cualquier enlace y no lo bloquea como ventana emergente.
-        if (enlaceWhatsApp(tel, nombre) case final uri?)
-          Link(
-            uri: uri,
-            target: LinkTarget.blank,
-            builder: (context, followLink) => InkWell(
-              onTap: followLink,
-              borderRadius: BorderRadius.circular(6),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Tooltip(
-                  message: 'Escribir por WhatsApp',
-                  child: Icon(Icons.chat, size: 15, color: Color(0xFF25D366)),
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
