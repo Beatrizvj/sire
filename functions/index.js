@@ -26,17 +26,20 @@ exports.notificarNuevaAlerta = onDocumentCreated(
       const aldea = alerta.aldea || "";
       const db = getFirestore();
 
-      // Autoridades a notificar: municipalidad (todas) + cocode de la aldea.
+      // Autoridades a notificar: municipalidad (todas) + autoridades de la
+      // aldea (COCODE y Alcaldía Auxiliar).
       const snap = await db
           .collection("usuarios")
-          .where("rol", "in", ["municipalidad", "cocode"])
+          .where("rol", "in", ["municipalidad", "cocode", "auxiliatura"])
           .get();
 
       const tokens = [];
       snap.forEach((doc) => {
         const u = doc.data();
         const esMuni = u.rol === "municipalidad";
-        const esCocodeAldea = u.rol === "cocode" && (u.aldea || "") === aldea;
+        const esCocodeAldea =
+          (u.rol === "cocode" || u.rol === "auxiliatura") &&
+          (u.aldea || "") === aldea;
         if ((esMuni || esCocodeAldea) && Array.isArray(u.fcmTokens)) {
           tokens.push(...u.fcmTokens);
         }

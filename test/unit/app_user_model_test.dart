@@ -22,6 +22,7 @@ void main() {
         aprobadoPor: 'muni-1',
         aprobadoEn: DateTime(2026, 3, 15, 10, 30),
         puedeVerIdentidad: true,
+        esResponsable: true,
         contactosConfianza: const ['c1', 'c2'],
       );
       final back = AppUserModel.decode(AppUserModel.encode(u));
@@ -37,6 +38,7 @@ void main() {
       expect(u.rol, UserRole.ciudadano);
       expect(u.estadoCuenta, AccountStatus.aprobado);
       expect(u.puedeVerIdentidad, isFalse);
+      expect(u.esResponsable, isFalse);
       expect(u.contactosConfianza, isEmpty);
     });
   });

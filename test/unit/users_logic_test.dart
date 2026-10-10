@@ -11,6 +11,7 @@ AppUser _u({
   String aldea = '',
   String aldeaSolicitada = '',
   AccountStatus estado = AccountStatus.aprobado,
+  bool esResponsable = false,
 }) =>
     AppUser(
       id: id,
@@ -20,6 +21,7 @@ AppUser _u({
       aldea: aldea,
       aldeaSolicitada: aldeaSolicitada,
       estadoCuenta: estado,
+      esResponsable: esResponsable,
     );
 
 /// Pruebas de la lógica de ruteo por rol/aldea (mínimo privilegio), compartida
@@ -27,6 +29,7 @@ AppUser _u({
 void main() {
   final muni = _u(id: 'muni', rol: UserRole.municipalidad);
   final cocodeA = _u(id: 'cocodeA', rol: UserRole.cocode, aldea: 'A');
+  final auxB = _u(id: 'auxB', rol: UserRole.auxiliatura, aldea: 'B');
   final pendA =
       _u(id: 'pendA', estado: AccountStatus.pendienteRevision, aldeaSolicitada: 'A');
   final pendB =
@@ -46,6 +49,11 @@ void main() {
       expect(r.map((u) => u.id).toList(), ['pendA']);
     });
 
+    test('Alcaldía Auxiliar ve solo los pendientes de su aldea', () {
+      final r = pendientesPara(todos, auxB);
+      expect(r.map((u) => u.id).toList(), ['pendB']);
+    });
+
     test('un ciudadano no ve solicitudes pendientes', () {
       expect(pendientesPara(todos, aprobadoA), isEmpty);
     });
@@ -62,8 +70,34 @@ void main() {
       expect(ids.contains('pendB'), isFalse);
     });
 
+    test('Alcaldía Auxiliar ve solo los de su aldea', () {
+      final ids = usuariosVisiblesPara(todos, auxB).map((u) => u.id).toSet();
+      expect(ids, contains('pendB'));
+      expect(ids.contains('pendA'), isFalse);
+      expect(ids.contains('aprA'), isFalse);
+    });
+
     test('sin actor => lista vacía', () {
       expect(usuariosVisiblesPara(todos, null), isEmpty);
+    });
+  });
+
+  group('rolesAsignablesPor', () {
+    test('Municipalidad asigna cualquier rol', () {
+      expect(rolesAsignablesPor(muni), UserRole.values);
+    });
+
+    test('responsable de la Alcaldía Auxiliar: integrante (por defecto) o ciudadano',
+        () {
+      final resp = _u(
+          id: 'resp', rol: UserRole.auxiliatura, aldea: 'B', esResponsable: true);
+      expect(rolesAsignablesPor(resp),
+          [UserRole.auxiliatura, UserRole.ciudadano]);
+    });
+
+    test('integrante común de la Alcaldía Auxiliar y COCODE: solo ciudadano', () {
+      expect(rolesAsignablesPor(auxB), [UserRole.ciudadano]);
+      expect(rolesAsignablesPor(cocodeA), [UserRole.ciudadano]);
     });
   });
 }

@@ -6,11 +6,14 @@
  *
  * ENRUTAMIENTO (por rol y aldea):
  *   - Municipalidad: SIEMPRE recibe.
- *   - Alcaldía Auxiliar: si la aldea tiene números en `config/whatsapp_auxiliar`
- *     = { "<aldea>": ["+502..."] }, el WhatsApp va SOLO a esos números (no al
- *     COCODE). Caso La Emboscada. Son contactos de SOLO-RECEPCIÓN.
- *   - COCODE de la aldea: solo si la aldea NO tiene Alcaldía Auxiliar.
- * (El push —functions/index.js— no cambia: COCODE de la aldea + Municipalidad.)
+ *   - Alcaldía Auxiliar de la aldea: solo sus RESPONSABLES (rol `auxiliatura`
+ *     con `esResponsable`, los marca la Municipalidad) y los contactos de
+ *     SOLO-RECEPCIÓN de `config/whatsapp_auxiliar` = { "<aldea>": ["+502..."] }.
+ *     Los demás integrantes reciben solo el push (gratis). Caso La Emboscada.
+ *   - COCODE de la aldea: solo si la aldea NO tiene Alcaldía Auxiliar (ni por
+ *     rol ni por config); si la tiene, el WhatsApp va a la Auxiliatura.
+ * (El push —functions/index.js— va a la Municipalidad y a TODAS las autoridades
+ * de la aldea: COCODE y Alcaldía Auxiliar.)
  *
  * PROVEEDOR: se elige con WHATSAPP_PROVIDER ("twilio" | "meta"). Si no se
  * indica, se usa Twilio cuando están sus credenciales y, si no, Meta. Config por
@@ -170,28 +173,35 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
       } catch (e) {
         logger.warn(`No se pudo leer config/whatsapp_auxiliar: ${e && e.message}`);
       }
-      const tieneAuxiliar = numerosAuxiliar.length > 0;
+      const snap = await db
+          .collection("usuarios")
+          .where("rol", "in", ["municipalidad", "cocode", "auxiliatura"])
+          .get();
+      const autoridades = snap.docs.map((doc) => doc.data());
+      const deLaAldea = (u) => (u.aldea || "") === aldea;
+      const esResponsableAux = (u) =>
+        u.rol === "auxiliatura" && u.esResponsable === true && deLaAldea(u);
+      const auxiliaturaPorRol = autoridades.filter(esResponsableAux);
+      const tieneAuxiliar =
+        numerosAuxiliar.length > 0 || auxiliaturaPorRol.length > 0;
 
       const telefonos = [];
 
-      // Municipalidad (siempre) + COCODE de la aldea (solo si NO hay Auxiliatura).
-      const snap = await db
-          .collection("usuarios")
-          .where("rol", "in", ["municipalidad", "cocode"])
-          .get();
-      snap.forEach((doc) => {
-        const u = doc.data();
+      // Municipalidad (siempre) + responsables de la Alcaldía Auxiliar de la
+      // aldea + COCODE de la aldea (solo si NO hay Auxiliatura).
+      autoridades.forEach((u) => {
         const esMuni = u.rol === "municipalidad";
+        const esAuxAldea = esResponsableAux(u);
         const esCocodeAldea =
-          u.rol === "cocode" && (u.aldea || "") === aldea && !tieneAuxiliar;
-        if (esMuni || esCocodeAldea) {
+          u.rol === "cocode" && deLaAldea(u) && !tieneAuxiliar;
+        if (esMuni || esAuxAldea || esCocodeAldea) {
           const tel = aFormatoInternacional(u.telefono);
           if (tel) telefonos.push(tel);
         }
       });
 
-      // Alcaldía Auxiliar (solo-recepción): recibe EN LUGAR del COCODE.
-      if (tieneAuxiliar) {
+      // Contactos de solo-recepción de la Alcaldía Auxiliar (sin cuenta).
+      if (numerosAuxiliar.length > 0) {
         numerosAuxiliar.forEach((n) => {
           const tel = aFormatoInternacional(n);
           if (tel) telefonos.push(tel);

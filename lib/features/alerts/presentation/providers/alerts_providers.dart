@@ -8,7 +8,6 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../location/presentation/providers/location_providers.dart';
-import '../../../users/domain/entities/user_role.dart';
 import '../../data/repositories/alert_repository_firestore.dart';
 import '../../data/repositories/alert_repository_local.dart';
 import '../../domain/entities/alert_status.dart';
@@ -50,7 +49,7 @@ final allAlertsProvider = StreamProvider.autoDispose<List<SosAlert>>((ref) {
   // COCODE: solo su aldea, filtrado EN LA CONSULTA (lo exige la regla de
   // Firestore, que ahora restringe al COCODE a leer solo su aldea).
   // Municipalidad (y cualquier otro caso): todas.
-  if (actor != null && actor.rol == UserRole.cocode) {
+  if (actor != null && actor.rol.esAutoridadDeAldea) {
     return repo.watchAlertsByAldea(actor.aldea);
   }
   return repo.watchAllAlerts();

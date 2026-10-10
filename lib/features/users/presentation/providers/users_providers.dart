@@ -39,7 +39,7 @@ final cocodesDeMiAldeaProvider = StreamProvider.autoDispose<List<AppUser>>((ref)
 List<AppUser> usuariosVisiblesPara(List<AppUser> todos, AppUser? actor) {
   if (actor == null) return const [];
   if (actor.rol == UserRole.municipalidad) return todos;
-  if (actor.rol == UserRole.cocode) {
+  if (actor.rol.esAutoridadDeAldea) {
     final mi = actor.aldea;
     return todos
         .where((u) => u.aldea == mi || u.aldeaSolicitada == mi)
