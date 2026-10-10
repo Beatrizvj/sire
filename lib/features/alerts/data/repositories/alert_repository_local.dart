@@ -49,7 +49,12 @@ class AlertRepositoryLocal implements AlertRepository {
   }
 
   @override
-  Future<void> updateStatus(String id, AlertStatus status) async {
+  Future<void> updateStatus(
+    String id,
+    AlertStatus status, {
+    String? atendidaPor,
+    String? atendidaPorNombre,
+  }) async {
     final current = await getAlerts();
     final updated = [
       for (final a in current)
@@ -60,6 +65,10 @@ class AlertRepositoryLocal implements AlertRepository {
                     status == AlertStatus.atendida ? DateTime.now() : null,
                 resueltaEn:
                     status == AlertStatus.resuelta ? DateTime.now() : null,
+                atendidaPor:
+                    status == AlertStatus.atendida ? atendidaPor : null,
+                atendidaPorNombre:
+                    status == AlertStatus.atendida ? atendidaPorNombre : null,
               )
             : a,
     ];

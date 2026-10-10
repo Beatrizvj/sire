@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../location/domain/entities/location_reading.dart';
 import '../../../location/domain/repositories/location_repository.dart';
 import '../entities/alert_status.dart';
 import '../entities/sos_alert.dart';
@@ -44,16 +45,25 @@ class TriggerSos {
     String? categoria,
     String? aldea,
   }) async {
-    final reading = await locationRepository.getCurrentLocation();
+    // La ubicación es "mejor esfuerzo": si el GPS está apagado y no hay última
+    // ubicación conocida, la alerta se envía IGUAL, sin ubicación (lat/long en
+    // 0,0), para que llegue sí o sí. Lo mismo hace el servicio nativo del botón
+    // de encendido.
+    LocationReading? reading;
+    try {
+      reading = await locationRepository.getCurrentLocation();
+    } catch (_) {
+      reading = null;
+    }
 
     final alert = SosAlert(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       userId: userId,
       aldea: aldea,
-      latitude: reading.latitude,
-      longitude: reading.longitude,
-      accuracy: reading.accuracy,
-      address: reading.address,
+      latitude: reading?.latitude ?? 0,
+      longitude: reading?.longitude ?? 0,
+      accuracy: reading?.accuracy,
+      address: reading?.address,
       timestamp: DateTime.now(),
       source: source,
       status: AlertStatus.pendiente,

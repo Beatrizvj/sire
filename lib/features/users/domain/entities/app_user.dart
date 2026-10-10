@@ -18,6 +18,7 @@ class AppUser extends Equatable {
     this.aprobadoPor,
     this.aprobadoEn,
     this.puedeVerIdentidad = false,
+    this.esResponsable = false,
     this.contactosConfianza = const [],
   });
 
@@ -46,6 +47,11 @@ class AppUser extends Equatable {
   /// Municipalidad a verificadores concretos (mínimo privilegio).
   final bool puedeVerIdentidad;
 
+  /// Responsable de la Alcaldía Auxiliar (lo marca la Municipalidad). Aprueba
+  /// a los integrantes de su aldea y recibe el WhatsApp de cada alerta; los
+  /// demás integrantes reciben solo la notificación push.
+  final bool esResponsable;
+
   /// RF-11: uids de los contactos de confianza cuyas alertas SOS deben hacer
   /// sonar la alarma en el teléfono de este usuario. Los asigna una autoridad
   /// (COCODE/Municipalidad), no el propio ciudadano.
@@ -66,6 +72,7 @@ class AppUser extends Equatable {
     String? aprobadoPor,
     DateTime? aprobadoEn,
     bool? puedeVerIdentidad,
+    bool? esResponsable,
     List<String>? contactosConfianza,
   }) =>
       AppUser(
@@ -81,6 +88,7 @@ class AppUser extends Equatable {
         aprobadoPor: aprobadoPor ?? this.aprobadoPor,
         aprobadoEn: aprobadoEn ?? this.aprobadoEn,
         puedeVerIdentidad: puedeVerIdentidad ?? this.puedeVerIdentidad,
+        esResponsable: esResponsable ?? this.esResponsable,
         contactosConfianza: contactosConfianza ?? this.contactosConfianza,
       );
 
@@ -98,6 +106,7 @@ class AppUser extends Equatable {
         aprobadoPor,
         aprobadoEn,
         puedeVerIdentidad,
+        esResponsable,
         contactosConfianza,
       ];
 }

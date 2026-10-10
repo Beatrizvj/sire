@@ -20,7 +20,15 @@ abstract interface class AlertRepository {
   Stream<List<SosAlert>> watchAlertsByAldea(String aldea);
 
   /// Cambia el estado de una alerta (atender / resolver / falsa alarma).
-  Future<void> updateStatus(String id, AlertStatus status);
+  ///
+  /// Al marcarla como "atendida" registra además la trazabilidad de QUIÉN la
+  /// atendió ([atendidaPor] = uid, [atendidaPorNombre] = nombre para mostrar).
+  Future<void> updateStatus(
+    String id,
+    AlertStatus status, {
+    String? atendidaPor,
+    String? atendidaPorNombre,
+  });
 
   /// R3: asigna/cambia la categoría del incidente (clasificar una alerta).
   Future<void> updateCategoria(String id, String categoria);

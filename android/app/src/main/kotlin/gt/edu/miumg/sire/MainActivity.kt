@@ -39,11 +39,16 @@ class MainActivity : FlutterActivity() {
                         .putString(PowerButtonService.KEY_UID, uid)
                         .putString(PowerButtonService.KEY_NOMBRE, nombre)
                         .putString(PowerButtonService.KEY_ALDEA, aldea)
+                        .putBoolean(PowerButtonService.KEY_ENABLED, true)
                         .apply()
                     startPowerService()
                     result.success(true)
                 }
                 "stopDetection" -> {
+                    getSharedPreferences(PowerButtonService.PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(PowerButtonService.KEY_ENABLED, false)
+                        .apply()
                     stopPowerService()
                     result.success(true)
                 }

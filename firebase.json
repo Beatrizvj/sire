@@ -22,47 +22,123 @@
   "firestore": {
     "rules": "firestore.rules"
   },
-  "hosting": {
-    "public": "build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "/",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "/index.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
-          }
-        ]
-      },
-      {
-        "source": "**/@(flutter_service_worker.js|flutter_bootstrap.js|main.dart.js|version.json)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
-          }
-        ]
-      }
-    ]
-  }
+  "functions": {
+    "source": "functions"
+  },
+  "hosting": [
+    {
+      "public": "build/web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "**/@(flutter_service_worker.js|flutter_bootstrap.js|main.dart.js|version.json)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/sire-android.zip",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/vnd.android.package-archive"
+            },
+            {
+              "key": "Content-Disposition",
+              "value": "attachment; filename=\"SIRE.apk\""
+            }
+          ]
+        }
+      ],
+      "target": "principal"
+    },
+    {
+      "public": "build/web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "**/@(flutter_service_worker.js|flutter_bootstrap.js|main.dart.js|version.json)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "/sire-android.zip",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/vnd.android.package-archive"
+            },
+            {
+              "key": "Content-Disposition",
+              "value": "attachment; filename=\"SIRE.apk\""
+            }
+          ]
+        }
+      ],
+      "target": "sanmiguel"
+    }
+  ]
 }

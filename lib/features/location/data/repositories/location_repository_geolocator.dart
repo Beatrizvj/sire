@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geocoding/geocoding.dart';
 // geolocator también define LocationServiceDisabledException; usamos la nuestra.
 import 'package:geolocator/geolocator.dart' hide LocationServiceDisabledException;
+// Solo para el diálogo nativo de "activar ubicación" de un toque (requestService).
+import 'package:location/location.dart' as loc;
 
 import '../../../../core/error/exceptions.dart';
 import '../../domain/entities/location_reading.dart';
@@ -13,9 +16,25 @@ class LocationRepositoryGeolocator implements LocationRepository {
 
   @override
   Future<LocationReading> getCurrentLocation() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    var serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw const LocationServiceDisabledException();
+      // Se ofrece el diálogo de UN TOQUE para activar la ubicación. Si el
+      // ciudadano ACTIVA, el flujo de abajo obtiene la ubicación precisa (sin
+      // tener que reenviar el SOS). Si NO activa, se usa la última ubicación
+      // conocida; y si tampoco existe, se lanza para que el SOS se envíe IGUAL,
+      // "sin ubicación" (ver TriggerSos), de modo que la alerta llegue sí o sí.
+      // Android NO permite encender el GPS de forma automática: el de un toque
+      // es el máximo para una app instalada por el ciudadano en su teléfono.
+      serviceEnabled = await _activarUbicacionUnToque();
+      if (!serviceEnabled) {
+        try {
+          final ultima = await Geolocator.getLastKnownPosition();
+          if (ultima != null) return _lecturaDesde(ultima);
+        } catch (_) {
+          // sin última ubicación: el SOS se enviará sin ubicación.
+        }
+        throw const LocationServiceDisabledException();
+      }
     }
 
     var permission = await Geolocator.checkPermission();
@@ -47,13 +66,31 @@ class LocationRepositoryGeolocator implements LocationRepository {
       throw const LocationServiceDisabledException();
     }
 
-    return LocationReading(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      accuracy: position.accuracy,
-      address: await _reverseGeocode(position.latitude, position.longitude),
-    );
+    return _lecturaDesde(position);
   }
+
+  /// Muestra el diálogo nativo de UN TOQUE para activar la ubicación del
+  /// dispositivo (Play Services). Devuelve `true` si quedó activada. Solo aplica
+  /// en Android con la app en primer plano; en web, o si el usuario rechaza,
+  /// devuelve `false` sin lanzar excepción (el llamador decide el respaldo).
+  Future<bool> _activarUbicacionUnToque() async {
+    if (kIsWeb) return false;
+    try {
+      final servicio = loc.Location();
+      if (await servicio.serviceEnabled()) return true;
+      return await servicio.requestService();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<LocationReading> _lecturaDesde(Position position) async =>
+      LocationReading(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+        address: await _reverseGeocode(position.latitude, position.longitude),
+      );
 
   Future<String?> _reverseGeocode(double lat, double lng) async {
     try {

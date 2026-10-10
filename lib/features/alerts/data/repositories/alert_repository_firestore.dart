@@ -25,29 +25,39 @@ class AlertRepositoryFirestore implements AlertRepository {
 
   String? get _uid => _auth.currentUser?.uid;
 
-  Map<String, dynamic> _toFirestore(SosAlert alert) => {
-        'idUsuario': alert.userId ?? _uid,
-        'nombreUsuario': _auth.currentUser?.displayName ?? '',
-        // Aldea registrada del ciudadano: rutea la alerta a su COCODE (la
-        // Municipalidad ve todas; cada COCODE, solo su aldea).
-        'aldea': alert.aldea ?? '',
-        'fecha': Timestamp.fromDate(alert.timestamp),
-        'latitud': alert.latitude,
-        'longitud': alert.longitude,
-        'estado': alert.status.value,
-        'tipo': alert.type,
-        'origen': alert.source.name,
-        'direccion': alert.address,
-        'precision': alert.accuracy,
-        'categoria': alert.categoria,
-        'atendidaEn': alert.atendidaEn == null
-            ? null
-            : Timestamp.fromDate(alert.atendidaEn!),
-        'resueltaEn': alert.resueltaEn == null
-            ? null
-            : Timestamp.fromDate(alert.resueltaEn!),
-        'creadoEn': FieldValue.serverTimestamp(),
-      };
+  Map<String, dynamic> _toFirestore(SosAlert alert) {
+    final data = <String, dynamic>{
+      'idUsuario': alert.userId ?? _uid,
+      'nombreUsuario': _auth.currentUser?.displayName ?? '',
+      // Aldea registrada del ciudadano: rutea la alerta a su COCODE (la
+      // Municipalidad ve todas; cada COCODE, solo su aldea).
+      'aldea': alert.aldea ?? '',
+      'fecha': Timestamp.fromDate(alert.timestamp),
+      'estado': alert.status.value,
+      'tipo': alert.type,
+      'origen': alert.source.name,
+      'direccion': alert.address,
+      'categoria': alert.categoria,
+      'atendidaEn': alert.atendidaEn == null
+          ? null
+          : Timestamp.fromDate(alert.atendidaEn!),
+      'resueltaEn': alert.resueltaEn == null
+          ? null
+          : Timestamp.fromDate(alert.resueltaEn!),
+      'atendidaPor': alert.atendidaPor,
+      'atendidaPorNombre': alert.atendidaPorNombre,
+      'creadoEn': FieldValue.serverTimestamp(),
+    };
+    // Las coordenadas solo se guardan si existen. Sin ubicación (0,0) se OMITEN,
+    // igual que el servicio nativo del botón de encendido, para que el panel
+    // muestre "Sin ubicación" en vez de un punto falso en el mar.
+    if (alert.tieneUbicacion) {
+      data['latitud'] = alert.latitude;
+      data['longitud'] = alert.longitude;
+      data['precision'] = alert.accuracy;
+    }
+    return data;
+  }
 
   SosAlert _fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
@@ -71,6 +81,8 @@ class AlertRepositoryFirestore implements AlertRepository {
       categoria: data['categoria'] as String?,
       atendidaEn: (data['atendidaEn'] as Timestamp?)?.toDate(),
       resueltaEn: (data['resueltaEn'] as Timestamp?)?.toDate(),
+      atendidaPor: data['atendidaPor'] as String?,
+      atendidaPorNombre: data['atendidaPorNombre'] as String?,
     );
   }
 
@@ -133,11 +145,23 @@ class AlertRepositoryFirestore implements AlertRepository {
       });
 
   @override
-  Future<void> updateStatus(String id, AlertStatus status) {
+  Future<void> updateStatus(
+    String id,
+    AlertStatus status, {
+    String? atendidaPor,
+    String? atendidaPorNombre,
+  }) {
     final data = <String, dynamic>{'estado': status.value};
-    // Marca de tiempo para medir el tiempo de respuesta (la fija el servidor).
+    // Marca de tiempo para medir el tiempo de respuesta (la fija el servidor)
+    // y trazabilidad de quién atendió la alerta.
     if (status == AlertStatus.atendida) {
       data['atendidaEn'] = FieldValue.serverTimestamp();
+      if (atendidaPor != null && atendidaPor.isNotEmpty) {
+        data['atendidaPor'] = atendidaPor;
+      }
+      if (atendidaPorNombre != null && atendidaPorNombre.isNotEmpty) {
+        data['atendidaPorNombre'] = atendidaPorNombre;
+      }
     } else if (status == AlertStatus.resuelta) {
       data['resueltaEn'] = FieldValue.serverTimestamp();
     }

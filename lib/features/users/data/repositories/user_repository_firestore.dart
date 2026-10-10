@@ -42,4 +42,14 @@ class UserRepositoryFirestore implements UserRepository {
                 .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
                 .toList(growable: false),
           );
+
+  @override
+  Stream<List<AppUser>> watchCocodesDeAldea(String aldea) => _users
+      .where('rol', isEqualTo: 'cocode')
+      .where('aldea', isEqualTo: aldea)
+      .snapshots()
+      .map((snap) => snap.docs
+          .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
+          .where((u) => u.puedeAcceder) // solo COCODE aprobado y activo
+          .toList(growable: false));
 }

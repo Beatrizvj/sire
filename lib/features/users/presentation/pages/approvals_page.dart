@@ -1,8 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../communities/aldeas_providers.dart';
+import '../../../identity/data/identity_repository.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/entities/user_role.dart';
 import '../providers/approvals_providers.dart';
@@ -69,8 +72,22 @@ class _SolicitudTile extends StatelessWidget {
     final aldea = solicitante.aldeaSolicitada.isEmpty
         ? 'Sin aldea declarada'
         : solicitante.aldeaSolicitada;
+    void abrirRevision() => showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (_) => _RevisarSheet(
+            solicitante: solicitante,
+            autoridad: autoridad,
+          ),
+        );
+
+    // Se usa ListTile (patrón probado en el resto de la app) con un chevron
+    // pequeño como trailing: así el nombre/teléfono/aldea reciben todo el ancho
+    // y ya no salen en vertical. Toda la tarjeta abre la revisión.
     return Card(
       child: ListTile(
+        onTap: abrirRevision,
         leading: CircleAvatar(
           backgroundColor: scheme.primaryContainer,
           child: Text(
@@ -83,22 +100,13 @@ class _SolicitudTile extends StatelessWidget {
             ),
           ),
         ),
-        title: Text(solicitante.nombre,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          solicitante.nombre,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         subtitle: Text('${solicitante.telefono}\nAldea solicitada: $aldea'),
         isThreeLine: true,
-        trailing: FilledButton(
-          onPressed: () => showModalBottomSheet<void>(
-            context: context,
-            showDragHandle: true,
-            isScrollControlled: true,
-            builder: (_) => _RevisarSheet(
-              solicitante: solicitante,
-              autoridad: autoridad,
-            ),
-          ),
-          child: const Text('Revisar'),
-        ),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
@@ -115,8 +123,13 @@ class _RevisarSheet extends ConsumerStatefulWidget {
 }
 
 class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
-  UserRole _rol = UserRole.ciudadano;
-  late String _aldea = widget.solicitante.aldeaSolicitada;
+  late final List<UserRole> _roles = rolesAsignablesPor(widget.autoridad);
+  late UserRole _rol = _roles.first;
+  // Solo la Municipalidad asigna cualquier aldea; una autoridad de aldea
+  // aprueba únicamente dentro de la suya.
+  late final bool _esMuni = widget.autoridad.rol == UserRole.municipalidad;
+  late String _aldea =
+      _esMuni ? widget.solicitante.aldeaSolicitada : widget.autoridad.aldea;
   bool _saving = false;
 
   @override
@@ -143,12 +156,44 @@ class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 20),
+            const _Label('Identidad (DPI)'),
+            const SizedBox(height: 8),
+            if (widget.autoridad.puedeVerIdentidad)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _DpiThumb(
+                      uid: widget.solicitante.id,
+                      lado: IdentityRepository.anverso,
+                      etiqueta: 'Anverso',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _DpiThumb(
+                      uid: widget.solicitante.id,
+                      lado: IdentityRepository.reverso,
+                      etiqueta: 'Reverso',
+                    ),
+                  ),
+                ],
+              )
+            else
+              Text(
+                'Para ver las fotos del DPI necesitas permiso de verificador. '
+                'La Municipalidad lo activa en la consola web '
+                '(Usuarios → "Puede ver fotos del DPI").',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            const SizedBox(height: 20),
             const _Label('Rol a asignar'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               children: [
-                for (final r in UserRole.values)
+                for (final r in _roles)
                   ChoiceChip(
                     label: Text(r.label),
                     selected: _rol == r,
@@ -162,7 +207,7 @@ class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
             Wrap(
               spacing: 8,
               children: [
-                for (final c in comunidades)
+                for (final c in _esMuni ? comunidades : [_aldea])
                   ChoiceChip(
                     label: Text(c),
                     selected: _aldea == c,
@@ -274,6 +319,129 @@ class _Label extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+    );
+  }
+}
+
+/// Miniatura de una foto del DPI (anverso/reverso) que se carga bajo demanda.
+/// Solo se muestra a autoridades con permiso de verificador; al tocarla, se ve
+/// en grande. Las fotos viven en `identidad/{uid}/fotos/{lado}` (privadas).
+class _DpiThumb extends ConsumerStatefulWidget {
+  const _DpiThumb({
+    required this.uid,
+    required this.lado,
+    required this.etiqueta,
+  });
+
+  final String uid;
+  final String lado;
+  final String etiqueta;
+
+  @override
+  ConsumerState<_DpiThumb> createState() => _DpiThumbState();
+}
+
+class _DpiThumbState extends ConsumerState<_DpiThumb> {
+  Uint8List? _bytes;
+  bool _cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    try {
+      final b = await ref
+          .read(identityRepositoryProvider)
+          .descargar(uid: widget.uid, lado: widget.lado);
+      if (mounted) {
+        setState(() {
+          _bytes = b;
+          _cargando = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  void _verGrande() {
+    final bytes = _bytes;
+    if (bytes == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (dctx) => Dialog(
+        insetPadding: const EdgeInsets.all(12),
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              maxScale: 5,
+              child: Center(child: Image.memory(bytes)),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.of(dctx).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.etiqueta,
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 4),
+        AspectRatio(
+          aspectRatio: 1.58,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: _contenido(scheme),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _contenido(ColorScheme scheme) {
+    if (_cargando) {
+      return const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    final bytes = _bytes;
+    if (bytes == null) {
+      return Center(
+        child: Text('Sin foto',
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+      );
+    }
+    return GestureDetector(
+      onTap: _verGrande,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.memory(bytes, fit: BoxFit.cover, width: double.infinity),
+      ),
     );
   }
 }

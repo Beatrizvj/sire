@@ -23,6 +23,7 @@ import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -72,6 +73,7 @@ class PowerButtonService : Service() {
             if (segundosRestantes <= 0) {
                 sosPendiente = false
                 showAlertNotification() // reemplaza la cuenta regresiva por "Enviando…"
+                sendBroadcast(Intent(ACTION_SOS_RESUELTO).setPackage(packageName))
                 captureLocationAndSave()
                 return
             }
@@ -247,6 +249,8 @@ class PowerButtonService : Service() {
             vibrar(longArrayOf(0, 80, 80, 80)) // vibración breve = SOS cancelado
             Log.i(TAG, "SOS cancelado por el usuario dentro de la ventana")
         }
+        // Cierra el overlay de cuenta regresiva si aún está sobre el bloqueo.
+        sendBroadcast(Intent(ACTION_SOS_RESUELTO).setPackage(packageName))
     }
 
     /** Notificación con acción "Cancelar" durante la ventana previa al envío (RF-13). */
@@ -260,6 +264,20 @@ class PowerButtonService : Service() {
             cancelIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        // RF-13: full-screen intent → muestra la cuenta regresiva SOBRE la
+        // pantalla de bloqueo mediante SosCountdownActivity (showWhenLocked +
+        // turnScreenOn). Sin esto, en Samsung/One UI la notificación no se
+        // despliega ni enciende la pantalla con el teléfono bloqueado.
+        val overlayIntent = Intent(this, SosCountdownActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(SosCountdownActivity.EXTRA_SEGUNDOS, CANCEL_WINDOW_SECONDS)
+        }
+        val overlayPending = PendingIntent.getActivity(
+            this,
+            2,
+            overlayIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         val notification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
             .setContentTitle("SOS detectado")
             .setContentText("Se enviará en $segundos s. Toca CANCELAR si fue un error.")
@@ -270,6 +288,8 @@ class PowerButtonService : Service() {
             .setOnlyAlertOnce(true) // solo vibra/heads-up al inicio; los ticks, silenciosos
             .setOngoing(true)
             .setAutoCancel(false)
+            .setContentIntent(overlayPending)
+            .setFullScreenIntent(overlayPending, true)
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 "Cancelar",
@@ -284,28 +304,49 @@ class PowerButtonService : Service() {
 
     private fun captureLocationAndSave() {
         // Proveedor FUSIONADO de Google Play Services (el mismo del SOS de pantalla
-        // vía geolocator): consigue el GPS mucho más rápido y confiable que
-        // LocationManager, incluso bajo techo. Si falla (p. ej. sin Play Services),
-        // se cae al LocationManager como respaldo.
+        // vía geolocator). Se intenta en cascada para que el SOS lleve ubicación
+        // aunque el GPS esté frío o la pantalla apagada:
+        //   1) GPS de alta precisión, aceptando una posición de hasta 2 min y
+        //      esperando hasta 20 s por una fresca;
+        //   2) si no hay, precisión equilibrada (red celular / wifi);
+        //   3) última conocida (fusionada y luego del LocationManager).
+        // Si todo falla (p. ej. sin Play Services), se cae al LocationManager.
         try {
             val fused = LocationServices.getFusedLocationProviderClient(this)
-            val cts = CancellationTokenSource()
-            fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+            fun solicitud(prioridad: Int) = CurrentLocationRequest.Builder()
+                .setPriority(prioridad)
+                .setMaxUpdateAgeMillis(MAX_EDAD_UBICACION_MS)
+                .setDurationMillis(ESPERA_UBICACION_MS)
+                .build()
+            val sinUbicacion = {
+                fused.lastLocation
+                    .addOnSuccessListener { last ->
+                        ioExecutor.execute { saveAlert(last ?: lastKnownFromManager()) }
+                    }
+                    .addOnFailureListener {
+                        ioExecutor.execute { saveAlert(lastKnownFromManager()) }
+                    }
+            }
+            fused.getCurrentLocation(solicitud(Priority.PRIORITY_HIGH_ACCURACY), CancellationTokenSource().token)
                 .addOnSuccessListener { loc ->
                     if (loc != null) {
                         ioExecutor.execute { saveAlert(loc) }
                     } else {
-                        // Sin posición fresca: usa la última conocida (fusionada).
-                        fused.lastLocation
-                            .addOnSuccessListener { last ->
-                                ioExecutor.execute { saveAlert(last ?: lastKnownFromManager()) }
+                        Log.w(TAG, "GPS sin posición; se intenta con red celular/wifi")
+                        fused.getCurrentLocation(
+                            solicitud(Priority.PRIORITY_BALANCED_POWER_ACCURACY),
+                            CancellationTokenSource().token,
+                        )
+                            .addOnSuccessListener { red ->
+                                if (red != null) ioExecutor.execute { saveAlert(red) } else sinUbicacion()
                             }
-                            .addOnFailureListener {
-                                ioExecutor.execute { saveAlert(lastKnownFromManager()) }
-                            }
+                            .addOnFailureListener { sinUbicacion() }
                     }
                 }
-                .addOnFailureListener { captureWithLocationManager() }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "Proveedor fusionado falló: ${e.message}")
+                    captureWithLocationManager()
+                }
         } catch (e: Exception) {
             captureWithLocationManager()
         }
@@ -466,6 +507,11 @@ class PowerButtonService : Service() {
     companion object {
         private const val TAG = "SirePower"
 
+        /** Edad máxima aceptada de una posición ya conocida para el SOS. */
+        private const val MAX_EDAD_UBICACION_MS = 2 * 60 * 1000L
+        /** Tiempo máximo que se espera una posición fresca por intento. */
+        private const val ESPERA_UBICACION_MS = 20 * 1000L
+
         /** true mientras el servicio de detección está vivo. Permite que el switch
          * de la app refleje el estado REAL (se actualiza en onCreate/onDestroy). */
         @Volatile
@@ -484,6 +530,7 @@ class PowerButtonService : Service() {
         // RF-13: acción de la notificación para cancelar el envío y duración de la
         // ventana de cancelación (pocos segundos antes de difundir la alerta).
         private const val ACTION_CANCEL_SOS = "gt.edu.miumg.sire.CANCEL_SOS"
+        private const val ACTION_SOS_RESUELTO = "gt.edu.miumg.sire.SOS_RESUELTO"
         private const val CANCEL_WINDOW_SECONDS = 8
 
         // SharedPreferences compartido con MainActivity (uid del usuario en sesión).
@@ -491,6 +538,10 @@ class PowerButtonService : Service() {
         const val KEY_UID = "uid"
         const val KEY_NOMBRE = "nombre"
         const val KEY_ALDEA = "aldea"
+
+        // Recuerda si el ciudadano dejó la detección ACTIVADA, para reiniciarla
+        // tras un reinicio del teléfono (ver BootReceiver).
+        const val KEY_ENABLED = "enabled"
 
         // Debe coincidir con AppConfig en Dart (sosButtonPresses / sosDetectionWindow).
         private const val REQUIRED_TOGGLES = 3

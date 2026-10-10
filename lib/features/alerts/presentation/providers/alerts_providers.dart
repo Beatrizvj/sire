@@ -8,7 +8,6 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../location/presentation/providers/location_providers.dart';
-import '../../../users/domain/entities/user_role.dart';
 import '../../data/repositories/alert_repository_firestore.dart';
 import '../../data/repositories/alert_repository_local.dart';
 import '../../domain/entities/alert_status.dart';
@@ -50,7 +49,7 @@ final allAlertsProvider = StreamProvider.autoDispose<List<SosAlert>>((ref) {
   // COCODE: solo su aldea, filtrado EN LA CONSULTA (lo exige la regla de
   // Firestore, que ahora restringe al COCODE a leer solo su aldea).
   // Municipalidad (y cualquier otro caso): todas.
-  if (actor != null && actor.rol == UserRole.cocode) {
+  if (actor != null && actor.rol.esAutoridadDeAldea) {
     return repo.watchAlertsByAldea(actor.aldea);
   }
   return repo.watchAllAlerts();
@@ -156,8 +155,19 @@ class AlertsController extends Notifier<AlertsState> {
   }
 
   /// Cambia el estado de una alerta (usado por la Bandeja de la autoridad).
-  Future<void> updateStatus(String id, AlertStatus status) =>
-      ref.read(alertRepositoryProvider).updateStatus(id, status);
+  /// Al marcarla "atendida" adjunta la trazabilidad de quién lo hizo (uid +
+  /// nombre de la autoridad en sesión), para el requisito "atendida por […]".
+  Future<void> updateStatus(String id, AlertStatus status) {
+    final actorUid = ref.read(authControllerProvider).user?.uid;
+    final actorNombre =
+        ref.read(currentUserProfileProvider).asData?.value?.nombre;
+    return ref.read(alertRepositoryProvider).updateStatus(
+          id,
+          status,
+          atendidaPor: actorUid,
+          atendidaPorNombre: actorNombre,
+        );
+  }
 
   /// R3: clasifica una alerta con una categoría de incidente. Actualiza también
   /// la copia local para reflejarlo de inmediato en el historial del ciudadano.

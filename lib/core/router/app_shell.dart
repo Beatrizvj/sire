@@ -39,8 +39,7 @@ class AppShell extends ConsumerWidget {
 
     // En web: el acceso al panel depende del rol.
     if (kIsWeb) {
-      final esAutoridad = perfil.rol == UserRole.cocode ||
-          perfil.rol == UserRole.municipalidad;
+      final esAutoridad = perfil.rol.esAutoridad;
       return esAutoridad ? const WebPanel() : const _AccesoSoloAutoridad();
     }
 
@@ -92,10 +91,12 @@ class _NavItem {
   final String label;
 }
 
-/// Pestañas visibles según el rol (Tabla 8 del PG2):
-/// - Ciudadano: SOS y Perfil (registrarse, emitir SOS, compartir ubicación y
-///   consultar su perfil; la ubicación se adjunta sola al SOS, RF-03).
-/// - COCODE / Municipalidad: Inicio (Bandeja), Mapa de alertas activas y Perfil.
+/// Pestañas visibles según el rol:
+/// - Ciudadano: SOS y Perfil (emitir SOS con ubicación, RF-03, y su perfil).
+/// - COCODE / Municipalidad: Inicio (Bandeja), SOS, Mapa y Perfil. Además de
+///   gestionar las emergencias, las autoridades pueden emitir su PROPIO SOS
+///   (también son personas que pueden sufrir un robo); su alerta se rutea por su
+///   aldea (COCODE) o la atiende la Municipalidad.
 List<_NavItem> _navItemsPorRol(UserRole rol) {
   const inicio = _NavItem(0, Icons.home_outlined, Icons.home, 'Inicio');
   const sos = _NavItem(1, Icons.sos_outlined, Icons.sos, 'SOS');
@@ -103,7 +104,10 @@ List<_NavItem> _navItemsPorRol(UserRole rol) {
   const perfil = _NavItem(3, Icons.person_outline, Icons.person, 'Perfil');
   return switch (rol) {
     UserRole.ciudadano => [sos, perfil],
-    UserRole.cocode || UserRole.municipalidad => [inicio, mapa, perfil],
+    UserRole.cocode ||
+    UserRole.auxiliatura ||
+    UserRole.municipalidad =>
+      [inicio, sos, mapa, perfil],
   };
 }
 
@@ -264,8 +268,8 @@ class _AlertMonitorGateState extends ConsumerState<_AlertMonitorGate> {
       // Municipalidad: autoridad central, oye TODAS las alertas del municipio.
       todos = true;
       config = 'todos';
-    } else if (perfil.rol == UserRole.cocode) {
-      // Ruteo por aldea: el COCODE oye SOLO las alertas de su aldea. Sin aldea
+    } else if (perfil.rol.esAutoridadDeAldea) {
+      // Ruteo por aldea: el COCODE (o la Alcaldía Auxiliar) oye SOLO las alertas de su aldea. Sin aldea
       // asignada no puede filtrar, así que no se arranca el monitoreo.
       aldea = perfil.aldea;
       config = aldea.isEmpty ? 'off' : 'aldea:$aldea';

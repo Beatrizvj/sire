@@ -1,7 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -1167,13 +1166,14 @@ class _UsuariosBody extends ConsumerWidget {
               child: _Card(
                 titulo: '${users.length} usuarios registrados',
                 child: _FillTable(
-                  minWidth: 900,
+                  minWidth: 980,
                   columns: const [
-                    (22, 'Nombre'),
-                    (20, 'Correo'),
-                    (16, 'Comunidad'),
-                    (14, 'Rol'),
-                    (26, 'Acción'),
+                    (20, 'Nombre'),
+                    (18, 'Correo'),
+                    (15, 'Teléfono'),
+                    (13, 'Comunidad'),
+                    (12, 'Rol'),
+                    (22, 'Acción'),
                   ],
                   rows: [
                     for (final u in users)
@@ -1187,6 +1187,7 @@ class _UsuariosBody extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13)),
+                        _TelefonoCelda(telefono: u.telefono),
                         Text(u.aldea.isEmpty ? '—' : u.aldea,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1226,6 +1227,46 @@ class _UsuariosBody extends ConsumerWidget {
   }
 }
 
+/// Celda de teléfono para la tabla de usuarios: muestra el número con un botón
+/// para copiarlo (útil en la consola de escritorio para llamar/pegar).
+class _TelefonoCelda extends StatelessWidget {
+  const _TelefonoCelda({required this.telefono});
+
+  final String telefono;
+
+  @override
+  Widget build(BuildContext context) {
+    final tel = telefono.trim();
+    if (tel.isEmpty) {
+      return const Text('—', style: TextStyle(fontSize: 13));
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(tel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13)),
+        ),
+        InkWell(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: tel));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Teléfono copiado')),
+            );
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.copy, size: 15, color: Color(0xFF6B5A57)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _EditarUsuario extends ConsumerStatefulWidget {
   const _EditarUsuario({required this.usuario});
 
@@ -1239,6 +1280,7 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
   late UserRole _rol = widget.usuario.rol;
   late String _comunidad = widget.usuario.aldea;
   late bool _verIdentidad = widget.usuario.puedeVerIdentidad;
+  late bool _responsable = widget.usuario.esResponsable;
   late final Set<String> _contactos = widget.usuario.contactosConfianza.toSet();
   bool _guardando = false;
 
@@ -1311,6 +1353,20 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
                 'usuarios (verificador).',
                 style: TextStyle(fontSize: 12)),
           ),
+          if (_rol == UserRole.auxiliatura)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              activeThumbColor: _brand,
+              value: _responsable,
+              onChanged: (v) => setState(() => _responsable = v),
+              title: const Text('Responsable de la Alcaldía Auxiliar',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: const Text(
+                  'Aprueba a los integrantes de su aldea y recibe el WhatsApp de '
+                  'cada alerta. Los demás integrantes reciben solo la '
+                  'notificación en la app.',
+                  style: TextStyle(fontSize: 12)),
+            ),
           if (_rol == UserRole.ciudadano) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -1443,6 +1499,7 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
           rol: _rol,
           aldea: _comunidad,
           puedeVerIdentidad: _verIdentidad,
+          esResponsable: _rol == UserRole.auxiliatura && _responsable,
           contactosConfianza: nuevos.toList(),
         ),
       );
@@ -1839,10 +1896,9 @@ class _SolicitudTile extends ConsumerWidget {
 
   Future<void> _aprobar(BuildContext context, WidgetRef ref) async {
     final comunidades = ref.read(aldeasProvider).asData?.value ?? aldeasBase;
-    // La Municipalidad puede asignar cualquier rol; el COCODE solo Ciudadano.
-    final rolesPermitidos = actor.rol == UserRole.municipalidad
-        ? [UserRole.ciudadano, UserRole.cocode, UserRole.municipalidad]
-        : [UserRole.ciudadano];
+    // La Municipalidad asigna cualquier rol; el responsable de la Alcaldía
+    // Auxiliar, integrante o ciudadano; el COCODE, solo Ciudadano.
+    final rolesPermitidos = rolesAsignablesPor(actor);
     var rol = rolesPermitidos.first;
     var aldea = objetivo.aldeaSolicitada.isEmpty
         ? (actor.aldea.isEmpty ? comunidades.first : actor.aldea)
@@ -2517,7 +2573,7 @@ class _RolChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (fg, bg) = switch (rol) {
       UserRole.ciudadano => _neut,
-      UserRole.cocode => _warn,
+      UserRole.cocode || UserRole.auxiliatura => _warn,
       UserRole.municipalidad => _crit,
     };
     return _pill(rol.label, fg, bg);
