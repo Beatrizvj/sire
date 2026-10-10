@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/como_llegar.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
@@ -2773,13 +2774,22 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
             child: Tooltip(
               message:
                   '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
-                  '\n${a.address ?? ''}',
-              child: Icon(
-                Icons.location_on,
-                size: 40,
-                color: a.status == AlertStatus.pendiente
-                    ? AppColors.statusPendiente
-                    : AppColors.statusAtendida,
+                  '\n${a.address ?? ''}'
+                  '\nClic: cómo llegar (Google Maps)',
+              // "Cómo llegar": abre Google Maps en una pestaña nueva; el mapa
+              // del panel no se recarga ni pierde su estado.
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => abrirComoLlegar(a.latitude, a.longitude),
+                  child: Icon(
+                    Icons.location_on,
+                    size: 40,
+                    color: a.status == AlertStatus.pendiente
+                        ? AppColors.statusPendiente
+                        : AppColors.statusAtendida,
+                  ),
+                ),
               ),
             ),
           ),

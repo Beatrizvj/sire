@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/como_llegar.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
@@ -357,6 +358,26 @@ class _DetalleAlerta extends StatelessWidget {
             _Fila(icon: Icons.schedule, texto: df.format(alert.timestamp)),
             const SizedBox(height: 6),
             _Fila(icon: Icons.place_outlined, texto: alert.address ?? coords),
+            if (alert.tieneUbicacion) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final ok =
+                        await abrirComoLlegar(alert.latitude, alert.longitude);
+                    if (!ok && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('No se pudo abrir Google Maps.')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.directions),
+                  label: const Text('Cómo llegar'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
