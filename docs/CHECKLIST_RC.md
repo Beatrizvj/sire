@@ -1,13 +1,13 @@
 # SIRE — Versión Candidata a Liberación (10 de octubre de 2026)
 
 > "Versión candidata a liberación con correcciones y mejoras basadas en las
-> pruebas." Estado al 9 de octubre de 2026 · versión de la app **1.0.0+3**.
+> pruebas." Estado al 9 de octubre de 2026 · versión de la app **1.0.0+4**.
 
 ## Entregable de software
 
 - [x] `flutter analyze` sin problemas (6-oct-2026)
 - [x] `flutter test` — **47 pruebas** en verde (unit + widget)
-- [x] `flutter build apk --release` — APK **1.0.0+3** (~61 MB)
+- [x] `flutter build apk --release` — APK **1.0.0+4** (~61 MB)
 - [x] APK publicado en `https://sire-app-179d3.web.app/descargar.html`
       (QR: [docs/qr-descarga-sire.png](qr-descarga-sire.png))
 - [x] Cloud Functions desplegadas en plan **Blaze**: `notificarNuevaAlerta`
@@ -35,6 +35,8 @@
 | 8 | Pendiente de la Beta | Push FCM preparado pero no activo | Plan Blaze + función desplegada; probado en dispositivo | `591b2be` (+ deploy) |
 | 9 | Pendiente de la Beta (RF-12) | Bot de WhatsApp no implementado | Cloud Function con **Twilio** (sandbox) o **Meta Cloud API**, enrutamiento por aldea y Alcaldía Auxiliar; probado en dispositivo el 6-oct-2026 | `524a4d0` |
 | 11 | Prueba con usuaria nueva (8-oct-2026) | En un teléfono recién instalado, 2 de 3 SOS por **botón de encendido** llegaron **sin ubicación** (los 4 SOS en pantalla sí la llevaban). Causa: la app nunca pedía la ubicación "todo el tiempo"; al reiniciar Android el servicio en segundo plano, este perdía el acceso al GPS | La app pide "Permitir todo el tiempo" al activar la detección (con explicación) y muestra un aviso con **Solucionar** si falta; la captura nativa acepta una posición de hasta 2 min, espera hasta 20 s por GPS y recurre a red celular/wifi antes de la última conocida | `3bfb79d` |
+| 12 | Prueba con autoridades (9-oct-2026) | Los auxiliares explicaron que **la Alcaldía Auxiliar es quien vela por la seguridad** de la aldea (más que el COCODE), pero el sistema solo tenía los roles Ciudadano, COCODE y Municipalidad: tuvieron que registrarse como COCODE | Nuevo rol **Alcaldía Auxiliar** con los permisos de autoridad de su aldea (bandeja, mapa, atención, reportes); recibe push; reglas de seguridad y funciones actualizadas | `d9abb3c` |
+| 13 | Prueba con autoridades (9-oct-2026) | Pidieron que **5 de ellos aprueben** el registro de los demás integrantes (≈ 50) | Permiso **Responsable** (lo otorga la Municipalidad): aprueba a los integrantes de su aldea como Alcaldía Auxiliar; solo los responsables reciben el **WhatsApp** (≈ Q0.75 por alerta en lugar de ≈ Q7.50); los demás, push gratis. Reglas: nadie salvo la Municipalidad puede otorgarse permisos | `d5597cc` |
 | 10 | Pruebas de WhatsApp | El log decía "enviado" aunque el mensaje no llegara (destinatario no unido / ventana de 24 h vencida) | Script de diagnóstico que consulta la entrega real en Twilio por destinatario (errores 63015 / 63016) | `79bda79` |
 
 Notas técnicas para la defensa:
@@ -52,7 +54,9 @@ Notas técnicas para la defensa:
 | `flutter analyze` / `flutter test` | ✅ 0 problemas / 47 de 47 |
 | SOS con GPS apagado → "Activar" envía con ubicación; "No gracias" envía "Sin ubicación" | ✅ (02-oct-2026) |
 | Marca de agua visible en fotos claras y oscuras del DPI | ✅ (02-oct-2026) |
-| SOS por botón de encendido con ubicación en teléfono recién instalado (tras la corrección #11) | ⏳ por verificar en dispositivo |
+| SOS por botón de encendido con ubicación en teléfonos de los auxiliares (tras la corrección #11) | ✅ (09-oct-2026) |
+| Sesión de prueba: 4 cuentas nuevas con DPI, 10 SOS (10 de 10 con ubicación), WhatsApp entregado y **leído** por los 2 auxiliares | ✅ (09-oct-2026) |
+| `flutter analyze` / `flutter test` tras las mejoras #12 y #13 | ✅ 0 problemas / 54 de 54 |
 | Entrega real de WhatsApp a los 2 números de la Municipalidad (diagnóstico Twilio: `delivered`) | ✅ (08-oct-2026) |
 
 ## Observaciones abiertas
@@ -73,6 +77,11 @@ Notas técnicas para la defensa:
       se agregó el sitio web público y se abrió el ticket Twilio #29874390. El
       código ya soporta la plantilla (`TWILIO_CONTENT_SID`): al aprobarse solo
       cambia la configuración, sin modificar el software.
+
+- [ ] La sesión de prueba del 9-oct-2026 se convocó con los COCODE de las 4
+      aldeas y la Alcaldía Auxiliar; **asistió solo la Alcaldía Auxiliar** (3
+      integrantes). La prueba con los COCODE se reprograma (a distancia, con el
+      guion y el enlace de descarga) antes de la entrega del 24-oct-2026.
 
 ## Antes de entregar
 
