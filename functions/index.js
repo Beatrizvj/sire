@@ -103,3 +103,10 @@ exports.notificarNuevaAlerta = onDocumentCreated(
 // Inerte hasta configurar las credenciales de Twilio en functions/.env.
 exports.notificarWhatsAppNuevaAlerta =
     require("./whatsapp").notificarWhatsAppNuevaAlerta;
+
+// Ciclo de vida de cuentas: aviso al aprobar/rechazar y borrado de la cuenta
+// de acceso al eliminar un usuario (functions/cuentas.js).
+exports.notificarCambioDeCuenta =
+    require("./cuentas").notificarCambioDeCuenta;
+exports.limpiarCuentaEliminada =
+    require("./cuentas").limpiarCuentaEliminada;

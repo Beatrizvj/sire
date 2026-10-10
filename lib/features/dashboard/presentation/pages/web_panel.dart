@@ -1441,9 +1441,9 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
       builder: (dctx) => AlertDialog(
         title: Text('¿Eliminar a ${widget.usuario.nombre}?'),
         content: const Text(
-          'Se borrará su perfil y sus fotos de DPI de la base de datos. '
-          'Su cuenta de acceso (Authentication) debe borrarse aparte desde la '
-          'consola de Firebase. Esta acción no se puede deshacer.',
+          'Se borrará su perfil, sus fotos de DPI y su cuenta de acceso; con '
+          'el mismo correo podrá registrarse de nuevo. Esta acción no se puede '
+          'deshacer.',
         ),
         actions: [
           TextButton(
@@ -1972,13 +1972,26 @@ class _SolicitudTile extends ConsumerWidget {
       context: context,
       builder: (dctx) => AlertDialog(
         title: Text('Rechazar a ${objetivo.nombre}'),
-        content: TextField(
-          controller: motivoCtrl,
-          decoration: const InputDecoration(
-            labelText: 'Motivo (opcional)',
-            border: OutlineInputBorder(),
-          ),
-          maxLines: 2,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Se le avisará en su teléfono y se borrará su solicitud (perfil, '
+              'fotos del DPI y cuenta de acceso), para que pueda registrarse de '
+              'nuevo con datos correctos. El rechazo queda en la auditoría.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: motivoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Motivo (opcional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
         ),
         actions: [
           TextButton(
