@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/link.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/como_llegar.dart';
@@ -1267,17 +1268,24 @@ class _TelefonoCelda extends StatelessWidget {
         ),
         // WhatsApp (wa.me, gratis): abre el chat en una pestaña nueva, aparte
         // del botón de copiar.
-        Tooltip(
-          message: 'Escribir por WhatsApp',
-          child: InkWell(
-            onTap: () => abrirWhatsApp(tel, nombre),
-            borderRadius: BorderRadius.circular(6),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.chat, size: 15, color: Color(0xFF25D366)),
+        // `Link` es un enlace real (<a target="_blank">): el navegador lo abre
+        // como cualquier enlace y no lo bloquea como ventana emergente.
+        if (enlaceWhatsApp(tel, nombre) case final uri?)
+          Tooltip(
+            message: 'Escribir por WhatsApp',
+            child: Link(
+              uri: uri,
+              target: LinkTarget.blank,
+              builder: (context, followLink) => InkWell(
+                onTap: followLink,
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.chat, size: 15, color: Color(0xFF25D366)),
+                ),
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -2793,16 +2801,21 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
                   '\nClic: cómo llegar (Google Maps)',
               // "Cómo llegar": abre Google Maps en una pestaña nueva; el mapa
               // del panel no se recarga ni pierde su estado.
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () => abrirComoLlegar(a.latitude, a.longitude),
-                  child: Icon(
-                    Icons.location_on,
-                    size: 40,
-                    color: a.status == AlertStatus.pendiente
-                        ? AppColors.statusPendiente
-                        : AppColors.statusAtendida,
+              // Enlace real (Link): el navegador no lo bloquea.
+              child: Link(
+                uri: enlaceComoLlegar(a.latitude, a.longitude),
+                target: LinkTarget.blank,
+                builder: (context, followLink) => MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: followLink,
+                    child: Icon(
+                      Icons.location_on,
+                      size: 40,
+                      color: a.status == AlertStatus.pendiente
+                          ? AppColors.statusPendiente
+                          : AppColors.statusAtendida,
+                    ),
                   ),
                 ),
               ),
