@@ -37,19 +37,44 @@ class UsersManagementPage extends ConsumerWidget {
                 return const Center(
                     child: Text('No hay usuarios registrados.'));
               }
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
-                itemCount: users.length,
-                itemBuilder: (_, i) => _UserTile(
-                  user: users[i],
-                  onTap: () => showModalBottomSheet<void>(
-                    context: context,
-                    showDragHandle: true,
-                    isScrollControlled: true,
-                    builder: (_) => _EditSheet(user: users[i]),
+              Widget tarjeta(int i) => _UserTile(
+                    user: users[i],
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      showDragHandle: true,
+                      isScrollControlled: true,
+                      builder: (_) => _EditSheet(user: users[i]),
+                    ),
+                  );
+              const padding = EdgeInsets.fromLTRB(12, 12, 12, 32);
+              // Responsivo: 1 columna en teléfono; 2 en tablet o teléfono
+              // horizontal; 3 en pantallas anchas.
+              return LayoutBuilder(builder: (context, c) {
+                final columnas = c.maxWidth >= 1100
+                    ? 3
+                    : c.maxWidth >= 650
+                        ? 2
+                        : 1;
+                if (columnas == 1) {
+                  return ListView.builder(
+                    padding: padding,
+                    itemCount: users.length,
+                    itemBuilder: (_, i) => tarjeta(i),
+                  );
+                }
+                // Alto fijo por tarjeta, escalado si el usuario agranda la letra.
+                final alto = MediaQuery.textScalerOf(context).scale(122);
+                return GridView.builder(
+                  padding: padding,
+                  itemCount: users.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columnas,
+                    mainAxisExtent: alto,
+                    crossAxisSpacing: 8,
                   ),
-                ),
-              );
+                  itemBuilder: (_, i) => tarjeta(i),
+                );
+              });
             },
           ),
         ),
