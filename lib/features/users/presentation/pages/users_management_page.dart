@@ -80,42 +80,76 @@ class _UserTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final comunidad = user.aldea.isEmpty ? 'Sin comunidad' : user.aldea;
     final tel = user.telefono.trim();
+    // Nombre como título (negrita) y datos secundarios más pequeños y
+    // atenuados, cada uno en UNA línea con "…" si no cabe. Las acciones van a
+    // la derecha en tamaño compacto para dejar el ancho al texto.
+    final secundario = TextStyle(fontSize: 13, color: scheme.onSurfaceVariant);
     return Card(
-      child: ListTile(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          child: Text(
-            user.nombre.isNotEmpty ? user.nombre[0].toUpperCase() : '?',
-            style: TextStyle(
-              color: scheme.onPrimaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: scheme.primaryContainer,
+                child: Text(
+                  user.nombre.isNotEmpty ? user.nombre[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    color: scheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.nombre,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    _RolChip(rol: user.rol),
+                    const SizedBox(height: 4),
+                    if ((user.email ?? '').isNotEmpty)
+                      Text(user.email!,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: secundario),
+                    Text(
+                      '${tel.isEmpty ? 'Sin teléfono' : tel} · $comunidad',
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: secundario,
+                    ),
+                  ],
+                ),
+              ),
+              if (tel.isNotEmpty) ...[
+                IconButton(
+                  tooltip: 'Llamar',
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.call, color: scheme.primary),
+                  onPressed: () => _llamar(context),
+                ),
+                IconButton(
+                  tooltip: 'WhatsApp',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                  onPressed: () => abrirWhatsApp(user.telefono, user.nombre),
+                ),
+              ],
+            ],
           ),
-        ),
-        title: Text(user.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(
-          '${user.email ?? ''}\n'
-          '${tel.isEmpty ? 'Sin teléfono' : tel} · $comunidad',
-        ),
-        isThreeLine: true,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (tel.isNotEmpty)
-              IconButton(
-                tooltip: 'Llamar',
-                icon: Icon(Icons.call, color: scheme.primary),
-                onPressed: () => _llamar(context),
-              ),
-            if (tel.isNotEmpty)
-              IconButton(
-                tooltip: 'WhatsApp',
-                icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
-                onPressed: () => abrirWhatsApp(user.telefono, user.nombre),
-              ),
-            _RolChip(rol: user.rol),
-          ],
         ),
       ),
     );

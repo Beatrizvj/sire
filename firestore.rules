@@ -69,7 +69,9 @@ service cloud.firestore {
       // 'pendiente_revision'. Nadie puede auto-crearse ya aprobado.
       allow create: if signedIn() && request.auth.uid == userId
                        && request.resource.data.get('estadoCuenta', '') == 'pendiente_revision'
-                       && nombreValido(request.resource.data.nombre);
+                       && nombreValido(request.resource.data.nombre)
+                       // Teléfono: exactamente 8 dígitos (Guatemala, sin +502).
+                       && request.resource.data.get('telefono', '').matches('^[0-9]{8}$');
 
       // Lo lee su dueño; COCODE y Municipalidad (aprobados) pueden consultarlo.
       // Además, cualquier usuario aprobado puede leer el perfil del COCODE de SU

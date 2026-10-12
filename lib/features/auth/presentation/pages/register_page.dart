@@ -1,7 +1,7 @@
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
@@ -330,15 +330,20 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           TextFormField(
             controller: _telefono,
             keyboardType: TextInputType.phone,
+            // Solo dígitos y como máximo 8 (número de Guatemala sin +502).
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(8),
+            ],
             style: const TextStyle(color: Colors.white),
             cursorColor: AppColors.emergency,
             decoration: authFieldDecoration(
-              label: 'Teléfono',
+              label: 'Teléfono (8 dígitos)',
               icon: Icons.phone_outlined,
             ),
-            validator: (v) => (v == null || v.trim().length < 8)
-                ? 'Teléfono inválido'
-                : null,
+            validator: (v) => RegExp(r'^[0-9]{8}$').hasMatch(v?.trim() ?? '')
+                ? null
+                : 'El número de teléfono debe tener exactamente 8 dígitos',
           ),
           const SizedBox(height: 16),
           TextFormField(
