@@ -10,6 +10,45 @@ import '../../../users/presentation/providers/users_providers.dart';
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
+  Future<void> _eliminarCuenta(
+      BuildContext context, WidgetRef ref, String uid) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded),
+        title: const Text('¿Eliminar tu cuenta?'),
+        content: const Text(
+          'Se borrarán tu perfil, las fotos de tu DPI y tu acceso a SIRE. '
+          'Las alertas que ya enviaste se conservan como registro de la '
+          'Municipalidad. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dctx).colorScheme.error),
+            onPressed: () => Navigator.pop(dctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(userRepositoryProvider).deleteUser(uid);
+      await ref.read(authControllerProvider.notifier).signOut();
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Tu cuenta fue eliminada.')));
+    } catch (e) {
+      messenger.showSnackBar(
+          SnackBar(content: Text('No se pudo eliminar la cuenta: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -89,6 +128,17 @@ class ProfilePage extends ConsumerWidget {
                 ref.read(authControllerProvider.notifier).signOut(),
             icon: const Icon(Icons.logout),
             label: const Text('Cerrar sesión'),
+          ),
+          const SizedBox(height: 8),
+          // Requisito de Google Play: el usuario puede borrar su cuenta desde la
+          // app. Al borrar el perfil, una Cloud Function elimina también su
+          // cuenta de acceso y las fotos del DPI (functions/cuentas.js).
+          TextButton.icon(
+            onPressed: () => _eliminarCuenta(context, ref, user.uid),
+            style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.error),
+            icon: const Icon(Icons.delete_forever_outlined),
+            label: const Text('Eliminar mi cuenta'),
           ),
           const SizedBox(height: 24),
           Center(

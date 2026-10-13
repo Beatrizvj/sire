@@ -123,7 +123,9 @@ service cloud.firestore {
                        && request.resource.data.diff(resource.data)
                             .affectedKeys().hasOnly(['contactosConfianza']);
 
-      allow delete: if esMunicipalidad();
+      // El propio usuario puede borrar su cuenta (requisito de Google Play);
+      // una Cloud Function elimina además su acceso y sus fotos del DPI.
+      allow delete: if esMunicipalidad() || request.auth.uid == userId;
     }
 
     // ── Auditoría (R1): bitácora inmutable ──
