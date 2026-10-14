@@ -98,9 +98,11 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
         icon: const Icon(Icons.location_on),
         title: const Text('Ubicación todo el tiempo'),
         content: const Text(
-          'Para que el SOS del botón de encendido envíe tu ubicación con la '
-          'pantalla apagada, SIRE necesita acceso a la ubicación "todo el '
-          'tiempo".\n\nEn la siguiente pantalla elige "Permitir todo el tiempo".',
+          'SIRE recopila tu ubicación para enviar alertas SOS a las '
+          'autoridades de tu aldea, incluso cuando la app está cerrada o no '
+          'está en uso (SOS con el botón de encendido y la pantalla apagada). '
+          'La ubicación solo se obtiene al enviar un SOS; no se rastrea de '
+          'forma continua.\n\nEn la siguiente pantalla elige "Permitir todo el tiempo".',
         ),
         actions: [
           TextButton(
