@@ -25,6 +25,7 @@ import '../../../users/domain/entities/app_user.dart';
 import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
 import '../../../users/presentation/providers/users_providers.dart';
+import '../../../users/domain/permisos.dart';
 
 // Paleta del panel (según el prototipo): barra lateral oscura, contenido claro.
 const _side = Color(0xFF2B1917);
@@ -51,22 +52,25 @@ const _secciones = <(IconData, String)>[
   (Icons.map_outlined, 'Mapa en vivo'),
   (Icons.insights_outlined, 'Reportes'),
   (Icons.settings_outlined, 'Configuración'),
+  (Icons.account_circle_outlined, 'Mi perfil'),
 ];
 
 // Índices de sección (para badges y ruteo legible).
 const _ixAlertas = 1;
 const _ixAprobaciones = 3;
 
-// Secciones SOLO municipales (vistas de todo el municipio). El COCODE no las ve:
-// Comunidades (4) y Configuración (7).
+// Secciones SOLO municipales (vistas de todo el municipio): Comunidades (4) y
+// Configuración (7).
 const _seccionesSoloMunicipalidad = {4, 7};
 
-/// Índices de sección visibles según el rol. La Municipalidad ve todas; el
-/// COCODE, todas menos las municipales (Comunidades y Configuración).
-List<int> _seccionesVisibles(UserRole? rol) => [
+/// Índices de sección visibles según el usuario. La Municipalidad ve todas; las
+/// autoridades de aldea, todas menos las municipales, y Aprobaciones solo si
+/// son coordinadoras o tienen la aprobación delegada. "Mi perfil" lo ven todos.
+List<int> _seccionesVisibles(AppUser? actor) => [
       for (var i = 0; i < _secciones.length; i++)
-        if (rol == UserRole.municipalidad ||
-            !_seccionesSoloMunicipalidad.contains(i))
+        if (actor?.rol == UserRole.municipalidad ||
+            (!_seccionesSoloMunicipalidad.contains(i) &&
+                (i != _ixAprobaciones || (actor?.puedeAprobarCuentas ?? false))))
           i,
     ];
 
@@ -94,7 +98,8 @@ class _WebPanelState extends ConsumerState<WebPanel> {
         4 => const _ComunidadesBody(),
         5 => const _MapaEnVivoBody(),
         6 => const ReportesBody(),
-        _ => const _ConfiguracionBody(),
+        7 => const _ConfiguracionBody(),
+        _ => const _ConfiguracionBody(miPerfil: true),
       };
 
   @override
@@ -113,7 +118,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
 
     // Panel por rol: la Municipalidad ve todas las secciones; el COCODE, solo
     // las de su aldea (sin Comunidades ni Configuración, que son municipales).
-    final visibles = _seccionesVisibles(actor?.rol);
+    final visibles = _seccionesVisibles(actor);
     final seccionActual = visibles.contains(_seccion)
         ? _seccion
         : (visibles.isEmpty ? 0 : visibles.first);
@@ -1150,7 +1155,7 @@ class _UsuariosBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(currentUserProfileProvider).asData?.value;
-    final esVerificador = actor?.puedeVerIdentidad ?? false;
+    final esVerificador = actor?.puedeVerDpi ?? false;
     return ref.watch(allUsersProvider).when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => _Error(
@@ -1207,13 +1212,14 @@ class _UsuariosBody extends ConsumerWidget {
                                       objetivo: u, actor: actor),
                                   child: const Text('Ver DPI'),
                                 ),
-                              TextButton(
-                                onPressed: () => showDialog<void>(
-                                  context: context,
-                                  builder: (_) => _EditarUsuario(usuario: u),
+                              if (actor != null && actor.puedeEditar(u))
+                                TextButton(
+                                  onPressed: () => showDialog<void>(
+                                    context: context,
+                                    builder: (_) => _EditarUsuario(usuario: u),
+                                  ),
+                                  child: const Text('Editar'),
                                 ),
-                                child: const Text('Editar'),
-                              ),
                             ],
                           ),
                         ),
@@ -1282,10 +1288,19 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
   late bool _verIdentidad = widget.usuario.puedeVerIdentidad;
   late bool _responsable = widget.usuario.esResponsable;
   late final Set<String> _contactos = widget.usuario.contactosConfianza.toSet();
+  late final _nombreCtrl = TextEditingController(text: widget.usuario.nombre);
   bool _guardando = false;
 
   @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final actor = ref.watch(currentUserProfileProvider).asData?.value;
+    final esMuni = actor?.rol == UserRole.municipalidad;
     final comunidades = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     // RF-11: candidatos = ciudadanos aprobados de la MISMA comunidad (vecinos),
     // sin el propio usuario. El grupo es mutuo; lo arma la autoridad.
@@ -1299,6 +1314,19 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
                 u.aldea == _comunidad)
             .toList()
         : const <AppUser>[];
+    // Delegación (máx. [maxDelegados]): el coordinador solo la otorga a
+    // integrantes de su propio cuerpo; la Municipalidad, a cualquiera.
+    final delegados = delegadosEn(
+        todos.where((u) => u.id != widget.usuario.id).toList(),
+        _comunidad,
+        _rol);
+    final puedeDelegar = esMuni ||
+        (actor != null &&
+            actor.esCoordinador &&
+            _rol == actor.rol &&
+            (_verIdentidad || delegados < maxDelegados));
+    final cuerpo =
+        _rol == UserRole.cocode ? 'del COCODE' : 'de la Alcaldía Auxiliar';
     return AlertDialog(
       scrollable: true,
       title: Text(widget.usuario.nombre),
@@ -1306,12 +1334,22 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          TextField(
+            controller: _nombreCtrl,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Nombre (según DPI)',
+              prefixIcon: Icon(Icons.person_outline),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
           const Text('Rol', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
             children: [
-              for (final r in UserRole.values)
+              for (final r in actor?.rolesEditables ?? const <UserRole>[])
                 ChoiceChip(
                   label: Text(r.label),
                   selected: _rol == r,
@@ -1319,53 +1357,70 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Text('Comunidad',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('Sin asignar'),
-                selected: _comunidad.isEmpty,
-                onSelected: (_) => setState(() => _comunidad = ''),
-              ),
-              for (final c in comunidades)
+          if (esMuni) ...[
+            const SizedBox(height: 16),
+            const Text('Comunidad',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: [
                 ChoiceChip(
-                  label: Text(c),
-                  selected: _comunidad == c,
-                  onSelected: (_) => setState(() => _comunidad = c),
+                  label: const Text('Sin asignar'),
+                  selected: _comunidad.isEmpty,
+                  onSelected: (_) => setState(() => _comunidad = ''),
                 ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            activeThumbColor: _brand,
-            value: _verIdentidad,
-            onChanged: (v) => setState(() => _verIdentidad = v),
-            title: const Text('Puede ver fotos del DPI',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: const Text(
-                'Autoriza a esta persona a ver las fotos de identidad de otros '
-                'usuarios (verificador).',
-                style: TextStyle(fontSize: 12)),
-          ),
-          if (_rol == UserRole.auxiliatura)
+                for (final c in comunidades)
+                  ChoiceChip(
+                    label: Text(c),
+                    selected: _comunidad == c,
+                    onSelected: (_) => setState(() => _comunidad = c),
+                  ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            Text('Comunidad: ${_comunidad.isEmpty ? '—' : _comunidad}',
+                style: const TextStyle(fontSize: 13)),
+          ],
+          // Solo la Municipalidad designa al coordinador de cada aldea.
+          if (esMuni && _rol.esAutoridadDeAldea) ...[
+            const SizedBox(height: 12),
+            const Divider(),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               activeThumbColor: _brand,
               value: _responsable,
               onChanged: (v) => setState(() => _responsable = v),
-              title: const Text('Responsable de la Alcaldía Auxiliar',
+              title: Text('Coordinador $cuerpo',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: Text(
+                  'Aprueba las cuentas de su aldea, gestiona a sus integrantes y '
+                  'puede delegar la aprobación hasta en $maxDelegados '
+                  'integrantes más.'
+                  '${_rol == UserRole.auxiliatura ? ' Recibe además el WhatsApp de cada alerta.' : ''}',
+                  style: const TextStyle(fontSize: 12)),
+            ),
+          ],
+          if (_rol != UserRole.ciudadano &&
+              !(_rol.esAutoridadDeAldea && _responsable))
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              activeThumbColor: _brand,
+              value: _verIdentidad,
+              onChanged: puedeDelegar
+                  ? (v) => setState(() => _verIdentidad = v)
+                  : null,
+              title: const Text('Puede aprobar cuentas (ver DPI)',
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-              subtitle: const Text(
-                  'Aprueba a los integrantes de su aldea y recibe el WhatsApp de '
-                  'cada alerta. Los demás integrantes reciben solo la '
-                  'notificación en la app.',
-                  style: TextStyle(fontSize: 12)),
+              subtitle: Text(
+                  esMuni
+                      ? 'Autoriza a revisar el DPI y aprobar las solicitudes '
+                          'de su aldea.'
+                      : 'Delegados en tu aldea: $delegados de $maxDelegados.'
+                          '${puedeDelegar ? '' : ' Ya se alcanzó el máximo.'}',
+                  style: const TextStyle(fontSize: 12)),
             ),
           if (_rol == UserRole.ciudadano) ...[
             const SizedBox(height: 12),
@@ -1486,6 +1541,12 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
   }
 
   Future<void> _guardar() async {
+    final errorNombre = NameValidator.validar(_nombreCtrl.text);
+    if (errorNombre != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(errorNombre)));
+      return;
+    }
     setState(() => _guardando = true);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -1493,13 +1554,17 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
     final yo = widget.usuario.id;
     final nuevos = _rol == UserRole.ciudadano ? _contactos : <String>{};
     final viejos = widget.usuario.contactosConfianza.toSet();
+    final esCoord = _rol.esAutoridadDeAldea && _responsable;
     try {
       await repo.saveUser(
         widget.usuario.copyWith(
+          nombre: NameValidator.normalizar(_nombreCtrl.text),
           rol: _rol,
           aldea: _comunidad,
-          puedeVerIdentidad: _verIdentidad,
-          esResponsable: _rol == UserRole.auxiliatura && _responsable,
+          // Un ciudadano no aprueba cuentas; el coordinador ya puede hacerlo.
+          puedeVerIdentidad:
+              _rol != UserRole.ciudadano && !esCoord && _verIdentidad,
+          esResponsable: esCoord,
           contactosConfianza: nuevos.toList(),
         ),
       );
@@ -1836,7 +1901,7 @@ class _SolicitudTile extends ConsumerWidget {
       ],
     );
     final botones = <Widget>[
-      if (actor.puedeVerIdentidad)
+      if (actor.puedeVerDpi)
         OutlinedButton.icon(
           onPressed: () =>
               verDpi(context, ref, objetivo: objetivo, actor: actor),
@@ -2259,8 +2324,12 @@ class _CategoriasIncidenteCardState
 
 // ─────────────────────────── Configuración ───────────────────────────
 
+/// Sección "Configuración" (solo Municipalidad: categorías y sistema) o, con
+/// [miPerfil], sección "Mi perfil" (todos los roles: datos y contraseña).
 class _ConfiguracionBody extends ConsumerStatefulWidget {
-  const _ConfiguracionBody();
+  const _ConfiguracionBody({this.miPerfil = false});
+
+  final bool miPerfil;
 
   @override
   ConsumerState<_ConfiguracionBody> createState() => _ConfiguracionBodyState();
@@ -2322,8 +2391,12 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
     FocusScope.of(context).unfocus();
     setState(() => _guardando = true);
     try {
+      // Solo la Municipalidad corrige su propio nombre; para las demás cuentas
+      // el nombre quedó verificado con el DPI.
       final actualizado = perfil.copyWith(
-        nombre: NameValidator.normalizar(_nombreCtrl.text),
+        nombre: perfil.rol == UserRole.municipalidad
+            ? NameValidator.normalizar(_nombreCtrl.text)
+            : perfil.nombre,
         telefono: _telefonoCtrl.text.trim(),
       );
       await ref.read(userRepositoryProvider).saveUser(actualizado);
@@ -2355,13 +2428,49 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
       _telefonoCtrl.text = perfil.telefono;
     }
 
+    if (!widget.miPerfil) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _CategoriasIncidenteCard(),
+            const SizedBox(height: 16),
+            _Card(
+              titulo: 'Sistema',
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fila('Proyecto', 'sire-app-179d3'),
+                    _fila('Fuente de datos', 'Cloud Firestore (tiempo real)'),
+                    _fila('Acceso al panel',
+                        'Municipalidad · COCODE · Alcaldía Auxiliar'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final esMuni = perfil.rol == UserRole.municipalidad;
+    final permiso = perfil.esCoordinador
+        ? 'Coordinador ${perfil.rol == UserRole.cocode ? 'del COCODE' : 'de la Alcaldía Auxiliar'}'
+        : perfil.esDelegado
+            ? 'Aprueba cuentas (delegado)'
+            : esMuni
+                ? 'Administración municipal'
+                : 'Atención de alertas';
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Card(
-            titulo: 'Editar mi perfil',
+            titulo: 'Mi perfil',
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Form(
@@ -2369,31 +2478,42 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _campo(
-                      controlador: _nombreCtrl,
-                      etiqueta: 'Nombre',
-                      icono: Icons.person_outline,
-                      validador: (v) => NameValidator.validar(v),
-                    ),
-                    const SizedBox(height: 14),
+                    if (esMuni) ...[
+                      _campo(
+                        controlador: _nombreCtrl,
+                        etiqueta: 'Nombre',
+                        icono: Icons.person_outline,
+                        validador: (v) => NameValidator.validar(v),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     _campo(
                       controlador: _telefonoCtrl,
                       etiqueta: 'Teléfono',
                       icono: Icons.phone_outlined,
                       teclado: TextInputType.phone,
-                      validador: (v) {
-                        final t = v?.trim() ?? '';
-                        if (t.isEmpty) return 'Escribe tu teléfono.';
-                        if (t.length < 8) return 'Teléfono muy corto.';
-                        return null;
-                      },
+                      validador: (v) => RegExp(r'^[0-9]{8}$')
+                              .hasMatch(v?.trim() ?? '')
+                          ? null
+                          : 'El teléfono debe tener 8 dígitos.',
                     ),
                     const SizedBox(height: 18),
-                    // Campos de identidad: solo lectura (los asigna la autoridad).
+                    // Campos de identidad: solo lectura (verificados con el
+                    // DPI o asignados por la Municipalidad).
+                    if (!esMuni) _fila('Nombre', perfil.nombre),
                     _fila('Correo', perfil.email ?? '—'),
                     _fila('Rol', perfil.rol.label),
                     _fila('Comunidad',
                         perfil.aldea.isEmpty ? '—' : perfil.aldea),
+                    _fila('Permisos', permiso),
+                    if (!esMuni) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'El nombre, el rol y la comunidad los asigna la '
+                        'Municipalidad. Para corregirlos, comunícate con ella.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Align(
                       alignment: Alignment.centerRight,
@@ -2497,25 +2617,6 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
                     ),
                   ],
                 ),
-              ),
-            ),
-          ),
-          if (perfil.rol == UserRole.municipalidad) ...[
-            const SizedBox(height: 16),
-            const _CategoriasIncidenteCard(),
-          ],
-          const SizedBox(height: 16),
-          _Card(
-            titulo: 'Sistema',
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _fila('Proyecto', 'sire-app-179d3'),
-                  _fila('Fuente de datos', 'Cloud Firestore (tiempo real)'),
-                  _fila('Acceso', 'COCODE · Municipalidad'),
-                ],
               ),
             ),
           ),

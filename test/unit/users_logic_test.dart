@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sire/features/users/domain/entities/account_status.dart';
 import 'package:sire/features/users/domain/entities/app_user.dart';
 import 'package:sire/features/users/domain/entities/user_role.dart';
+import 'package:sire/features/users/domain/permisos.dart';
 import 'package:sire/features/users/presentation/providers/approvals_providers.dart';
 import 'package:sire/features/users/presentation/providers/users_providers.dart';
 
@@ -12,6 +13,7 @@ AppUser _u({
   String aldeaSolicitada = '',
   AccountStatus estado = AccountStatus.aprobado,
   bool esResponsable = false,
+  bool puedeVerIdentidad = false,
 }) =>
     AppUser(
       id: id,
@@ -22,6 +24,7 @@ AppUser _u({
       aldeaSolicitada: aldeaSolicitada,
       estadoCuenta: estado,
       esResponsable: esResponsable,
+      puedeVerIdentidad: puedeVerIdentidad,
     );
 
 /// Pruebas de la lógica de ruteo por rol/aldea (mínimo privilegio), compartida
@@ -30,6 +33,12 @@ void main() {
   final muni = _u(id: 'muni', rol: UserRole.municipalidad);
   final cocodeA = _u(id: 'cocodeA', rol: UserRole.cocode, aldea: 'A');
   final auxB = _u(id: 'auxB', rol: UserRole.auxiliatura, aldea: 'B');
+  final coordA = _u(
+      id: 'coordA', rol: UserRole.cocode, aldea: 'A', esResponsable: true);
+  final coordAuxB = _u(
+      id: 'coordAuxB', rol: UserRole.auxiliatura, aldea: 'B', esResponsable: true);
+  final delegadoA = _u(
+      id: 'delA', rol: UserRole.cocode, aldea: 'A', puedeVerIdentidad: true);
   final pendA =
       _u(id: 'pendA', estado: AccountStatus.pendienteRevision, aldeaSolicitada: 'A');
   final pendB =
@@ -44,14 +53,24 @@ void main() {
       expect(r.map((u) => u.id), containsAll(['pendA', 'pendB']));
     });
 
-    test('COCODE ve solo los pendientes que declararon su aldea', () {
-      final r = pendientesPara(todos, cocodeA);
+    test('coordinador del COCODE ve solo los pendientes de su aldea', () {
+      final r = pendientesPara(todos, coordA);
       expect(r.map((u) => u.id).toList(), ['pendA']);
     });
 
-    test('Alcaldía Auxiliar ve solo los pendientes de su aldea', () {
-      final r = pendientesPara(todos, auxB);
+    test('coordinador de la Alcaldía Auxiliar ve solo los de su aldea', () {
+      final r = pendientesPara(todos, coordAuxB);
       expect(r.map((u) => u.id).toList(), ['pendB']);
+    });
+
+    test('aprobador delegado ve los pendientes de su aldea', () {
+      expect(pendientesPara(todos, delegadoA).map((u) => u.id).toList(),
+          ['pendA']);
+    });
+
+    test('integrante sin coordinación ni delegación no ve solicitudes', () {
+      expect(pendientesPara(todos, cocodeA), isEmpty);
+      expect(pendientesPara(todos, auxB), isEmpty);
     });
 
     test('un ciudadano no ve solicitudes pendientes', () {
@@ -87,17 +106,57 @@ void main() {
       expect(rolesAsignablesPor(muni), UserRole.values);
     });
 
-    test('responsable de la Alcaldía Auxiliar: integrante (por defecto) o ciudadano',
-        () {
-      final resp = _u(
-          id: 'resp', rol: UserRole.auxiliatura, aldea: 'B', esResponsable: true);
-      expect(rolesAsignablesPor(resp),
+    test('coordinador: integrante de su cuerpo (por defecto) o ciudadano', () {
+      expect(rolesAsignablesPor(coordAuxB),
           [UserRole.auxiliatura, UserRole.ciudadano]);
+      expect(rolesAsignablesPor(coordA), [UserRole.cocode, UserRole.ciudadano]);
     });
 
-    test('integrante común de la Alcaldía Auxiliar y COCODE: solo ciudadano', () {
+    test('delegado e integrante común: solo ciudadano', () {
+      expect(rolesAsignablesPor(delegadoA), [UserRole.ciudadano]);
       expect(rolesAsignablesPor(auxB), [UserRole.ciudadano]);
-      expect(rolesAsignablesPor(cocodeA), [UserRole.ciudadano]);
+    });
+  });
+
+  group('permisos', () {
+    test('solo Municipalidad, coordinador y delegado aprueban cuentas', () {
+      expect(muni.puedeAprobarCuentas, isTrue);
+      expect(coordA.puedeAprobarCuentas, isTrue);
+      expect(delegadoA.puedeAprobarCuentas, isTrue);
+      expect(cocodeA.puedeAprobarCuentas, isFalse);
+      expect(aprobadoA.puedeAprobarCuentas, isFalse);
+    });
+
+    test('el coordinador edita integrantes y ciudadanos de su aldea', () {
+      expect(coordA.puedeEditar(cocodeA), isTrue);
+      expect(coordA.puedeEditar(aprobadoA), isTrue);
+      expect(coordA.puedeEditar(auxB), isFalse); // otra aldea
+    });
+
+    test('nadie se edita a sí mismo ni el coordinador a otro coordinador', () {
+      expect(coordA.puedeEditar(coordA), isFalse);
+      expect(muni.puedeEditar(muni), isFalse);
+      final otroCoord = _u(
+          id: 'c2', rol: UserRole.cocode, aldea: 'A', esResponsable: true);
+      expect(coordA.puedeEditar(otroCoord), isFalse);
+    });
+
+    test('un integrante común no edita a nadie', () {
+      expect(cocodeA.puedeEditar(aprobadoA), isFalse);
+      expect(delegadoA.puedeEditar(aprobadoA), isFalse);
+    });
+
+    test('cuenta los delegados de la aldea (sin el coordinador)', () {
+      expect(delegadosEn([coordA, delegadoA, cocodeA], 'A', UserRole.cocode), 1);
+    });
+
+    test('a quién acude el ciudadano para corregir sus datos', () {
+      expect(aprobadoA.autoridadParaCorrecciones([coordA]), 'el COCODE de A');
+      final ciudB = _u(id: 'cB', aldea: 'B');
+      expect(ciudB.autoridadParaCorrecciones([coordAuxB]),
+          'la Alcaldía Auxiliar de B');
+      expect(aprobadoA.autoridadParaCorrecciones(const []), 'la Municipalidad');
+      expect(cocodeA.autoridadParaCorrecciones([coordA]), 'la Municipalidad');
     });
   });
 }

@@ -15,6 +15,7 @@ import '../../domain/entities/sos_source.dart';
 import '../providers/alerts_providers.dart';
 import '../widgets/alert_status_chip.dart';
 import '../../../../core/utils/whatsapp_link.dart';
+import '../../../users/domain/permisos.dart';
 
 /// Coordenadas legibles; "Ubicación no registrada" si la alerta se guardó sin GPS.
 String _coords(SosAlert alert) => (alert.latitude == 0 && alert.longitude == 0)
@@ -43,6 +44,7 @@ class BandejaPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Bandeja de emergencias'),
         actions: [
+          if (autoridad?.puedeAprobarCuentas ?? false)
           IconButton(
             tooltip: 'Aprobaciones',
             icon: Badge(

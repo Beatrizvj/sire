@@ -8,6 +8,7 @@ import '../../domain/entities/app_user.dart';
 import '../../domain/entities/user_role.dart';
 import '../providers/users_providers.dart';
 import '../../../../core/utils/whatsapp_link.dart';
+import '../../domain/permisos.dart';
 
 /// Gestión de usuarios: la Municipalidad asigna **rol** y **comunidad** a cada
 /// usuario desde la app (sin editar Firestore a mano). Se apoya en las reglas:
@@ -37,14 +38,18 @@ class UsersManagementPage extends ConsumerWidget {
                 return const Center(
                     child: Text('No hay usuarios registrados.'));
               }
+              // Solo la Municipalidad y el coordinador de la aldea editan; los
+              // demás integrantes consultan la lista (y pueden llamar).
               Widget tarjeta(int i) => _UserTile(
                     user: users[i],
-                    onTap: () => showModalBottomSheet<void>(
-                      context: context,
-                      showDragHandle: true,
-                      isScrollControlled: true,
-                      builder: (_) => _EditSheet(user: users[i]),
-                    ),
+                    onTap: (actor != null && actor.puedeEditar(users[i]))
+                        ? () => showModalBottomSheet<void>(
+                              context: context,
+                              showDragHandle: true,
+                              isScrollControlled: true,
+                              builder: (_) => _EditSheet(user: users[i]),
+                            )
+                        : null,
                   );
               const padding = EdgeInsets.fromLTRB(12, 12, 12, 32);
               // Responsivo: 1 columna en teléfono; 2 en tablet o teléfono
@@ -87,7 +92,7 @@ class _UserTile extends StatelessWidget {
   const _UserTile({required this.user, required this.onTap});
 
   final AppUser user;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   Future<void> _llamar(BuildContext context) async {
     final tel = user.telefono.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -227,19 +232,30 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
   late UserRole _rol = widget.user.rol;
   late String _comunidad = widget.user.aldea;
   late final Set<String> _contactos = widget.user.contactosConfianza.toSet();
+  late bool _verIdentidad = widget.user.puedeVerIdentidad;
+  late bool _responsable = widget.user.esResponsable;
   bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final actor = ref.watch(currentUserProfileProvider).asData?.value;
-    // Solo la Municipalidad cambia rol y comunidad; el COCODE se limita a armar
-    // los contactos de confianza de los vecinos de su aldea.
+    // La Municipalidad cambia rol y comunidad y designa coordinadores; el
+    // coordinador cambia el rol entre ciudadano y su cuerpo y delega la
+    // aprobación (máx. [maxDelegados]).
     final esMuni = actor?.rol == UserRole.municipalidad;
+    final roles = actor?.rolesEditables ?? const <UserRole>[];
     final comunidades = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     // RF-11: candidatos = ciudadanos aprobados de la MISMA comunidad (vecinos),
     // sin incluir al propio usuario. Solo la autoridad arma estos grupos.
     final todos = ref.watch(allUsersProvider).asData?.value ?? const <AppUser>[];
+    final delegados = delegadosEn(
+        todos.where((u) => u.id != widget.user.id).toList(), _comunidad, _rol);
+    final puedeDelegar = esMuni ||
+        (actor != null &&
+            actor.esCoordinador &&
+            _rol == actor.rol &&
+            (_verIdentidad || delegados < maxDelegados));
     final candidatos = _comunidad.isEmpty
         ? const <AppUser>[]
         : todos
@@ -270,14 +286,14 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
-              if (esMuni) ...[
+              if (roles.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 _Label(text: 'Rol'),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   children: [
-                    for (final r in UserRole.values)
+                    for (final r in roles)
                       ChoiceChip(
                         label: Text(r.label),
                         selected: _rol == r,
@@ -285,6 +301,8 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
                       ),
                   ],
                 ),
+              ],
+              if (esMuni) ...[
                 const SizedBox(height: 20),
                 _Label(text: 'Comunidad'),
                 const SizedBox(height: 8),
@@ -312,6 +330,30 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
+              if (esMuni && _rol.esAutoridadDeAldea)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _responsable,
+                  onChanged: (v) => setState(() => _responsable = v),
+                  title: Text(
+                      'Coordinador ${_rol == UserRole.cocode ? 'del COCODE' : 'de la Alcaldía Auxiliar'}'),
+                  subtitle: const Text(
+                      'Aprueba cuentas de su aldea, gestiona a sus integrantes '
+                      'y delega la aprobación.'),
+                ),
+              if (_rol != UserRole.ciudadano &&
+                  !(_rol.esAutoridadDeAldea && _responsable))
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _verIdentidad,
+                  onChanged: puedeDelegar
+                      ? (v) => setState(() => _verIdentidad = v)
+                      : null,
+                  title: const Text('Puede aprobar cuentas (ver DPI)'),
+                  subtitle: Text(esMuni
+                      ? 'Revisa el DPI y aprueba las solicitudes de su aldea.'
+                      : 'Delegados en tu aldea: $delegados de $maxDelegados.'),
+                ),
               if (_rol == UserRole.ciudadano) ...[
                 const SizedBox(height: 20),
                 _Label(text: 'Contactos de confianza (RF-11)'),
@@ -384,6 +426,10 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
         widget.user.copyWith(
           rol: _rol,
           aldea: _comunidad,
+          puedeVerIdentidad: _rol != UserRole.ciudadano &&
+              !(_rol.esAutoridadDeAldea && _responsable) &&
+              _verIdentidad,
+          esResponsable: _rol.esAutoridadDeAldea && _responsable,
           contactosConfianza: nuevos.toList(),
         ),
       );

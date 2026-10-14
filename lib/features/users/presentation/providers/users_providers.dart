@@ -32,6 +32,15 @@ final cocodesDeMiAldeaProvider = StreamProvider.autoDispose<List<AppUser>>((ref)
   return ref.watch(userRepositoryProvider).watchCocodesDeAldea(aldea);
 });
 
+/// Coordinadores de la aldea del usuario EN SESIÓN (COCODE o Alcaldía
+/// Auxiliar). Indica al ciudadano a qué autoridad acudir.
+final coordinadoresDeMiAldeaProvider =
+    FutureProvider.autoDispose<List<AppUser>>((ref) async {
+  final aldea = ref.watch(currentUserProfileProvider).asData?.value?.aldea ?? '';
+  if (aldea.isEmpty) return const <AppUser>[];
+  return ref.watch(userRepositoryProvider).coordinadoresDeAldea(aldea);
+});
+
 /// Usuarios que una autoridad puede ver/gestionar (mínimo privilegio):
 /// - Municipalidad: TODOS los del municipio.
 /// - COCODE: solo los de SU aldea (aprobados con esa aldea, o pendientes que la

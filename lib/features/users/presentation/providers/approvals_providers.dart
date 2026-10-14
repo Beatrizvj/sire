@@ -5,6 +5,7 @@ import '../../../audit/domain/audit_entry.dart';
 import '../../domain/entities/account_status.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/entities/user_role.dart';
+import '../../domain/permisos.dart';
 import 'users_providers.dart';
 
 /// Servicio de aprobación de usuarios (R1). Compone el repositorio de usuarios
@@ -71,31 +72,28 @@ final approvalsServiceProvider =
 
 /// Roles que [actor] puede asignar al aprobar una cuenta (mínimo privilegio):
 /// - Municipalidad: cualquiera.
-/// - Responsable de la Alcaldía Auxiliar: integrante de la Alcaldía Auxiliar
-///   (primero, por defecto) o ciudadano.
-/// - COCODE y demás integrantes de la Alcaldía Auxiliar: solo ciudadano.
+/// - Coordinador del COCODE o de la Alcaldía Auxiliar: integrante de su propio
+///   cuerpo (primero, por defecto) o ciudadano.
+/// - Aprobador delegado: solo ciudadano.
 List<UserRole> rolesAsignablesPor(AppUser actor) {
   if (actor.rol == UserRole.municipalidad) return UserRole.values;
-  if (actor.rol == UserRole.auxiliatura && actor.esResponsable) {
-    return const [UserRole.auxiliatura, UserRole.ciudadano];
-  }
+  if (actor.esCoordinador) return [actor.rol, UserRole.ciudadano];
   return const [UserRole.ciudadano];
 }
 
 /// Usuarios pendientes de revisión que le corresponden a [autoridad]:
 /// - Municipalidad: todos los pendientes del municipio.
-/// - COCODE: solo los que declararon su misma aldea.
+/// - Coordinador o aprobador delegado: los que declararon su misma aldea.
+/// - Demás integrantes: ninguno (no aprueban cuentas).
 List<AppUser> pendientesPara(List<AppUser> todos, AppUser autoridad) {
+  if (!autoridad.puedeAprobarCuentas) return const [];
   final pendientes = todos
       .where((u) => u.estadoCuenta == AccountStatus.pendienteRevision)
       .toList();
   if (autoridad.rol == UserRole.municipalidad) return pendientes;
-  if (autoridad.rol.esAutoridadDeAldea) {
-    return pendientes
-        .where((u) =>
-            u.aldeaSolicitada.trim().toLowerCase() ==
-            autoridad.aldea.trim().toLowerCase())
-        .toList();
-  }
-  return const [];
+  return pendientes
+      .where((u) =>
+          u.aldeaSolicitada.trim().toLowerCase() ==
+          autoridad.aldea.trim().toLowerCase())
+      .toList();
 }

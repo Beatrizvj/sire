@@ -10,6 +10,7 @@ import '../../domain/entities/app_user.dart';
 import '../../domain/entities/user_role.dart';
 import '../providers/approvals_providers.dart';
 import '../providers/users_providers.dart';
+import '../../domain/permisos.dart';
 
 /// Aprobación de cuentas (R1) desde la app móvil.
 /// - Municipalidad: todas las solicitudes pendientes del municipio.
@@ -158,7 +159,7 @@ class _RevisarSheetState extends ConsumerState<_RevisarSheet> {
             const SizedBox(height: 20),
             const _Label('Identidad (DPI)'),
             const SizedBox(height: 8),
-            if (widget.autoridad.puedeVerIdentidad)
+            if (widget.autoridad.puedeVerDpi)
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

@@ -21,4 +21,8 @@ abstract interface class UserRepository {
   /// CIUDADANO vea el contacto (teléfono) del COCODE de su aldea sin poder leer
   /// el resto de usuarios. Filtra por rol y aldea en la consulta.
   Stream<List<AppUser>> watchCocodesDeAldea(String aldea);
+
+  /// Coordinadores (COCODE o Alcaldía Auxiliar con `esResponsable`) de una
+  /// aldea. Sirve para indicarle al ciudadano a quién acudir.
+  Future<List<AppUser>> coordinadoresDeAldea(String aldea);
 }

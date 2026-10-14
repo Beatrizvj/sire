@@ -52,4 +52,22 @@ class UserRepositoryFirestore implements UserRepository {
           .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
           .where((u) => u.puedeAcceder) // solo COCODE aprobado y activo
           .toList(growable: false));
+
+  @override
+  Future<List<AppUser>> coordinadoresDeAldea(String aldea) async {
+    // Una consulta por cuerpo: así cada una cumple la regla de lectura que
+    // permite ver al COCODE / coordinador de la Alcaldía Auxiliar de la aldea.
+    final resultado = <AppUser>[];
+    for (final rol in ['auxiliatura', 'cocode']) {
+      final snap = await _users
+          .where('rol', isEqualTo: rol)
+          .where('aldea', isEqualTo: aldea)
+          .where('esResponsable', isEqualTo: true)
+          .get();
+      resultado.addAll(snap.docs
+          .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
+          .where((u) => u.puedeAcceder));
+    }
+    return resultado;
+  }
 }

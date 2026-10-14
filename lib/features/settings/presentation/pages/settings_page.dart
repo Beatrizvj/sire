@@ -11,6 +11,7 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../users/domain/entities/app_user.dart';
 import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/users_providers.dart';
+import '../../../users/domain/permisos.dart';
 
 /// Ajustes del móvil (ambos roles): apariencia, disparo del SOS (solo
 /// ciudadano) y cuenta (editar perfil y cambiar contraseña).
@@ -310,7 +311,8 @@ class _EditProfileDialogState extends ConsumerState<_EditProfileDialog> {
             const SizedBox(height: 8),
             Text(
               'El nombre y la aldea están verificados con tu DPI. Para '
-              'corregirlos, comunícate con la Municipalidad.',
+              'corregirlos, comunícate con '
+              '${widget.perfil.autoridadParaCorrecciones(ref.watch(coordinadoresDeMiAldeaProvider).asData?.value ?? const [])}.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),

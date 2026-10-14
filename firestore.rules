@@ -36,11 +36,17 @@ service cloud.firestore {
     function miAldea() {
       return perfil().get('aldea', '');
     }
-    // Responsable de la Alcaldía Auxiliar: lo marca la Municipalidad. Aprueba a
-    // los integrantes de SU aldea (como Alcaldía Auxiliar o ciudadano).
-    function esResponsableAux() {
-      return aprobado() && perfil().rol == 'auxiliatura'
-             && perfil().get('esResponsable', false) == true;
+    // Coordinador del COCODE o de la Alcaldía Auxiliar de SU aldea (campo
+    // `esResponsable`). Solo la Municipalidad lo designa. Aprueba cuentas,
+    // gestiona a los integrantes de su aldea y delega la aprobación.
+    function esCoordinador() {
+      return esCocode() && perfil().get('esResponsable', false) == true;
+    }
+    // Aprueba cuentas de su aldea: el coordinador o un integrante con la
+    // aprobación delegada (`puedeVerIdentidad`).
+    function esAprobador() {
+      return esCoordinador()
+             || (esCocode() && perfil().get('puedeVerIdentidad', false) == true);
     }
     // Ni el dueño ni una autoridad de aldea pueden tocar estas capacidades:
     // solo la Municipalidad las otorga.
@@ -53,7 +59,17 @@ service cloud.firestore {
     // R2: verificador de identidad = autoridad aprobada con la capacidad
     // `puedeVerIdentidad` que otorga la Municipalidad.
     function esVerificador() {
-      return aprobado() && perfil().get('puedeVerIdentidad', false) == true;
+      return (aprobado() && perfil().get('puedeVerIdentidad', false) == true)
+             || esCoordinador();
+    }
+    // Campos de identidad y de cuenta que el coordinador NO cambia al
+    // gestionar a un integrante (la aldea y la coordinación son municipales).
+    function identidadIntacta() {
+      return request.resource.data.get('aldea', '') == resource.data.get('aldea', '')
+             && request.resource.data.get('aldeaSolicitada', '') == resource.data.get('aldeaSolicitada', '')
+             && request.resource.data.get('telefono', '') == resource.data.get('telefono', '')
+             && request.resource.data.get('estadoCuenta', 'aprobado') == resource.data.get('estadoCuenta', 'aprobado')
+             && request.resource.data.get('esResponsable', false) == resource.data.get('esResponsable', false);
     }
     // R4 (capa servidor): nombre 2-60 caracteres, solo letras (Unicode),
     // espacios, apóstrofo y guion. La lista negra se aplica en el cliente.
@@ -81,6 +97,12 @@ service cloud.firestore {
                        || esMunicipalidad() || esCocode()
                        || (aprobado()
                            && resource.data.get('rol', 'ciudadano') == 'cocode'
+                           && resource.data.get('aldea', '') == miAldea())
+                       // ...y el coordinador de la Alcaldía Auxiliar de su aldea
+                       // (para indicarle a quién acudir).
+                       || (aprobado()
+                           && resource.data.get('rol', 'ciudadano') == 'auxiliatura'
+                           && resource.data.get('esResponsable', false) == true
                            && resource.data.get('aldea', '') == miAldea()));
 
       // El dueño edita SUS datos, pero NO su rol, su estado, la capacidad de
@@ -113,29 +135,34 @@ service cloud.firestore {
       // La Municipalidad puede aprobar/editar cualquier cuenta y asignar rol.
       allow update: if esMunicipalidad();
 
-      // El COCODE solo aprueba/rechaza CIUDADANOS de su misma aldea declarada.
-      allow update: if esCocode()
+      // APROBACIÓN de solicitudes de SU aldea: coordinador o aprobador
+      // delegado. El delegado solo aprueba ciudadanos; el coordinador también
+      // a integrantes de su propio cuerpo (COCODE o Alcaldía Auxiliar). Al
+      // rechazar, la aldea no cambia.
+      allow update: if esAprobador()
+                       && resource.data.get('estadoCuenta', 'aprobado') == 'pendiente_revision'
                        && resource.data.get('aldeaSolicitada', '') == miAldea()
-                       && request.resource.data.get('rol', 'ciudadano') == 'ciudadano'
+                       && (request.resource.data.get('rol', 'ciudadano') == 'ciudadano'
+                           || (esCoordinador()
+                               && request.resource.data.get('rol', '') == perfil().rol))
+                       && (request.resource.data.get('aldea', '') == miAldea()
+                           || request.resource.data.get('estadoCuenta', '') == 'rechazado')
                        && capacidadesIntactas();
 
-      // El responsable de la Alcaldía Auxiliar aprueba a los integrantes de SU
-      // aldea: como Alcaldía Auxiliar o como ciudadano, siempre en su aldea.
-      allow update: if esResponsableAux()
-                       && resource.data.get('aldeaSolicitada', '') == miAldea()
-                       && request.resource.data.get('aldea', '') == miAldea()
-                       && request.resource.data.get('rol', 'ciudadano')
-                            in ['ciudadano', 'auxiliatura']
-                       && capacidadesIntactas();
-
-      // RF-11: el COCODE arma los grupos de "contactos de confianza" de los
-      // CIUDADANOS aprobados de SU aldea. Mínimo privilegio: SOLO puede cambiar
-      // el campo `contactosConfianza` (ni rol, ni estado, ni aldea, ni nada más).
-      allow update: if esCocode()
+      // GESTIÓN por el coordinador de los integrantes YA aprobados de su aldea
+      // (nunca de sí mismo ni de otro coordinador): cambia el rol entre
+      // ciudadano y su propio cuerpo, corrige el nombre, arma los contactos de
+      // confianza (RF-11) y delega la aprobación solo a integrantes de su cuerpo.
+      allow update: if esCoordinador()
+                       && userId != request.auth.uid
                        && resource.data.get('aldea', '') == miAldea()
-                       && resource.data.get('rol', 'ciudadano') == 'ciudadano'
-                       && request.resource.data.diff(resource.data)
-                            .affectedKeys().hasOnly(['contactosConfianza']);
+                       && resource.data.get('esResponsable', false) == false
+                       && resource.data.get('rol', 'ciudadano') in ['ciudadano', perfil().rol]
+                       && request.resource.data.get('rol', 'ciudadano') in ['ciudadano', perfil().rol]
+                       && identidadIntacta()
+                       && nombreValido(request.resource.data.nombre)
+                       && (request.resource.data.get('puedeVerIdentidad', false) == false
+                           || request.resource.data.get('rol', '') == perfil().rol);
 
       // El propio usuario puede borrar su cuenta (requisito de Google Play);
       // una Cloud Function elimina además su acceso y sus fotos del DPI.
