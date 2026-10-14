@@ -94,7 +94,21 @@ service cloud.firestore {
                        && capacidadesIntactas()
                        && request.resource.data.get('contactosConfianza', [])
                             == resource.data.get('contactosConfianza', [])
-                       && nombreValido(request.resource.data.nombre);
+                       // Identidad verificada contra el DPI: el dueño NO cambia
+                       // su nombre ni su aldea (la aldea define a qué autoridad
+                       // llegan sus alertas). Solo la Municipalidad los corrige.
+                       && request.resource.data.get('nombre', '')
+                            == resource.data.get('nombre', '')
+                       && request.resource.data.get('aldea', '')
+                            == resource.data.get('aldea', '')
+                       && request.resource.data.get('aldeaSolicitada', '')
+                            == resource.data.get('aldeaSolicitada', '')
+                       // El teléfono sí es editable, siempre con 8 dígitos (si no
+                       // cambia, no se revalida: otras escrituras del dueño, como
+                       // el token de notificaciones, no deben fallar).
+                       && (request.resource.data.get('telefono', '')
+                             == resource.data.get('telefono', '')
+                           || request.resource.data.get('telefono', '').matches('^[0-9]{8}$'));
 
       // La Municipalidad puede aprobar/editar cualquier cuenta y asignar rol.
       allow update: if esMunicipalidad();
