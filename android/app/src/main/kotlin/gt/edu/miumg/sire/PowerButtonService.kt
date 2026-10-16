@@ -66,6 +66,8 @@ class PowerButtonService : Service() {
     // true mientras corre; el tick baja `segundosRestantes`, actualiza la
     // notificación cada segundo y, al llegar a 0, difunde la alerta.
     private var sosPendiente = false
+    private val candadoGuardado = Any()
+    @Volatile private var ultimoGuardadoMs = 0L
     private var segundosRestantes = 0
 
     private val cuentaRegresiva = object : Runnable {
@@ -386,6 +388,17 @@ class PowerButtonService : Service() {
     }
 
     private fun saveAlert(location: Location?) {
+        // Candado anti-duplicado: dos SOS "Sin ubicación" idénticos en el mismo
+        // segundo indicaron un doble guardado (dos callbacks de ubicación o dos
+        // patrones seguidos). Un solo SOS por [ANTIDUPLICADO_MS].
+        synchronized(candadoGuardado) {
+            val ahora = System.currentTimeMillis()
+            if (ahora - ultimoGuardadoMs < ANTIDUPLICADO_MS) {
+                Log.w(TAG, "SOS duplicado ignorado (${ahora - ultimoGuardadoMs} ms después del anterior)")
+                return
+            }
+            ultimoGuardadoMs = ahora
+        }
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         // Usa el usuario AUTENTICADO EN VIVO, no el guardado en prefs (que puede
         // quedar viejo al cambiar de cuenta). Así idUsuario == request.auth.uid y
@@ -509,6 +522,8 @@ class PowerButtonService : Service() {
     }
 
     companion object {
+
+        private const val ANTIDUPLICADO_MS = 30_000L
         private const val TAG = "SirePower"
 
         /** Edad máxima aceptada de una posición ya conocida para el SOS. */
