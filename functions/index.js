@@ -113,6 +113,9 @@ exports.limpiarCuentaEliminada =
 
 // Bitácora de acciones (quién atendió, resolvió, aprobó, cambió roles…):
 // functions/bitacora.js.
+// Enlace de seguimiento en vivo (lo abre la página web/seguir.html).
+exports.ubicacionEnVivo = require("./seguimiento").ubicacionEnVivo;
+
 exports.registrarCambioDeAlerta =
     require("./bitacora").registrarCambioDeAlerta;
 exports.registrarCambioDeUsuario =

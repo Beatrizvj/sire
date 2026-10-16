@@ -254,15 +254,27 @@ service cloud.firestore {
                        || (resource.data.idUsuario == request.auth.uid
                            && request.resource.data.estado == 'falsa_alarma'));
       // Ubicación EN VIVO: el teléfono del dueño actualiza SOLO su posición
-      // actual, y solo mientras la alerta siga abierta (pendiente o atendida).
+      // actual, mientras la alerta siga abierta, el ciudadano no haya dejado de
+      // compartir y no hayan pasado 2 h desde la alerta (límite real: el del
+      // teléfono puede fallar si Android congela o reinicia el servicio).
       allow update: if resource.data.idUsuario == request.auth.uid
                        && resource.data.estado in ['pendiente', 'atendida']
+                       && !('seguimientoDetenidoEn' in resource.data)
+                       && request.time < resource.data.fecha + duration.value(2, 'h')
                        && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['latitudActual', 'longitudActual',
                                       'precisionActual', 'ubicacionActualEn'])
                        && request.resource.data.latitudActual is number
                        && request.resource.data.longitudActual is number
                        && request.resource.data.ubicacionActualEn == request.time;
+      // "Dejar de compartir": el dueño marca SOLO la hora en que cortó el
+      // seguimiento en vivo (una vez). La alerta sigue abierta para la autoridad.
+      allow update: if resource.data.idUsuario == request.auth.uid
+                       && resource.data.estado in ['pendiente', 'atendida']
+                       && !('seguimientoDetenidoEn' in resource.data)
+                       && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['seguimientoDetenidoEn'])
+                       && request.resource.data.seguimientoDetenidoEn == request.time;
       allow delete: if esMunicipalidad();
     }
 

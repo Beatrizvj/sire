@@ -84,4 +84,14 @@ class AlertRepositoryLocal implements AlertRepository {
     ];
     await _prefs.setString(_key, SosAlertModel.encodeList(updated));
   }
+
+  @override
+  Future<void> detenerSeguimiento(String id) async {
+    final current = await getAlerts();
+    final updated = [
+      for (final a in current)
+        a.id == id ? a.copyWith(seguimientoDetenidoEn: DateTime.now()) : a,
+    ];
+    await _prefs.setString(_key, SosAlertModel.encodeList(updated));
+  }
 }

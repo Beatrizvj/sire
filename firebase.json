@@ -35,6 +35,13 @@
       ],
       "rewrites": [
         {
+          "source": "/api/seguimiento",
+          "function": {
+            "functionId": "ubicacionEnVivo",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "**",
           "destination": "/index.html"
         }
@@ -91,6 +98,13 @@
         "**/node_modules/**"
       ],
       "rewrites": [
+        {
+          "source": "/api/seguimiento",
+          "function": {
+            "functionId": "ubicacionEnVivo",
+            "region": "us-central1"
+          }
+        },
         {
           "source": "**",
           "destination": "/index.html"

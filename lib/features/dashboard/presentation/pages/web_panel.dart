@@ -2903,7 +2903,7 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
             child: Tooltip(
               message:
                   '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
-                  '${a.tieneUbicacionEnVivo ? '\nUbicación en vivo' : ''}'
+                  '${a.ubicacionEnVivoActiva() ? '\nUbicación en vivo' : a.tieneUbicacionEnVivo ? '\nÚltima ubicación conocida' : ''}'
                   '\nToque para ver el detalle',
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
@@ -3191,9 +3191,26 @@ class _PinEnVivoState extends State<_PinEnVivo>
   @override
   Widget build(BuildContext context) {
     const verde = Color(0xFF2E7D32);
+    const gris = Color(0xFF8D8480);
+    // Se evalúa en cada cuadro: si deja de llegar ubicación (el ciudadano la
+    // cortó, venció o se cerró la alerta) pasa a gris sin esperar otro dato.
     return AnimatedBuilder(
       animation: _latido,
-      builder: (_, child) => Stack(
+      builder: (_, child) => !widget.alerta.ubicacionEnVivoActiva()
+          ? Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: gris,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: const [
+                  BoxShadow(blurRadius: 4, color: Colors.black26)
+                ],
+              ),
+              child: const Icon(Icons.person, size: 14, color: Colors.white),
+            )
+          : Stack(
         alignment: Alignment.center,
         children: [
           Container(
@@ -3242,6 +3259,8 @@ class _LeyendaMapa extends StatelessWidget {
               SizedBox(height: 4),
               _LeyendaItemMapa(
                   color: Color(0xFF2E7D32), texto: 'En vivo (se mueve)'),
+              _LeyendaItemMapa(
+                  color: Color(0xFF8D8480), texto: 'Última ubicación (ya no en vivo)'),
             ],
           ),
         ),

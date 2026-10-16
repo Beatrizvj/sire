@@ -92,6 +92,8 @@ class AlertRepositoryFirestore implements AlertRepository {
       longitudActual: (data['longitudActual'] as num?)?.toDouble(),
       precisionActual: (data['precisionActual'] as num?)?.toDouble(),
       ubicacionActualEn: (data['ubicacionActualEn'] as Timestamp?)?.toDate(),
+      seguimientoDetenidoEn:
+          (data['seguimientoDetenidoEn'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -174,4 +176,10 @@ class AlertRepositoryFirestore implements AlertRepository {
   @override
   Future<void> updateCategoria(String id, String categoria) =>
       _alertas.doc(id).update({'categoria': categoria, ..._marcaActor()});
+
+  // Sin marca de actor: la regla solo admite este campo (lo escribe el dueño).
+  @override
+  Future<void> detenerSeguimiento(String id) => _alertas
+      .doc(id)
+      .update({'seguimientoDetenidoEn': FieldValue.serverTimestamp()});
 }

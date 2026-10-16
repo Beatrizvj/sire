@@ -336,6 +336,14 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
                   : 'Cambiar categoría (${alert.categoria})'),
               onTap: () => Navigator.pop(sheetCtx, 'clasificar'),
             ),
+            if (!alert.seguimientoTerminado())
+              ListTile(
+                leading: const Icon(Icons.location_off_outlined),
+                title: const Text('Dejar de compartir mi ubicación'),
+                subtitle: const Text(
+                    'Las autoridades ya no verán dónde estás en tiempo real.'),
+                onTap: () => Navigator.pop(sheetCtx, 'dejar'),
+              ),
             if (cancelable)
               ListTile(
                 leading: const Icon(Icons.cancel_outlined),
@@ -351,6 +359,45 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
       await _clasificar(alert);
     } else if (accion == 'cancelar') {
       await _confirmarCancelacion(alert);
+    } else if (accion == 'dejar') {
+      await _confirmarDejarDeCompartir(alert);
+    }
+  }
+
+  Future<void> _confirmarDejarDeCompartir(SosAlert alert) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('¿Ya pasó la emergencia?'),
+        content: const Text(
+          'Dejarás de compartir tu ubicación en vivo. Tu alerta sigue abierta '
+          'hasta que la autoridad la cierre, y ellos conservan la última '
+          'ubicación que recibieron.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Sí, dejar de compartir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    try {
+      await ref.read(alertsControllerProvider.notifier).dejarDeCompartir(alert.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(
+            content: Text('Ya no compartes tu ubicación en vivo.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo detener: $e')));
     }
   }
 

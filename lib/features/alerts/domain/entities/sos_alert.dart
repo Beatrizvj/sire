@@ -30,6 +30,7 @@ class SosAlert extends Equatable {
     this.longitudActual,
     this.precisionActual,
     this.ubicacionActualEn,
+    this.seguimientoDetenidoEn,
   });
 
   final String id;
@@ -80,9 +81,36 @@ class SosAlert extends Equatable {
   final double? precisionActual;
   final DateTime? ubicacionActualEn;
 
-  /// Hay seguimiento en vivo.
+  /// Momento en que el ciudadano tocó "Dejar de compartir" (null si no lo hizo).
+  final DateTime? seguimientoDetenidoEn;
+
+  /// Duración máxima del seguimiento en vivo (igual que el servicio nativo y
+  /// las reglas de Firestore).
+  static const duracionSeguimiento = Duration(hours: 2);
+
+  /// Antigüedad máxima del último punto para considerarlo "en vivo" (el
+  /// teléfono manda uno cada ~10 s).
+  static const vigenciaPuntoEnVivo = Duration(minutes: 2);
+
+  /// Hay al menos un punto de seguimiento (en vivo o ya detenido).
   bool get tieneUbicacionEnVivo =>
       latitudActual != null && longitudActual != null;
+
+  /// El seguimiento terminó: el ciudadano lo cortó, la alerta se cerró o pasó
+  /// [duracionSeguimiento].
+  bool seguimientoTerminado({DateTime? ahora}) =>
+      seguimientoDetenidoEn != null ||
+      !sigueAbierta ||
+      (ahora ?? DateTime.now()).difference(timestamp) >= duracionSeguimiento;
+
+  /// El punto de seguimiento es realmente EN VIVO (pin verde que late). Si no,
+  /// se muestra como "última ubicación" (pin gris).
+  bool ubicacionEnVivoActiva({DateTime? ahora}) {
+    final t = ubicacionActualEn;
+    if (!tieneUbicacionEnVivo || t == null) return false;
+    if (seguimientoTerminado(ahora: ahora)) return false;
+    return (ahora ?? DateTime.now()).difference(t) < vigenciaPuntoEnVivo;
+  }
 
   /// Dónde está la persona AHORA: la ubicación en vivo si existe; si no, la
   /// del momento del SOS. Para llegar a ella (mapa, "Cómo llegar").
@@ -109,6 +137,7 @@ class SosAlert extends Equatable {
     DateTime? resueltaEn,
     String? atendidaPor,
     String? atendidaPorNombre,
+    DateTime? seguimientoDetenidoEn,
   }) =>
       SosAlert(
         id: id,
@@ -132,6 +161,8 @@ class SosAlert extends Equatable {
         longitudActual: longitudActual,
         precisionActual: precisionActual,
         ubicacionActualEn: ubicacionActualEn,
+        seguimientoDetenidoEn:
+            seguimientoDetenidoEn ?? this.seguimientoDetenidoEn,
       );
 
   @override
@@ -157,6 +188,7 @@ class SosAlert extends Equatable {
         longitudActual,
         precisionActual,
         ubicacionActualEn,
+        seguimientoDetenidoEn,
       ];
 }
 

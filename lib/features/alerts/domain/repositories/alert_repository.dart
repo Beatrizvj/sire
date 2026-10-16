@@ -32,4 +32,8 @@ abstract interface class AlertRepository {
 
   /// R3: asigna/cambia la categoría del incidente (clasificar una alerta).
   Future<void> updateCategoria(String id, String categoria);
+
+  /// "Dejar de compartir": el ciudadano corta el seguimiento en vivo de SU
+  /// alerta (queda `seguimientoDetenidoEn`). La alerta sigue abierta.
+  Future<void> detenerSeguimiento(String id);
 }

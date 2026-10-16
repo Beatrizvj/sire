@@ -185,6 +185,17 @@ class AlertsController extends Notifier<AlertsState> {
     ]);
   }
 
+  /// "Dejar de compartir mi ubicación": detiene el envío del teléfono y lo
+  /// marca en la alerta, que sigue abierta para la autoridad.
+  Future<void> dejarDeCompartir(String id) async {
+    await ref.read(powerButtonBridgeProvider).stopLiveTracking();
+    await ref.read(alertRepositoryProvider).detenerSeguimiento(id);
+    state = state.copyWith(alerts: [
+      for (final a in state.alerts)
+        a.id == id ? a.copyWith(seguimientoDetenidoEn: DateTime.now()) : a,
+    ]);
+  }
+
   Future<void> clearHistory() async {
     await ref.read(alertRepositoryProvider).clear();
     state = state.copyWith(alerts: const []);

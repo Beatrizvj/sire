@@ -53,16 +53,15 @@ class _IndicadorEnVivoState extends State<IndicadorEnVivo> {
     final a = widget.alerta;
     if (!a.tieneUbicacionEnVivo) return const SizedBox.shrink();
     final en = a.ubicacionActualEn;
-    // "En vivo" solo si la alerta sigue abierta y el último punto es reciente;
-    // si no, es la última ubicación conocida.
-    final reciente =
-        en != null && DateTime.now().difference(en) < const Duration(minutes: 2);
-    final vivo = a.sigueAbierta && reciente;
+    // "En vivo" solo si el seguimiento sigue activo (alerta abierta, sin
+    // cortar, < 2 h) y el último punto es reciente; si no, última ubicación.
+    final vivo = a.ubicacionEnVivoActiva();
     final color = vivo ? const Color(0xFF2E7D32) : const Color(0xFF8D6E63);
     final partes = [
       vivo ? 'En vivo' : 'Última ubicación',
       if (en != null) haceCuanto(en),
       if (a.precisionActual != null) '±${a.precisionActual!.round()} m',
+      if (a.seguimientoDetenidoEn != null) 'el ciudadano dejó de compartir',
     ];
     return Row(
       mainAxisSize: MainAxisSize.min,

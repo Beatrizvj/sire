@@ -8,7 +8,13 @@ import 'package:sire/features/alerts/domain/usecases/trigger_sos.dart';
 
 /// Ubicación en vivo: a dónde llevar a la autoridad y formato del id del SOS.
 void main() {
-  SosAlert alerta({double? latAct, double? lngAct, AlertStatus? estado}) =>
+  SosAlert alerta({
+    double? latAct,
+    double? lngAct,
+    AlertStatus? estado,
+    DateTime? puntoEn,
+    DateTime? detenidoEn,
+  }) =>
       SosAlert(
         id: 'x',
         latitude: 14.89,
@@ -18,6 +24,8 @@ void main() {
         status: estado ?? AlertStatus.pendiente,
         latitudActual: latAct,
         longitudActual: lngAct,
+        ubicacionActualEn: puntoEn,
+        seguimientoDetenidoEn: detenidoEn,
       );
 
   test('sin seguimiento, lleva a la ubicación del SOS', () {
@@ -54,5 +62,50 @@ void main() {
         'hace 8 s');
     expect(haceCuanto(ahora.subtract(const Duration(minutes: 3)), ahora: ahora),
         'hace 3 min');
+  });
+
+  group('en vivo vs. última ubicación (pin verde / gris)', () {
+    final inicio = DateTime(2026, 10, 15, 8);
+    SosAlert conPunto({AlertStatus? estado, DateTime? detenidoEn}) => alerta(
+          latAct: 14.90,
+          lngAct: -91.61,
+          estado: estado,
+          puntoEn: inicio.add(const Duration(minutes: 30)),
+          detenidoEn: detenidoEn,
+        );
+    final ahora = inicio.add(const Duration(minutes: 30, seconds: 20));
+
+    test('punto reciente con la alerta abierta = en vivo', () {
+      expect(conPunto().ubicacionEnVivoActiva(ahora: ahora), isTrue);
+    });
+
+    test('punto viejo (>2 min) = última ubicación', () {
+      expect(
+          conPunto().ubicacionEnVivoActiva(
+              ahora: ahora.add(const Duration(minutes: 3))),
+          isFalse);
+    });
+
+    test('el ciudadano dejó de compartir = termina', () {
+      final a = conPunto(detenidoEn: ahora);
+      expect(a.seguimientoTerminado(ahora: ahora), isTrue);
+      expect(a.ubicacionEnVivoActiva(ahora: ahora), isFalse);
+    });
+
+    test('alerta cerrada = termina', () {
+      expect(
+          conPunto(estado: AlertStatus.resuelta)
+              .ubicacionEnVivoActiva(ahora: ahora),
+          isFalse);
+    });
+
+    test('a las 2 h de la alerta termina aunque sigan llegando puntos', () {
+      final tarde = inicio.add(const Duration(hours: 2, minutes: 1));
+      final a = alerta(
+          latAct: 14.9, lngAct: -91.6, puntoEn: tarde);
+      expect(a.seguimientoTerminado(ahora: tarde), isTrue);
+      expect(a.ubicacionEnVivoActiva(ahora: tarde), isFalse);
+      expect(alerta().seguimientoTerminado(ahora: ahora), isFalse);
+    });
   });
 }

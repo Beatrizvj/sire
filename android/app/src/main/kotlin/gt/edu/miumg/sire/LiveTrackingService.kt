@@ -2,6 +2,7 @@ package gt.edu.miumg.sire
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -35,15 +36,20 @@ import com.google.firebase.firestore.ListenerRegistration
  * lleva a donde la persona está AHORA, no a donde estaba al enviar el SOS.
  *
  * Funciona con la app cerrada o la pantalla apagada (permiso de ubicación "todo
- * el tiempo"). Se detiene solo cuando la alerta pasa a Resuelta o Falsa alarma,
- * si se borra, o al cumplir [DURACION_MAX_MS], para no gastar batería ni seguir
- * a nadie más de lo necesario. Android muestra una notificación fija mientras
+ * el tiempo"). Se detiene cuando la alerta pasa a Resuelta o Falsa alarma, si
+ * se borra, si el ciudadano toca "Dejar de compartir" (notificación o app:
+ * `seguimientoDetenidoEn`), o al cumplir [DURACION_MAX_MS] desde la `fecha` de
+ * la alerta (hora real, no un temporizador: el de Android se congela en reposo
+ * y se reinicia con el servicio). Las reglas de Firestore aplican el mismo
+ * límite. Android muestra una notificación fija mientras
  * comparte la ubicación (transparencia para el ciudadano).
  */
 class LiveTrackingService : Service() {
 
     private lateinit var fused: FusedLocationProviderClient
     private var alertaId: String? = null
+    /** Fin del seguimiento (epoch ms) = fecha de la alerta + [DURACION_MAX_MS]. */
+    private var plazoMs: Long? = null
     private var escuchaAlerta: ListenerRegistration? = null
     private val handler = Handler(Looper.getMainLooper())
     private val detenerPorTiempo = Runnable { detener("tiempo máximo alcanzado") }
@@ -63,6 +69,10 @@ class LiveTrackingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             detener("detenido por la app")
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_DEJAR_DE_COMPARTIR) {
+            dejarDeCompartir()
             return START_NOT_STICKY
         }
         val id = intent?.getStringExtra(EXTRA_ALERTA_ID)
@@ -116,6 +126,24 @@ class LiveTrackingService : Service() {
                 val estado = snap.getString("estado")
                 if (!snap.exists() || estado == "resuelta" || estado == "falsa_alarma") {
                     detener("alerta cerrada ($estado)")
+                    return@addSnapshotListener
+                }
+                if (snap.contains("seguimientoDetenidoEn")) {
+                    detener("el ciudadano dejó de compartir")
+                    return@addSnapshotListener
+                }
+                val fecha = snap.getTimestamp("fecha")?.toDate()?.time
+                    ?: return@addSnapshotListener
+                plazoMs = fecha + DURACION_MAX_MS
+                if (vencido()) {
+                    detener("tiempo máximo alcanzado")
+                } else {
+                    // Respaldo; la verificación real va en cada envío (vencido()).
+                    handler.removeCallbacks(detenerPorTiempo)
+                    handler.postDelayed(
+                        detenerPorTiempo,
+                        plazoMs!! - System.currentTimeMillis(),
+                    )
                 }
             }
 
@@ -123,8 +151,28 @@ class LiveTrackingService : Service() {
         handler.postDelayed(detenerPorTiempo, DURACION_MAX_MS)
     }
 
+    private fun vencido() = plazoMs?.let { System.currentTimeMillis() >= it } ?: false
+
+    /** "Dejar de compartir" desde la notificación: lo marca en la alerta y se detiene. */
+    private fun dejarDeCompartir() {
+        val id = alertaId
+            ?: getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_ALERTA, null)
+        if (id != null) {
+            FirebaseFirestore.getInstance().collection("alertas").document(id)
+                .update("seguimientoDetenidoEn", FieldValue.serverTimestamp())
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "No se pudo marcar el fin del seguimiento: ${e.message}")
+                }
+        }
+        detener("el ciudadano dejó de compartir")
+    }
+
     private fun enviar(loc: Location) {
         val id = alertaId ?: return
+        if (vencido()) {
+            detener("tiempo máximo alcanzado")
+            return
+        }
         FirebaseFirestore.getInstance().collection("alertas").document(id)
             .update(
                 mapOf(
@@ -148,6 +196,7 @@ class LiveTrackingService : Service() {
         escuchaAlerta = null
         handler.removeCallbacks(detenerPorTiempo)
         alertaId = null
+        plazoMs = null
         getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(KEY_ALERTA).apply()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -176,8 +225,19 @@ class LiveTrackingService : Service() {
     private fun notificacion() =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SIRE · Compartiendo tu ubicación")
-            .setContentText("Las autoridades ven tu ubicación en vivo hasta que se cierre tu alerta.")
+            .setContentText("Las autoridades ven tu ubicación en vivo hasta que se cierre tu alerta (máx. 2 h).")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Dejar de compartir",
+                PendingIntent.getService(
+                    this,
+                    1,
+                    Intent(this, LiveTrackingService::class.java)
+                        .setAction(ACTION_DEJAR_DE_COMPARTIR),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
@@ -190,6 +250,7 @@ class LiveTrackingService : Service() {
         private const val KEY_ALERTA = "alerta_id"
         const val EXTRA_ALERTA_ID = "alertaId"
         const val ACTION_STOP = "gt.edu.miumg.sire.DETENER_SEGUIMIENTO"
+        const val ACTION_DEJAR_DE_COMPARTIR = "gt.edu.miumg.sire.DEJAR_DE_COMPARTIR"
 
         private const val INTERVALO_MS = 10_000L
         private const val INTERVALO_MIN_MS = 5_000L

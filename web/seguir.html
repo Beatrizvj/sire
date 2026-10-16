@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Ubicación en vivo — SIRE</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <style>
+    :root {
+      --rojo: #C62828;
+      --verde: #1E8E3E;
+      --fondo: #1A1210;
+      --tarjeta: #241A18;
+      --texto: #F5EAE8;
+      --tenue: #C9B6B2;
+      --linea: #3A2A27;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; display: flex; flex-direction: column;
+      background: var(--fondo); color: var(--texto);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-bottom: 1px solid var(--linea);
+    }
+    .logo {
+      width: 40px; height: 40px; border-radius: 10px; flex: none;
+      background: var(--rojo); display: flex; align-items: center; justify-content: center;
+      font-weight: 800; color: #fff;
+    }
+    h1 { font-size: 17px; margin: 0; }
+    .sub { color: var(--tenue); font-size: 13px; margin: 2px 0 0; }
+    #mapa { flex: 1; min-height: 300px; }
+    .barra {
+      padding: 12px 16px; border-top: 1px solid var(--linea); background: var(--tarjeta);
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+      font-size: 14px;
+    }
+    .estado { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px; }
+    .punto { width: 10px; height: 10px; border-radius: 50%; background: var(--tenue); flex: none; }
+    .punto.vivo { background: var(--verde); animation: late 1.4s infinite; }
+    @keyframes late { 50% { opacity: .35; } }
+    .btn {
+      display: inline-block; padding: 10px 16px; border-radius: 10px;
+      background: var(--verde); color: #fff; text-decoration: none; font-weight: 600;
+    }
+    .btn[hidden] { display: none; }
+    .aviso {
+      margin: 32px 16px; padding: 20px; border-radius: 14px; text-align: center;
+      background: var(--tarjeta); border: 1px solid var(--linea); color: var(--tenue);
+    }
+    .aviso[hidden], #mapa[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">S</div>
+    <div>
+      <h1 id="titulo">Alerta SOS</h1>
+      <p class="sub" id="detalle">Cargando…</p>
+    </div>
+  </header>
+
+  <div id="mapa"></div>
+  <div class="aviso" id="aviso" hidden></div>
+
+  <div class="barra">
+    <div class="estado"><span class="punto" id="punto"></span><span id="estado">Consultando ubicación…</span></div>
+    <a class="btn" id="llegar" target="_blank" rel="noopener" hidden>Cómo llegar</a>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+    const ESTADOS = {
+      pendiente: "Pendiente", en_proceso: "En atención", atendida: "En atención",
+      resuelta: "Resuelta", falsa_alarma: "Falsa alarma",
+    };
+    const token = new URLSearchParams(location.search).get("t") || "";
+    const $ = (id) => document.getElementById(id);
+    let mapa, marcador, circulo, centrado = false, temporizador;
+
+    function hace(iso) {
+      if (!iso) return "";
+      const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
+      if (s < 60) return `hace ${s} s`;
+      if (s < 3600) return `hace ${Math.round(s / 60)} min`;
+      return `hace ${Math.round(s / 3600)} h`;
+    }
+
+    function mostrarAviso(texto) {
+      $("mapa").hidden = true;
+      $("aviso").hidden = false;
+      $("aviso").textContent = texto;
+      $("llegar").hidden = true;
+    }
+
+    function pintar(u) {
+      if (!mapa) {
+        mapa = L.map("mapa");
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19, attribution: "© OpenStreetMap",
+        }).addTo(mapa);
+      }
+      const pos = [u.lat, u.lng];
+      if (!marcador) {
+        marcador = L.circleMarker(pos, {
+          radius: 9, color: "#fff", weight: 3, fillColor: "#1E8E3E", fillOpacity: 1,
+        }).addTo(mapa);
+        circulo = L.circle(pos, { radius: u.precision || 0, color: "#1E8E3E", weight: 1, fillOpacity: .12 }).addTo(mapa);
+      } else {
+        marcador.setLatLng(pos);
+        circulo.setLatLng(pos).setRadius(u.precision || 0);
+      }
+      if (!centrado) { mapa.setView(pos, 17); centrado = true; }
+      const llegar = $("llegar");
+      llegar.href = `https://www.google.com/maps/dir/?api=1&destination=${u.lat},${u.lng}`;
+      llegar.hidden = false;
+    }
+
+    async function consultar() {
+      try {
+        const r = await fetch(`/api/seguimiento?t=${encodeURIComponent(token)}`, { cache: "no-store" });
+        const d = await r.json();
+        if (!r.ok) { mostrarAviso(d.error || "Enlace no válido."); return parar(); }
+
+        $("titulo").textContent = `Alerta SOS · ${d.nombre}`;
+        $("detalle").textContent =
+          [d.categoria, d.aldea, ESTADOS[d.estado] || d.estado].filter(Boolean).join(" · ");
+
+        if (!d.activo) {
+          mostrarAviso({
+            detenido: "El ciudadano dejó de compartir su ubicación en vivo.",
+            cerrada: "El seguimiento terminó: la alerta ya se cerró.",
+          }[d.motivo] || "El seguimiento terminó: pasaron más de 2 horas desde la alerta.");
+          $("estado").textContent = "Seguimiento terminado";
+          $("punto").className = "punto";
+          return parar();
+        }
+        if (!d.ubicacion) {
+          $("estado").textContent = "Sin ubicación todavía. Se actualiza sola cada 10 s.";
+          return;
+        }
+        pintar(d.ubicacion);
+        const p = d.ubicacion.precision ? ` (±${Math.round(d.ubicacion.precision)} m)` : "";
+        $("punto").className = d.ubicacion.enVivo ? "punto vivo" : "punto";
+        $("estado").textContent = (d.ubicacion.enVivo ? "En vivo" : "Última ubicación recibida") +
+          ` · actualizada ${hace(d.ubicacion.actualizadoEn)}${p}`;
+      } catch (e) {
+        $("estado").textContent = "Sin conexión. Reintentando…";
+      }
+    }
+
+    function parar() { clearInterval(temporizador); }
+
+    if (!/^[0-9a-f]{32}$/.test(token)) {
+      mostrarAviso("Enlace no válido.");
+      $("detalle").textContent = "";
+      $("estado").textContent = "";
+    } else {
+      consultar();
+      temporizador = setInterval(consultar, 10000);
+    }
+  </script>
+</body>
+</html>

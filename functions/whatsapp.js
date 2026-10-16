@@ -35,6 +35,10 @@
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {getFirestore} = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
+const {crearTokenSeguimiento} = require("./seguimiento");
+
+// Dominio público del panel (para el enlace de seguimiento en vivo).
+const URL_BASE = process.env.SIRE_URL_BASE || "https://siresanmiguel.com";
 
 const GRAPH_VERSION = "v21.0";
 
@@ -107,7 +111,7 @@ function crearEmisor() {
     const contentSid = env.TWILIO_CONTENT_SID;
     return {
       nombre: "Twilio",
-      enviar: (to, params) => {
+      enviar: (to, params, enlaceVivo) => {
         const base = {from: env.TWILIO_WHATSAPP_FROM, to: `whatsapp:${to}`};
         if (contentSid) {
           // Plantilla aprobada: mismas variables {{1}}..{{4}} que en Meta.
@@ -127,7 +131,9 @@ function crearEmisor() {
             `Ciudadano: ${nombre}\n` +
             `Categoría: ${categoria}\n` +
             `Comunidad: ${comunidad}\n` +
-            `Ubicación: ${ubicacion}`,
+            `Ubicación: ${ubicacion}` +
+            (enlaceVivo ? `
+📍 Seguir en vivo: ${enlaceVivo}` : ""),
         });
       },
     };
@@ -226,8 +232,18 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
         "Ubicacion no disponible";
       const params = [nombre, categoria, comunidad, ubicacion];
 
+      // Enlace privado de seguimiento en vivo (functions/seguimiento.js). Las
+      // plantillas aprobadas no lo llevan (tienen 4 variables fijas).
+      let enlaceVivo = null;
+      try {
+        const token = await crearTokenSeguimiento(db, event.params.alertaId);
+        enlaceVivo = `${URL_BASE}/seguir.html?t=${token}`;
+      } catch (e) {
+        logger.warn(`No se pudo crear el enlace de seguimiento: ${e && e.message}`);
+      }
+
       const resultados = await Promise.allSettled(
-          unicos.map((tel) => emisor.enviar(tel, params)),
+          unicos.map((tel) => emisor.enviar(tel, params, enlaceVivo)),
       );
 
       let ok = 0;
