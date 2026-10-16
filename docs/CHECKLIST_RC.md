@@ -66,6 +66,8 @@ Notas técnicas para la defensa:
       código actual cada ruta guarda una sola vez y el botón se bloquea mientras
       envía. **Volver a probar:** 1 SOS en pantalla y 1 por botón de encendido con
       el GPS apagado → debe aparecer exactamente 1 alerta por cada uno.
+      *(16-oct-2026: se agregó un candado en `PowerButtonService.saveAlert` que
+      ignora un segundo guardado en menos de 30 s; commit 8c5f094.)*
 - [ ] WhatsApp en **sandbox**: cada destinatario debe enviar `join <código>` al
       +1 415 523 8886 (QR: [docs/qr-join-sandbox.png](qr-join-sandbox.png)). La
       unión vence a las 72 h y solo se entregan mensajes dentro de las 24 h
@@ -82,6 +84,14 @@ Notas técnicas para la defensa:
       aldeas y la Alcaldía Auxiliar; **asistió solo la Alcaldía Auxiliar** (3
       integrantes). La prueba con los COCODE se reprograma (a distancia, con el
       guion y el enlace de descarga) antes de la entrega del 24-oct-2026.
+
+## Seguimiento en vivo (v1.0.0+12, 16-oct-2026) — por probar en campo
+
+- [ ] El WhatsApp trae **📍 Seguir en vivo** y el enlace abre el mapa (siresanmiguel.com/seguir.html)
+- [ ] El punto se mueve al caminar y "Cómo llegar" abre Google Maps
+- [ ] **Dejar de compartir** (notificación y app): la notificación desaparece, el enlace dice "El ciudadano dejó de compartir" y el panel muestra el pin gris
+- [ ] Al marcar Resuelta, el enlace dice "la alerta ya se cerró"
+- [ ] A las 2 h de la alerta el teléfono deja de enviar y el pin pasa a gris (lo garantizan también las reglas)
 
 ## Antes de entregar
 

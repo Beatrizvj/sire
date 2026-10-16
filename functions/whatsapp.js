@@ -98,6 +98,16 @@ async function enviarPlantillaMeta({token, phoneNumberId, plantilla, idioma, to,
  * { nombre, enviar(to, params) } o null si faltan credenciales.
  * params = [nombre, categoría, comunidad, ubicación].
  */
+/**
+ * Las plantillas tienen 4 variables fijas: si hay enlace de seguimiento en
+ * vivo, va en {{4}} (ubicación) en lugar del enlace fijo de Google Maps, porque
+ * ya muestra el mapa y sigue a la persona.
+ */
+function conEnlaceVivo(params, enlaceVivo) {
+  if (!enlaceVivo) return params;
+  return [...params.slice(0, 3), enlaceVivo];
+}
+
 function crearEmisor() {
   const env = process.env;
   const hayTwilio =
@@ -116,7 +126,8 @@ function crearEmisor() {
         if (contentSid) {
           // Plantilla aprobada: mismas variables {{1}}..{{4}} que en Meta.
           const variables = {};
-          params.forEach((v, i) => (variables[String(i + 1)] = v));
+          conEnlaceVivo(params, enlaceVivo)
+              .forEach((v, i) => (variables[String(i + 1)] = v));
           return cliente.messages.create({
             ...base,
             contentSid,
@@ -132,8 +143,7 @@ function crearEmisor() {
             `Categoría: ${categoria}\n` +
             `Comunidad: ${comunidad}\n` +
             `Ubicación: ${ubicacion}` +
-            (enlaceVivo ? `
-📍 Seguir en vivo: ${enlaceVivo}` : ""),
+            (enlaceVivo ? `\n📍 Seguir en vivo: ${enlaceVivo}` : ""),
         });
       },
     };
@@ -142,14 +152,14 @@ function crearEmisor() {
   if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID) return null;
   return {
     nombre: "Meta",
-    enviar: (to, params) =>
+    enviar: (to, params, enlaceVivo) =>
       enviarPlantillaMeta({
         token: env.WHATSAPP_TOKEN,
         phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
         plantilla: env.WHATSAPP_TEMPLATE || "sire_alerta_sos",
         idioma: env.WHATSAPP_TEMPLATE_LANG || "es",
         to,
-        params,
+        params: conEnlaceVivo(params, enlaceVivo),
       }),
   };
 }
@@ -232,8 +242,8 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
         "Ubicacion no disponible";
       const params = [nombre, categoria, comunidad, ubicacion];
 
-      // Enlace privado de seguimiento en vivo (functions/seguimiento.js). Las
-      // plantillas aprobadas no lo llevan (tienen 4 variables fijas).
+      // Enlace privado de seguimiento en vivo (functions/seguimiento.js). En
+      // texto libre va en una línea aparte; con plantilla, en {{4}}.
       let enlaceVivo = null;
       try {
         const token = await crearTokenSeguimiento(db, event.params.alertaId);
