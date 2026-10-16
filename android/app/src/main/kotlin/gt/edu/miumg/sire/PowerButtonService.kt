@@ -427,7 +427,11 @@ class PowerButtonService : Service() {
             // Una sola escritura de creación con coordenadas + dirección. saveAlert
             // ya corre en ioExecutor, por lo que el reverseGeocode síncrono de arriba
             // no bloquea el hilo principal.
-            doc.set(data)
+            val escritura = doc.set(data)
+            // Seguimiento en vivo desde ya (aunque la escritura quede en cola
+            // por falta de señal): la autoridad verá a la persona moverse.
+            LiveTrackingService.iniciar(this, doc.id)
+            escritura
                 .addOnSuccessListener {
                     // Solo se avisa "enviado" si de verdad se guardó (antes se
                     // avisaba aunque fallara, por eso parecía enviado sin llegar).

@@ -16,6 +16,8 @@ import '../../../alerts/presentation/widgets/alert_status_chip.dart';
 import '../../../alerts/presentation/widgets/new_alert_alarm.dart';
 import '../../../audit/data/audit_repository.dart';
 import '../../../audit/domain/audit_entry.dart';
+import '../../../audit/presentation/bitacora.dart';
+import '../../../alerts/presentation/widgets/ubicacion_en_vivo.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../communities/aldeas_providers.dart';
 import '../../../identity/data/identity_repository.dart';
@@ -53,11 +55,13 @@ const _secciones = <(IconData, String)>[
   (Icons.insights_outlined, 'Reportes'),
   (Icons.settings_outlined, 'Configuración'),
   (Icons.account_circle_outlined, 'Mi perfil'),
+  (Icons.history, 'Bitácora'),
 ];
 
 // Índices de sección (para badges y ruteo legible).
 const _ixAlertas = 1;
 const _ixAprobaciones = 3;
+const _ixBitacora = 9;
 
 // Secciones SOLO municipales (vistas de todo el municipio): Comunidades (4) y
 // Configuración (7).
@@ -66,11 +70,17 @@ const _seccionesSoloMunicipalidad = {4, 7};
 /// Índices de sección visibles según el usuario. La Municipalidad ve todas; las
 /// autoridades de aldea, todas menos las municipales, y Aprobaciones solo si
 /// son coordinadoras o tienen la aprobación delegada. "Mi perfil" lo ven todos.
+/// Orden del menú (índices de [_secciones]): operación, gestión de personas,
+/// administración y, al final, lo personal.
+const _ordenMenu = [0, 1, 5, 6, 2, 3, 4, 9, 7, 8];
+
 List<int> _seccionesVisibles(AppUser? actor) => [
-      for (var i = 0; i < _secciones.length; i++)
+      for (final i in _ordenMenu)
         if (actor?.rol == UserRole.municipalidad ||
             (!_seccionesSoloMunicipalidad.contains(i) &&
-                (i != _ixAprobaciones || (actor?.puedeAprobarCuentas ?? false))))
+                (i != _ixAprobaciones || (actor?.puedeAprobarCuentas ?? false)) &&
+                // Bitácora: Municipalidad y coordinadores de aldea.
+                (i != _ixBitacora || puedeVerBitacora(actor))))
           i,
     ];
 
@@ -99,6 +109,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
         5 => const _MapaEnVivoBody(),
         6 => const ReportesBody(),
         7 => const _ConfiguracionBody(),
+        _ixBitacora => const BitacoraLista(),
         _ => const _ConfiguracionBody(miPerfil: true),
       };
 
@@ -143,7 +154,9 @@ class _WebPanelState extends ConsumerState<WebPanel> {
             ColorScheme.fromSeed(seedColor: _brand, brightness: Brightness.light),
         scaffoldBackgroundColor: _bg,
       ),
-      child: Container(color: _bg, child: _cuerpo(seccionActual)),
+      // Material (no Container) para que el texto sin color explícito tome el
+      // estilo del tema claro aunque el navegador esté en modo oscuro.
+      child: Material(color: _bg, child: _cuerpo(seccionActual)),
     );
 
     final Widget scaffold = compacto
@@ -373,7 +386,10 @@ class _TopBar extends StatelessWidget {
         children: [
           Text(titulo,
               style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1F1A1A))),
           const Spacer(),
           _BotonActivarSonido(
               activado: sonidoActivado, onActivar: onActivarSonido),
@@ -955,6 +971,10 @@ class _AlertaCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _CampoAlerta(icono: Icons.place_outlined, texto: ubic),
+          if (alerta.tieneUbicacionEnVivo) ...[
+            const SizedBox(height: 4),
+            IndicadorEnVivo(alerta: alerta, compacto: true),
+          ],
           const SizedBox(height: 4),
           _CampoAlerta(
             icono: Icons.sensors_outlined,
@@ -1525,7 +1545,10 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
         await ref.read(auditRepositoryProvider).registrar(AuditEntry(
               accion: 'eliminar_usuario',
               actorUid: actor.id,
+              actorNombre: actor.nombre,
               actorRol: actor.rol.value,
+              actorCoordinador: actor.esCoordinador,
+              aldea: widget.usuario.aldea,
               objetivoUid: widget.usuario.id,
               objetivoNombre: widget.usuario.nombre,
             ));
@@ -2101,7 +2124,10 @@ Future<void> verDpi(
   await ref.read(auditRepositoryProvider).registrar(AuditEntry(
         accion: 'ver_foto_id',
         actorUid: actor.id,
+        actorNombre: actor.nombre,
         actorRol: actor.rol.value,
+        actorCoordinador: actor.esCoordinador,
+        aldea: objetivo.aldea.isNotEmpty ? objetivo.aldea : objetivo.aldeaSolicitada,
         objetivoUid: objetivo.id,
         objetivoNombre: objetivo.nombre,
       ));
@@ -2795,7 +2821,8 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
             .where((a) => !(a.latitude == 0 && a.longitude == 0))
             .toList();
         // Alertas activas (pendientes o en atención): marcadores del mapa en vivo.
-        final activas = conCoords
+        final activas = alerts
+            .where((a) => a.tieneUbicacionParaLlegar)
             .where((a) =>
                 a.status == AlertStatus.pendiente ||
                 a.status == AlertStatus.atendida)
@@ -2868,23 +2895,96 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
   List<Marker> _marcadores(List<SosAlert> activas) => [
         for (final a in activas.take(120))
           Marker(
-            point: LatLng(a.latitude, a.longitude),
-            width: 44,
-            height: 44,
+            // Donde está la persona AHORA (ubicación en vivo si la hay): el
+            // marcador se mueve solo cuando llega una nueva posición.
+            point: LatLng(a.latitudParaLlegar, a.longitudParaLlegar),
+            width: 56,
+            height: 56,
             child: Tooltip(
               message:
                   '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
-                  '\n${a.address ?? ''}',
-              child: Icon(
-                Icons.location_on,
-                size: 40,
-                color: a.status == AlertStatus.pendiente
-                    ? AppColors.statusPendiente
-                    : AppColors.statusAtendida,
+                  '${a.tieneUbicacionEnVivo ? '\nUbicación en vivo' : ''}'
+                  '\nToque para ver el detalle',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => _detalleMapa(context, a),
+                  child: a.tieneUbicacionEnVivo
+                      ? _PinEnVivo(alerta: a)
+                      : Icon(
+                          Icons.location_on,
+                          size: 40,
+                          color: a.status == AlertStatus.pendiente
+                              ? AppColors.statusPendiente
+                              : AppColors.statusAtendida,
+                        ),
+                ),
               ),
             ),
           ),
       ];
+
+  /// Detalle de la alerta al tocar su marcador, con la ubicación en vivo y
+  /// "Cómo llegar" hacia donde está la persona ahora.
+  void _detalleMapa(BuildContext context, SosAlert alerta) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => Consumer(
+        builder: (context, ref, _) {
+          final a = alertaVigente(ref, alerta);
+          final nombre = (a.userName != null && a.userName!.isNotEmpty)
+              ? a.userName!
+              : 'Ciudadano';
+          final coords = '${a.latitudParaLlegar.toStringAsFixed(5)}, '
+              '${a.longitudParaLlegar.toStringAsFixed(5)}';
+          return AlertDialog(
+            title: Text(nombre),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CampoAlerta(
+                      icono: Icons.report_gmailerrorred_outlined,
+                      texto:
+                          'Incidente: ${a.categoria ?? 'Sin especificar'}'),
+                  const SizedBox(height: 6),
+                  _CampoAlerta(
+                      icono: Icons.flag_outlined,
+                      texto: 'Estado: ${a.status.label}'),
+                  const SizedBox(height: 6),
+                  _CampoAlerta(
+                      icono: Icons.place_outlined,
+                      texto: a.address ?? 'Sin dirección'),
+                  const SizedBox(height: 6),
+                  _CampoAlerta(icono: Icons.my_location, texto: coords),
+                  if (a.tieneUbicacionEnVivo) ...[
+                    const SizedBox(height: 10),
+                    IndicadorEnVivo(alerta: a),
+                  ] else ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Sin ubicación en vivo: se muestra la del momento del SOS '
+                      '(versión anterior de la app o sin señal).',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar'),
+              ),
+              BotonComoLlegar(alerta: a),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   /// Construye los círculos del mapa de calor: la densidad geográfica de los
   /// incidentes. Cada incidente aporta un círculo translúcido cuyo color va de
@@ -3064,6 +3164,64 @@ class _TarjetaSinAlertasMapa extends StatelessWidget {
       );
 }
 
+/// Marcador de una alerta con ubicación EN VIVO: pin verde con un halo que
+/// late, para distinguir a quien se está moviendo.
+class _PinEnVivo extends StatefulWidget {
+  const _PinEnVivo({required this.alerta});
+
+  final SosAlert alerta;
+
+  @override
+  State<_PinEnVivo> createState() => _PinEnVivoState();
+}
+
+class _PinEnVivoState extends State<_PinEnVivo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _latido = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _latido.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const verde = Color(0xFF2E7D32);
+    return AnimatedBuilder(
+      animation: _latido,
+      builder: (_, child) => Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 20 + 34 * _latido.value,
+            height: 20 + 34 * _latido.value,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: verde.withValues(alpha: 0.35 * (1 - _latido.value)),
+            ),
+          ),
+          child!,
+        ],
+      ),
+      child: Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          color: verde,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3),
+          boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
+        ),
+        child: const Icon(Icons.person, size: 14, color: Colors.white),
+      ),
+    );
+  }
+}
+
 class _LeyendaMapa extends StatelessWidget {
   const _LeyendaMapa();
 
@@ -3081,6 +3239,9 @@ class _LeyendaMapa extends StatelessWidget {
               SizedBox(height: 4),
               _LeyendaItemMapa(
                   color: AppColors.statusAtendida, texto: 'En atención'),
+              SizedBox(height: 4),
+              _LeyendaItemMapa(
+                  color: Color(0xFF2E7D32), texto: 'En vivo (se mueve)'),
             ],
           ),
         ),

@@ -38,6 +38,13 @@ class PowerButtonBridge {
 
   Future<bool> stopDetection() => _invokeBool('stopDetection');
 
+  /// Comparte la ubicación EN VIVO en la alerta [alertaId] hasta que se cierre
+  /// (servicio nativo `LiveTrackingService`).
+  Future<bool> startLiveTracking(String alertaId) =>
+      _invokeBool('startLiveTracking', {'alertaId': alertaId});
+
+  Future<bool> stopLiveTracking() => _invokeBool('stopLiveTracking');
+
   /// Consulta si el servicio de detección está corriendo ahora mismo, para que
   /// el switch refleje el estado real al abrir o volver a la app.
   Future<bool> isDetectionRunning() => _invokeBool('isDetectionRunning');

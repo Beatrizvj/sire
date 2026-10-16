@@ -42,6 +42,7 @@ class UsersManagementPage extends ConsumerWidget {
               // demás integrantes consultan la lista (y pueden llamar).
               Widget tarjeta(int i) => _UserTile(
                     user: users[i],
+                    remitente: remitenteSire(actor?.rol, actor?.aldea ?? ''),
                     onTap: (actor != null && actor.puedeEditar(users[i]))
                         ? () => showModalBottomSheet<void>(
                               context: context,
@@ -89,9 +90,13 @@ class UsersManagementPage extends ConsumerWidget {
 }
 
 class _UserTile extends StatelessWidget {
-  const _UserTile({required this.user, required this.onTap});
+  const _UserTile(
+      {required this.user, required this.onTap, required this.remitente});
 
   final AppUser user;
+
+  /// Autoridad que escribe por WhatsApp (ver [remitenteSire]).
+  final String remitente;
   final VoidCallback? onTap;
 
   Future<void> _llamar(BuildContext context) async {
@@ -175,7 +180,8 @@ class _UserTile extends StatelessWidget {
                   tooltip: 'WhatsApp',
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
-                  onPressed: () => abrirWhatsApp(user.telefono, user.nombre),
+                  onPressed: () => abrirWhatsApp(user.telefono, user.nombre,
+                      remitente: remitente),
                 ),
               ],
             ],

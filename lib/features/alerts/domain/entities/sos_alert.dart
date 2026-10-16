@@ -26,6 +26,10 @@ class SosAlert extends Equatable {
     this.resueltaEn,
     this.atendidaPor,
     this.atendidaPorNombre,
+    this.latitudActual,
+    this.longitudActual,
+    this.precisionActual,
+    this.ubicacionActualEn,
   });
 
   final String id;
@@ -69,6 +73,29 @@ class SosAlert extends Equatable {
   final String? atendidaPorNombre;
 
   /// Tiempo de respuesta = desde que se creó la alerta hasta que se atendió.
+  /// Ubicación EN VIVO: la última que mandó el teléfono del ciudadano mientras
+  /// la alerta sigue abierta (null si aún no hay seguimiento).
+  final double? latitudActual;
+  final double? longitudActual;
+  final double? precisionActual;
+  final DateTime? ubicacionActualEn;
+
+  /// Hay seguimiento en vivo.
+  bool get tieneUbicacionEnVivo =>
+      latitudActual != null && longitudActual != null;
+
+  /// Dónde está la persona AHORA: la ubicación en vivo si existe; si no, la
+  /// del momento del SOS. Para llegar a ella (mapa, "Cómo llegar").
+  double get latitudParaLlegar => latitudActual ?? latitude;
+  double get longitudParaLlegar => longitudActual ?? longitude;
+
+  /// Hay algún punto al que llegar.
+  bool get tieneUbicacionParaLlegar => tieneUbicacionEnVivo || tieneUbicacion;
+
+  /// La alerta sigue abierta (el teléfono puede estar compartiendo).
+  bool get sigueAbierta =>
+      status == AlertStatus.pendiente || status == AlertStatus.atendida;
+
   Duration? get tiempoRespuesta => atendidaEn?.difference(timestamp);
 
   /// La alerta trae una ubicación real. 0,0 es el valor centinela para "sin
@@ -101,6 +128,10 @@ class SosAlert extends Equatable {
         resueltaEn: resueltaEn ?? this.resueltaEn,
         atendidaPor: atendidaPor ?? this.atendidaPor,
         atendidaPorNombre: atendidaPorNombre ?? this.atendidaPorNombre,
+        latitudActual: latitudActual,
+        longitudActual: longitudActual,
+        precisionActual: precisionActual,
+        ubicacionActualEn: ubicacionActualEn,
       );
 
   @override
@@ -122,6 +153,10 @@ class SosAlert extends Equatable {
         resueltaEn,
         atendidaPor,
         atendidaPorNombre,
+        latitudActual,
+        longitudActual,
+        precisionActual,
+        ubicacionActualEn,
       ];
 }
 
@@ -134,4 +169,12 @@ String formatearDuracion(Duration d) {
   }
   final m = d.inMinutes % 60;
   return m == 0 ? '${d.inHours} h' : '${d.inHours} h $m min';
+}
+
+/// "hace 8 s", "hace 3 min", "hace 2 h" (antigüedad de la ubicación en vivo).
+String haceCuanto(DateTime t, {DateTime? ahora}) {
+  final d = (ahora ?? DateTime.now()).difference(t);
+  if (d.inSeconds < 60) return 'hace ${d.inSeconds < 0 ? 0 : d.inSeconds} s';
+  if (d.inMinutes < 60) return 'hace ${d.inMinutes} min';
+  return 'hace ${d.inHours} h';
 }

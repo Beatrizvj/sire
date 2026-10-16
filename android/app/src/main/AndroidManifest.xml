@@ -63,6 +63,12 @@
                 android:value="Deteccion del patron de emergencia (3 pulsaciones del boton de encendido) para enviar un SOS con ubicacion." />
         </service>
 
+        <!-- Ubicación EN VIVO del ciudadano mientras su SOS sigue abierto -->
+        <service
+            android:name=".LiveTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <!-- Servicio que escucha las alertas entrantes para las autoridades
              (COCODE / Municipalidad) y hace sonar la alarma en segundo plano -->
         <service

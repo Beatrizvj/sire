@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../core/config/firestore_collections.dart';
 import '../../domain/entities/app_user.dart';
@@ -7,9 +8,10 @@ import '../models/app_user_model.dart';
 
 /// Implementación de [UserRepository] con Cloud Firestore (colección `usuarios`).
 class UserRepositoryFirestore implements UserRepository {
-  UserRepositoryFirestore(this._firestore);
+  UserRepositoryFirestore(this._firestore, this._auth);
 
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection(FirestoreCollections.usuarios);
@@ -29,8 +31,13 @@ class UserRepositoryFirestore implements UserRepository {
       });
 
   @override
-  Future<void> saveUser(AppUser user) =>
-      _users.doc(user.id).set(AppUserModel.toMap(user), SetOptions(merge: true));
+  Future<void> saveUser(AppUser user) => _users.doc(user.id).set({
+        ...AppUserModel.toMap(user),
+        // Quién hace el cambio y cuándo: la bitácora (Cloud Function) lo registra y las
+        // reglas exigen que sea el usuario autenticado.
+        'modificadoPor': _auth.currentUser?.uid,
+        'modificadoEn': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
   @override
   Future<void> deleteUser(String id) => _users.doc(id).delete();

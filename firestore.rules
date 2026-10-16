@@ -71,6 +71,16 @@ service cloud.firestore {
              && request.resource.data.get('estadoCuenta', 'aprobado') == resource.data.get('estadoCuenta', 'aprobado')
              && request.resource.data.get('esResponsable', false) == resource.data.get('esResponsable', false);
     }
+    // Bitácora: quien cambia un documento se identifica con `modificadoPor`
+    // (su propio uid) y `modificadoEn` (hora del servidor), o deja ambos
+    // intactos (versiones anteriores de la app; la bitácora lo registra como
+    // actor desconocido). Nadie puede firmar a nombre de otro.
+    function marcaActorValida() {
+      return (request.resource.data.get('modificadoPor', '') == request.auth.uid
+              && request.resource.data.get('modificadoEn', null) == request.time)
+             || (request.resource.data.get('modificadoPor', '') == resource.data.get('modificadoPor', '')
+                 && request.resource.data.get('modificadoEn', null) == resource.data.get('modificadoEn', null));
+    }
     // R4 (capa servidor): nombre 2-60 caracteres, solo letras (Unicode),
     // espacios, apóstrofo y guion. La lista negra se aplica en el cliente.
     function nombreValido(n) {
@@ -109,6 +119,7 @@ service cloud.firestore {
       // ver identidad ni sus contactos de confianza (RF-11): esos grupos solo
       // los arma una autoridad, no el propio ciudadano.
       allow update: if request.auth.uid == userId
+                       && marcaActorValida()
                        && request.resource.data.get('rol', 'ciudadano')
                             == resource.data.get('rol', 'ciudadano')
                        && request.resource.data.get('estadoCuenta', 'aprobado')
@@ -133,13 +144,14 @@ service cloud.firestore {
                            || request.resource.data.get('telefono', '').matches('^[0-9]{8}$'));
 
       // La Municipalidad puede aprobar/editar cualquier cuenta y asignar rol.
-      allow update: if esMunicipalidad();
+      allow update: if esMunicipalidad() && marcaActorValida();
 
       // APROBACIÓN de solicitudes de SU aldea: coordinador o aprobador
       // delegado. El delegado solo aprueba ciudadanos; el coordinador también
       // a integrantes de su propio cuerpo (COCODE o Alcaldía Auxiliar). Al
       // rechazar, la aldea no cambia.
       allow update: if esAprobador()
+                       && marcaActorValida()
                        && resource.data.get('estadoCuenta', 'aprobado') == 'pendiente_revision'
                        && resource.data.get('aldeaSolicitada', '') == miAldea()
                        && (request.resource.data.get('rol', 'ciudadano') == 'ciudadano'
@@ -154,6 +166,7 @@ service cloud.firestore {
       // ciudadano y su propio cuerpo, corrige el nombre, arma los contactos de
       // confianza (RF-11) y delega la aprobación solo a integrantes de su cuerpo.
       allow update: if esCoordinador()
+                       && marcaActorValida()
                        && userId != request.auth.uid
                        && resource.data.get('aldea', '') == miAldea()
                        && resource.data.get('esResponsable', false) == false
@@ -174,8 +187,16 @@ service cloud.firestore {
       // Solo autoridades aprobadas registran acciones; el actor debe ser quien firma.
       allow create: if (esMunicipalidad() || esCocode())
                        && request.resource.data.actorUid == request.auth.uid;
-      // Solo la Municipalidad puede leer la bitácora.
-      allow read:   if esMunicipalidad();
+      // La Municipalidad lee toda la bitácora; el coordinador del COCODE o de
+      // la Alcaldía Auxiliar, la de SU aldea; los demás integrantes, solo el
+      // historial de las alertas de su aldea (sus consultas DEBEN filtrar por
+      // aldea y, los integrantes, por objetivoTipo == 'alerta').
+      allow read:   if esMunicipalidad()
+                       || (esCoordinador()
+                           && resource.data.get('aldea', '') == miAldea())
+                       || (esCocode()
+                           && resource.data.get('aldea', '') == miAldea()
+                           && resource.data.get('objetivoTipo', '') == 'alerta');
       // Inmutable: nunca se edita ni se borra.
       allow update, delete: if false;
     }
@@ -226,11 +247,22 @@ service cloud.firestore {
       // las de SU aldea. Además, el ciudadano puede CANCELAR su propia alerta
       // (marcarla 'falsa_alarma') mientras siga abierta: basta con que sea SU
       // alerta y que el cambio sea SOLO a 'falsa_alarma'.
-      allow update: if esMunicipalidad()
+      allow update: if marcaActorValida() && (
+                       esMunicipalidad()
                        || (esCocode()
                            && resource.data.get('aldea', '') == miAldea())
                        || (resource.data.idUsuario == request.auth.uid
-                           && request.resource.data.estado == 'falsa_alarma');
+                           && request.resource.data.estado == 'falsa_alarma'));
+      // Ubicación EN VIVO: el teléfono del dueño actualiza SOLO su posición
+      // actual, y solo mientras la alerta siga abierta (pendiente o atendida).
+      allow update: if resource.data.idUsuario == request.auth.uid
+                       && resource.data.estado in ['pendiente', 'atendida']
+                       && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['latitudActual', 'longitudActual',
+                                      'precisionActual', 'ubicacionActualEn'])
+                       && request.resource.data.latitudActual is number
+                       && request.resource.data.longitudActual is number
+                       && request.resource.data.ubicacionActualEn == request.time;
       allow delete: if esMunicipalidad();
     }
 

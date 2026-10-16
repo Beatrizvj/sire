@@ -52,6 +52,20 @@ class MainActivity : FlutterActivity() {
                     stopPowerService()
                     result.success(true)
                 }
+                // Ubicación en vivo del SOS de pantalla (ver LiveTrackingService).
+                "startLiveTracking" -> {
+                    val id = call.argument<String>("alertaId")
+                    if (id.isNullOrBlank()) {
+                        result.success(false)
+                    } else {
+                        LiveTrackingService.iniciar(this, id)
+                        result.success(true)
+                    }
+                }
+                "stopLiveTracking" -> {
+                    LiveTrackingService.detener(this)
+                    result.success(true)
+                }
                 "isIgnoringBatteryOptimizations" ->
                     result.success(isIgnoringBatteryOptimizations())
                 "isDetectionRunning" ->

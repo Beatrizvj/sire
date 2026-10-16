@@ -5,10 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/como_llegar.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
+import '../../../alerts/presentation/widgets/ubicacion_en_vivo.dart';
 
 /// Centro aproximado del municipio de San Miguel Sigüilá (Quetzaltenango).
 /// Encuadre inicial del mapa cuando aún no hay alertas con ubicación.
@@ -100,7 +100,7 @@ class _MapPageState extends ConsumerState<MapPage> {
               .where((a) =>
                   (a.status == AlertStatus.pendiente ||
                       a.status == AlertStatus.atendida) &&
-                  _conUbicacion(a))
+                  a.tieneUbicacionParaLlegar)
               .toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
@@ -191,7 +191,8 @@ class _MapPageState extends ConsumerState<MapPage> {
   List<Marker> _marcadores(List<SosAlert> activas) => [
         for (final a in activas.take(_maxMarcadores))
           Marker(
-            point: LatLng(a.latitude, a.longitude),
+            // Donde está la persona AHORA (ubicación en vivo si la hay).
+            point: LatLng(a.latitudParaLlegar, a.longitudParaLlegar),
             width: 44,
             height: 44,
             child: GestureDetector(
@@ -211,7 +212,7 @@ class _MapPageState extends ConsumerState<MapPage> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => _DetalleAlerta(alert: alert),
+      builder: (_) => _DetalleAlerta(alerta: alert),
     );
   }
 }
@@ -325,20 +326,21 @@ class _LeyendaItem extends StatelessWidget {
 }
 
 /// Detalle de una alerta al tocar su marcador.
-class _DetalleAlerta extends StatelessWidget {
-  const _DetalleAlerta({required this.alert});
+class _DetalleAlerta extends ConsumerWidget {
+  const _DetalleAlerta({required this.alerta});
 
-  final SosAlert alert;
+  final SosAlert alerta;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final alert = alertaVigente(ref, alerta);
     final theme = Theme.of(context);
     final df = DateFormat('dd/MM/yyyy · HH:mm');
     final nombre = (alert.userName != null && alert.userName!.isNotEmpty)
         ? alert.userName!
         : 'Ciudadano';
-    final coords =
-        '${alert.latitude.toStringAsFixed(5)}, ${alert.longitude.toStringAsFixed(5)}';
+    final coords = '${alert.latitudParaLlegar.toStringAsFixed(5)}, '
+        '${alert.longitudParaLlegar.toStringAsFixed(5)}';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -358,24 +360,15 @@ class _DetalleAlerta extends StatelessWidget {
             _Fila(icon: Icons.schedule, texto: df.format(alert.timestamp)),
             const SizedBox(height: 6),
             _Fila(icon: Icons.place_outlined, texto: alert.address ?? coords),
-            if (alert.tieneUbicacion) ...[
+            if (alert.tieneUbicacionEnVivo) ...[
+              const SizedBox(height: 6),
+              IndicadorEnVivo(alerta: alert),
+            ],
+            if (alert.tieneUbicacionParaLlegar) ...[
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () async {
-                    final ok =
-                        await abrirComoLlegar(alert.latitude, alert.longitude);
-                    if (!ok && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('No se pudo abrir Google Maps.')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.directions),
-                  label: const Text('Cómo llegar'),
-                ),
+                child: BotonComoLlegar(alerta: alert),
               ),
             ],
           ],

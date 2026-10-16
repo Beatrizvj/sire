@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/services/power_button_bridge.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
@@ -128,6 +131,9 @@ class AlertsController extends Notifier<AlertsState> {
           );
       state = state.copyWith(
           isSending: false, alerts: [result.alert, ...state.alerts]);
+      // Ubicación en vivo mientras la alerta siga abierta (solo Android).
+      unawaited(
+          ref.read(powerButtonBridgeProvider).startLiveTracking(result.alert.id));
       return result;
     } on LocationServiceDisabledException {
       state = state.copyWith(

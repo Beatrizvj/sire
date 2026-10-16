@@ -15,8 +15,8 @@ class ApprovalsService {
 
   final Ref _ref;
 
-  /// Aprueba una cuenta: le asigna rol y aldea, la marca aprobada y registra
-  /// en auditoría quién lo hizo. [actor] es la autoridad que aprueba.
+  /// Aprueba una cuenta: le asigna rol y aldea y la marca aprobada; el servidor
+  /// registra en la bitácora quién lo hizo. [actor] es la autoridad que aprueba.
   Future<void> aprobar(
     AppUser objetivo, {
     required UserRole rol,
@@ -30,19 +30,8 @@ class ApprovalsService {
       aprobadoPor: actor.id,
       aprobadoEn: DateTime.now(),
     );
+    // La bitácora la escribe el servidor (functions/bitacora.js).
     await _ref.read(userRepositoryProvider).saveUser(actualizado);
-    await _ref.read(auditRepositoryProvider).registrar(AuditEntry(
-          accion: 'aprobar_usuario',
-          actorUid: actor.id,
-          actorRol: actor.rol.value,
-          objetivoUid: objetivo.id,
-          objetivoNombre: objetivo.nombre,
-          valorAnterior: {
-            'rol': objetivo.rol.value,
-            'estado': objetivo.estadoCuenta.value,
-          },
-          valorNuevo: {'rol': rol.value, 'estado': AccountStatus.aprobado.value},
-        ));
   }
 
   /// Rechaza una cuenta (con motivo) y lo registra en auditoría.
@@ -57,6 +46,9 @@ class ApprovalsService {
     await _ref.read(auditRepositoryProvider).registrar(AuditEntry(
           accion: 'rechazar_usuario',
           actorUid: actor.id,
+          actorNombre: actor.nombre,
+          actorCoordinador: actor.esCoordinador,
+          aldea: objetivo.aldeaSolicitada,
           actorRol: actor.rol.value,
           objetivoUid: objetivo.id,
           objetivoNombre: objetivo.nombre,

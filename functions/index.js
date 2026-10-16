@@ -110,3 +110,10 @@ exports.notificarCambioDeCuenta =
     require("./cuentas").notificarCambioDeCuenta;
 exports.limpiarCuentaEliminada =
     require("./cuentas").limpiarCuentaEliminada;
+
+// Bitácora de acciones (quién atendió, resolvió, aprobó, cambió roles…):
+// functions/bitacora.js.
+exports.registrarCambioDeAlerta =
+    require("./bitacora").registrarCambioDeAlerta;
+exports.registrarCambioDeUsuario =
+    require("./bitacora").registrarCambioDeUsuario;
