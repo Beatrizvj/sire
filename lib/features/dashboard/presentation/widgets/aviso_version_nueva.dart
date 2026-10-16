@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../../../core/config/version_app.dart';
-import '../../../../core/web/recargar_pagina.dart';
+import '../../../../core/web/navegador.dart';
 
 /// Franja "Hay una versión nueva del panel" (solo web).
 ///

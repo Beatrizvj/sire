@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/link.dart';
 
 import '../../../../core/utils/como_llegar.dart';
+import '../../../../core/web/navegador.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../providers/alerts_providers.dart';
 
@@ -97,18 +97,16 @@ class BotonComoLlegar extends StatelessWidget {
     final etiqueta = Text(alerta.tieneUbicacionEnVivo
         ? 'Cómo llegar (ubicación actual)'
         : 'Cómo llegar');
-    // Web: un enlace REAL (Link) en pestaña nueva; abrirlo por código tras un
-    // await el navegador lo bloquea como ventana emergente.
+    // Web: se abre la pestaña DIRECTO en el clic (window.open sin await). El
+    // widget Link no recibía el clic dentro de los diálogos del panel, y
+    // launchUrl tras un await el navegador lo bloquea como ventana emergente.
     if (kIsWeb) {
-      return Link(
-        uri: enlaceComoLlegar(
-            alerta.latitudParaLlegar, alerta.longitudParaLlegar),
-        target: LinkTarget.blank,
-        builder: (context, abrir) => FilledButton.icon(
-          onPressed: abrir,
-          icon: const Icon(Icons.directions),
-          label: etiqueta,
-        ),
+      return FilledButton.icon(
+        onPressed: () => abrirEnPestanaNueva(enlaceComoLlegar(
+                alerta.latitudParaLlegar, alerta.longitudParaLlegar)
+            .toString()),
+        icon: const Icon(Icons.directions),
+        label: etiqueta,
       );
     }
     return FilledButton.icon(

@@ -8,9 +8,8 @@ Uri enlaceComoLlegar(double lat, double lng) => Uri.parse(
     );
 
 /// Abre Google Maps en modo navegación hacia [lat], [lng].
-/// - Web: en una pestaña nueva, sin salir del panel. (En el panel se prefiere
-///   el widget `Link` con [enlaceComoLlegar]: es un enlace real que el
-///   navegador nunca bloquea como ventana emergente.)
+/// - Web: en una pestaña nueva, sin salir del panel. (El botón del panel usa
+///   `abrirEnPestanaNueva` directo en el clic, que el navegador no bloquea.)
 /// - Móvil: con el manejador nativo de enlaces (la app de Google Maps si está
 ///   instalada; si no, el navegador).
 /// Devuelve false si no se pudo abrir.
