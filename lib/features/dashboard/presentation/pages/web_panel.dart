@@ -28,6 +28,7 @@ import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
 import '../../../users/presentation/providers/users_providers.dart';
 import '../../../users/domain/permisos.dart';
+import '../widgets/aviso_version_nueva.dart';
 
 // Paleta del panel (según el prototipo): barra lateral oscura, contenido claro.
 const _side = Color(0xFF2B1917);
@@ -156,7 +157,15 @@ class _WebPanelState extends ConsumerState<WebPanel> {
       ),
       // Material (no Container) para que el texto sin color explícito tome el
       // estilo del tema claro aunque el navegador esté en modo oscuro.
-      child: Material(color: _bg, child: _cuerpo(seccionActual)),
+      child: Material(
+        color: _bg,
+        child: Column(
+          children: [
+            const AvisoVersionNueva(),
+            Expanded(child: _cuerpo(seccionActual)),
+          ],
+        ),
+      ),
     );
 
     final Widget scaffold = compacto
