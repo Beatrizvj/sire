@@ -225,6 +225,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             backgroundColor: kAuthBackground,
             body: SafeArea(
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Expanded(flex: 6, child: AuthHeroPanel()),
                   Expanded(flex: 5, child: _formScroll(state, compact: true)),
