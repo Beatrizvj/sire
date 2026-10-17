@@ -214,7 +214,8 @@ class _AccesoSoloAutoridad extends ConsumerWidget {
                     textAlign: TextAlign.center),
                 const SizedBox(height: 10),
                 Text(
-                  'Este panel web es solo para COCODE y la Municipalidad. '
+                  'Este panel web es solo para el COCODE, la Alcaldía Auxiliar y '
+                  'la Municipalidad. '
                   'Como ciudadano, usa la aplicación móvil SIRE para enviar '
                   'y seguir tus alertas.',
                   textAlign: TextAlign.center,
