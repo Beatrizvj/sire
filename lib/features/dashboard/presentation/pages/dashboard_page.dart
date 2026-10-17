@@ -8,7 +8,6 @@ import '../../../alerts/presentation/pages/bandeja_page.dart';
 import '../../../alerts/presentation/providers/alerts_providers.dart';
 import '../../../alerts/presentation/widgets/alert_tile.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
-import '../../../users/domain/entities/user_role.dart';
 
 /// Pantalla de la pestaña "Inicio". Según el rol muestra:
 /// ciudadano → su tablero con el SOS · COCODE/Municipalidad → la Bandeja.
@@ -23,8 +22,7 @@ class DashboardPage extends ConsumerWidget {
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => const _CitizenDashboard(),
       data: (user) {
-        final esAutoridad = user?.rol == UserRole.cocode ||
-            user?.rol == UserRole.municipalidad;
+        final esAutoridad = user?.rol.esAutoridad ?? false;
         return esAutoridad ? const BandejaPage() : const _CitizenDashboard();
       },
     );

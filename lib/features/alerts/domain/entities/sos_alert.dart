@@ -24,6 +24,13 @@ class SosAlert extends Equatable {
     this.categoria,
     this.atendidaEn,
     this.resueltaEn,
+    this.atendidaPor,
+    this.atendidaPorNombre,
+    this.latitudActual,
+    this.longitudActual,
+    this.precisionActual,
+    this.ubicacionActualEn,
+    this.seguimientoDetenidoEn,
   });
 
   final String id;
@@ -60,14 +67,77 @@ class SosAlert extends Equatable {
   final DateTime? atendidaEn;
   final DateTime? resueltaEn;
 
+  /// Trazabilidad de la atención: autoridad (COCODE/Municipalidad) que marcó la
+  /// alerta como "atendida". [atendidaPor] es su uid; [atendidaPorNombre] su
+  /// nombre, guardado de forma denormalizada para mostrarlo sin otra consulta.
+  final String? atendidaPor;
+  final String? atendidaPorNombre;
+
   /// Tiempo de respuesta = desde que se creó la alerta hasta que se atendió.
+  /// Ubicación EN VIVO: la última que mandó el teléfono del ciudadano mientras
+  /// la alerta sigue abierta (null si aún no hay seguimiento).
+  final double? latitudActual;
+  final double? longitudActual;
+  final double? precisionActual;
+  final DateTime? ubicacionActualEn;
+
+  /// Momento en que el ciudadano tocó "Dejar de compartir" (null si no lo hizo).
+  final DateTime? seguimientoDetenidoEn;
+
+  /// Duración máxima del seguimiento en vivo (igual que el servicio nativo y
+  /// las reglas de Firestore).
+  static const duracionSeguimiento = Duration(hours: 2);
+
+  /// Antigüedad máxima del último punto para considerarlo "en vivo" (el
+  /// teléfono manda uno cada ~10 s).
+  static const vigenciaPuntoEnVivo = Duration(minutes: 2);
+
+  /// Hay al menos un punto de seguimiento (en vivo o ya detenido).
+  bool get tieneUbicacionEnVivo =>
+      latitudActual != null && longitudActual != null;
+
+  /// El seguimiento terminó: el ciudadano lo cortó, la alerta se cerró o pasó
+  /// [duracionSeguimiento].
+  bool seguimientoTerminado({DateTime? ahora}) =>
+      seguimientoDetenidoEn != null ||
+      !sigueAbierta ||
+      (ahora ?? DateTime.now()).difference(timestamp) >= duracionSeguimiento;
+
+  /// El punto de seguimiento es realmente EN VIVO (pin verde que late). Si no,
+  /// se muestra como "última ubicación" (pin gris).
+  bool ubicacionEnVivoActiva({DateTime? ahora}) {
+    final t = ubicacionActualEn;
+    if (!tieneUbicacionEnVivo || t == null) return false;
+    if (seguimientoTerminado(ahora: ahora)) return false;
+    return (ahora ?? DateTime.now()).difference(t) < vigenciaPuntoEnVivo;
+  }
+
+  /// Dónde está la persona AHORA: la ubicación en vivo si existe; si no, la
+  /// del momento del SOS. Para llegar a ella (mapa, "Cómo llegar").
+  double get latitudParaLlegar => latitudActual ?? latitude;
+  double get longitudParaLlegar => longitudActual ?? longitude;
+
+  /// Hay algún punto al que llegar.
+  bool get tieneUbicacionParaLlegar => tieneUbicacionEnVivo || tieneUbicacion;
+
+  /// La alerta sigue abierta (el teléfono puede estar compartiendo).
+  bool get sigueAbierta =>
+      status == AlertStatus.pendiente || status == AlertStatus.atendida;
+
   Duration? get tiempoRespuesta => atendidaEn?.difference(timestamp);
+
+  /// La alerta trae una ubicación real. 0,0 es el valor centinela para "sin
+  /// ubicación" (GPS apagado y sin última conocida), igual que el botón físico.
+  bool get tieneUbicacion => latitude != 0 || longitude != 0;
 
   SosAlert copyWith({
     AlertStatus? status,
     String? categoria,
     DateTime? atendidaEn,
     DateTime? resueltaEn,
+    String? atendidaPor,
+    String? atendidaPorNombre,
+    DateTime? seguimientoDetenidoEn,
   }) =>
       SosAlert(
         id: id,
@@ -85,6 +155,14 @@ class SosAlert extends Equatable {
         categoria: categoria ?? this.categoria,
         atendidaEn: atendidaEn ?? this.atendidaEn,
         resueltaEn: resueltaEn ?? this.resueltaEn,
+        atendidaPor: atendidaPor ?? this.atendidaPor,
+        atendidaPorNombre: atendidaPorNombre ?? this.atendidaPorNombre,
+        latitudActual: latitudActual,
+        longitudActual: longitudActual,
+        precisionActual: precisionActual,
+        ubicacionActualEn: ubicacionActualEn,
+        seguimientoDetenidoEn:
+            seguimientoDetenidoEn ?? this.seguimientoDetenidoEn,
       );
 
   @override
@@ -104,6 +182,13 @@ class SosAlert extends Equatable {
         categoria,
         atendidaEn,
         resueltaEn,
+        atendidaPor,
+        atendidaPorNombre,
+        latitudActual,
+        longitudActual,
+        precisionActual,
+        ubicacionActualEn,
+        seguimientoDetenidoEn,
       ];
 }
 
@@ -116,4 +201,12 @@ String formatearDuracion(Duration d) {
   }
   final m = d.inMinutes % 60;
   return m == 0 ? '${d.inHours} h' : '${d.inHours} h $m min';
+}
+
+/// "hace 8 s", "hace 3 min", "hace 2 h" (antigüedad de la ubicación en vivo).
+String haceCuanto(DateTime t, {DateTime? ahora}) {
+  final d = (ahora ?? DateTime.now()).difference(t);
+  if (d.inSeconds < 60) return 'hace ${d.inSeconds < 0 ? 0 : d.inSeconds} s';
+  if (d.inMinutes < 60) return 'hace ${d.inMinutes} min';
+  return 'hace ${d.inHours} h';
 }

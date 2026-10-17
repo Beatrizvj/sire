@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/config/version_app.dart';
 import '../../../../core/services/power_button_bridge.dart';
 import '../../../../core/theme/theme_mode_controller.dart';
-import '../../../../core/validation/name_validator.dart';
 import '../../../../core/validation/password_validator.dart';
 import '../../../alerts/presentation/providers/sos_trigger_mode.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../users/domain/entities/app_user.dart';
 import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/users_providers.dart';
+import '../../../users/domain/permisos.dart';
 
 /// Ajustes del móvil (ambos roles): apariencia, disparo del SOS (solo
 /// ciudadano) y cuenta (editar perfil y cambiar contraseña).
@@ -68,7 +70,7 @@ class SettingsPage extends ConsumerWidget {
             title: const Text('Editar perfil'),
             subtitle: Text(perfil == null
                 ? 'Cargando…'
-                : 'Nombre y teléfono'),
+                : 'Ver tus datos y actualizar tu teléfono'),
             trailing: const Icon(Icons.chevron_right),
             onTap: perfil == null
                 ? null
@@ -110,7 +112,7 @@ void _showAcercaDe(BuildContext context) {
   showAboutDialog(
     context: context,
     applicationName: AppConfig.appName,
-    applicationVersion: 'v1',
+    applicationVersion: 'Versión $kVersionNombre ($kNumeroCompilacion)',
     applicationIcon: Icon(
       Icons.shield,
       size: 40,
@@ -124,7 +126,7 @@ void _showAcercaDe(BuildContext context) {
       SizedBox(height: 8),
       Text(
         'Las alertas SOS enviadas por la ciudadanía las reciben y atienden '
-        'los COCODE de cada aldea y la Municipalidad.',
+        'el COCODE y la Alcaldía Auxiliar de cada aldea, y la Municipalidad.',
       ),
     ],
   );
@@ -254,13 +256,11 @@ class _EditProfileDialog extends ConsumerStatefulWidget {
 
 class _EditProfileDialogState extends ConsumerState<_EditProfileDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _nombre = TextEditingController(text: widget.perfil.nombre);
   late final _telefono = TextEditingController(text: widget.perfil.telefono);
   bool _guardando = false;
 
   @override
   void dispose() {
-    _nombre.dispose();
     _telefono.dispose();
     super.dispose();
   }
@@ -272,10 +272,7 @@ class _EditProfileDialogState extends ConsumerState<_EditProfileDialog> {
     final navigator = Navigator.of(context);
     try {
       await ref.read(userRepositoryProvider).saveUser(
-            widget.perfil.copyWith(
-              nombre: NameValidator.normalizar(_nombre.text),
-              telefono: _telefono.text.trim(),
-            ),
+            widget.perfil.copyWith(telefono: _telefono.text.trim()),
           );
       // El perfil se observa en vivo (currentUserProfileProvider), se refresca solo.
       navigator.pop();
@@ -299,28 +296,40 @@ class _EditProfileDialogState extends ConsumerState<_EditProfileDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextFormField(
-              controller: _nombre,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Nombre',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) => NameValidator.validar(v),
+            // Nombre y aldea quedaron verificados contra el DPI al aprobar la
+            // cuenta: se muestran pero no se editan aquí.
+            _DatoVerificado(
+              icono: Icons.person_outline,
+              etiqueta: 'Nombre',
+              valor: widget.perfil.nombre,
+            ),
+            const SizedBox(height: 12),
+            _DatoVerificado(
+              icono: Icons.holiday_village_outlined,
+              etiqueta: 'Aldea',
+              valor: widget.perfil.aldea,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'El nombre y la aldea están verificados con tu DPI. Para '
+              'corregirlos, comunícate con '
+              '${widget.perfil.autoridadParaCorrecciones(ref.watch(coordinadoresDeMiAldeaProvider).asData?.value ?? const [])}.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _telefono,
               keyboardType: TextInputType.phone,
+              maxLength: 8,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(
-                labelText: 'Teléfono',
+                labelText: 'Teléfono (8 dígitos)',
                 prefixIcon: Icon(Icons.phone_outlined),
                 border: OutlineInputBorder(),
               ),
-              validator: (v) => (v == null || v.trim().length < 8)
-                  ? 'Teléfono inválido'
-                  : null,
+              validator: (v) => RegExp(r'^[0-9]{8}$').hasMatch(v?.trim() ?? '')
+                  ? null
+                  : 'El teléfono debe tener 8 dígitos',
             ),
           ],
         ),
@@ -464,6 +473,33 @@ class _ChangePasswordDialogState extends ConsumerState<_ChangePasswordDialog> {
               : const Text('Cambiar'),
         ),
       ],
+    );
+  }
+}
+
+/// Dato de solo lectura verificado contra el DPI (nombre, aldea).
+class _DatoVerificado extends StatelessWidget {
+  const _DatoVerificado({
+    required this.icono,
+    required this.etiqueta,
+    required this.valor,
+  });
+
+  final IconData icono;
+  final String etiqueta;
+  final String valor;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: etiqueta,
+        prefixIcon: Icon(icono),
+        suffixIcon: const Icon(Icons.verified_outlined),
+        border: const OutlineInputBorder(),
+        enabled: false,
+      ),
+      child: Text(valor),
     );
   }
 }

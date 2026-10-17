@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../core/config/firestore_collections.dart';
 import '../../domain/entities/app_user.dart';
@@ -7,9 +8,10 @@ import '../models/app_user_model.dart';
 
 /// Implementación de [UserRepository] con Cloud Firestore (colección `usuarios`).
 class UserRepositoryFirestore implements UserRepository {
-  UserRepositoryFirestore(this._firestore);
+  UserRepositoryFirestore(this._firestore, this._auth);
 
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection(FirestoreCollections.usuarios);
@@ -29,8 +31,13 @@ class UserRepositoryFirestore implements UserRepository {
       });
 
   @override
-  Future<void> saveUser(AppUser user) =>
-      _users.doc(user.id).set(AppUserModel.toMap(user), SetOptions(merge: true));
+  Future<void> saveUser(AppUser user) => _users.doc(user.id).set({
+        ...AppUserModel.toMap(user),
+        // Quién hace el cambio y cuándo: la bitácora (Cloud Function) lo registra y las
+        // reglas exigen que sea el usuario autenticado.
+        'modificadoPor': _auth.currentUser?.uid,
+        'modificadoEn': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
   @override
   Future<void> deleteUser(String id) => _users.doc(id).delete();
@@ -42,4 +49,32 @@ class UserRepositoryFirestore implements UserRepository {
                 .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
                 .toList(growable: false),
           );
+
+  @override
+  Stream<List<AppUser>> watchCocodesDeAldea(String aldea) => _users
+      .where('rol', isEqualTo: 'cocode')
+      .where('aldea', isEqualTo: aldea)
+      .snapshots()
+      .map((snap) => snap.docs
+          .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
+          .where((u) => u.puedeAcceder) // solo COCODE aprobado y activo
+          .toList(growable: false));
+
+  @override
+  Future<List<AppUser>> coordinadoresDeAldea(String aldea) async {
+    // Una consulta por cuerpo: así cada una cumple la regla de lectura que
+    // permite ver al COCODE / coordinador de la Alcaldía Auxiliar de la aldea.
+    final resultado = <AppUser>[];
+    for (final rol in ['auxiliatura', 'cocode']) {
+      final snap = await _users
+          .where('rol', isEqualTo: rol)
+          .where('aldea', isEqualTo: aldea)
+          .where('esResponsable', isEqualTo: true)
+          .get();
+      resultado.addAll(snap.docs
+          .map((doc) => AppUserModel.fromMap(doc.data(), id: doc.id))
+          .where((u) => u.puedeAcceder));
+    }
+    return resultado;
+  }
 }

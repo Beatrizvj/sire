@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../data/repositories/user_repository_firestore.dart';
 import '../../data/repositories/user_repository_local.dart';
 import '../../domain/entities/app_user.dart';
@@ -12,7 +14,8 @@ import '../../domain/repositories/user_repository.dart';
 /// Repositorio de usuarios. Cambia de local a Firestore según [AppConfig.firebaseEnabled].
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   if (AppConfig.firebaseEnabled) {
-    return UserRepositoryFirestore(FirebaseFirestore.instance);
+    return UserRepositoryFirestore(
+        FirebaseFirestore.instance, FirebaseAuth.instance);
   }
   return UserRepositoryLocal(ref.watch(sharedPreferencesProvider));
 });
@@ -22,6 +25,24 @@ final allUsersProvider = StreamProvider.autoDispose<List<AppUser>>(
   (ref) => ref.watch(userRepositoryProvider).watchAllUsers(),
 );
 
+/// COCODE(s) aprobados de la aldea del usuario EN SESIÓN. Sirve para que el
+/// CIUDADANO vea el contacto (teléfono) del COCODE de su aldea. Vacío si el
+/// usuario no tiene una aldea asignada.
+final cocodesDeMiAldeaProvider = StreamProvider.autoDispose<List<AppUser>>((ref) {
+  final aldea = ref.watch(currentUserProfileProvider).asData?.value?.aldea ?? '';
+  if (aldea.isEmpty) return Stream.value(const <AppUser>[]);
+  return ref.watch(userRepositoryProvider).watchCocodesDeAldea(aldea);
+});
+
+/// Coordinadores de la aldea del usuario EN SESIÓN (COCODE o Alcaldía
+/// Auxiliar). Indica al ciudadano a qué autoridad acudir.
+final coordinadoresDeMiAldeaProvider =
+    FutureProvider.autoDispose<List<AppUser>>((ref) async {
+  final aldea = ref.watch(currentUserProfileProvider).asData?.value?.aldea ?? '';
+  if (aldea.isEmpty) return const <AppUser>[];
+  return ref.watch(userRepositoryProvider).coordinadoresDeAldea(aldea);
+});
+
 /// Usuarios que una autoridad puede ver/gestionar (mínimo privilegio):
 /// - Municipalidad: TODOS los del municipio.
 /// - COCODE: solo los de SU aldea (aprobados con esa aldea, o pendientes que la
@@ -29,7 +50,7 @@ final allUsersProvider = StreamProvider.autoDispose<List<AppUser>>(
 List<AppUser> usuariosVisiblesPara(List<AppUser> todos, AppUser? actor) {
   if (actor == null) return const [];
   if (actor.rol == UserRole.municipalidad) return todos;
-  if (actor.rol == UserRole.cocode) {
+  if (actor.rol.esAutoridadDeAldea) {
     final mi = actor.aldea;
     return todos
         .where((u) => u.aldea == mi || u.aldeaSolicitada == mi)

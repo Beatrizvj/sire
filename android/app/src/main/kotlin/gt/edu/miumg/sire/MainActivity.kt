@@ -39,12 +39,31 @@ class MainActivity : FlutterActivity() {
                         .putString(PowerButtonService.KEY_UID, uid)
                         .putString(PowerButtonService.KEY_NOMBRE, nombre)
                         .putString(PowerButtonService.KEY_ALDEA, aldea)
+                        .putBoolean(PowerButtonService.KEY_ENABLED, true)
                         .apply()
                     startPowerService()
                     result.success(true)
                 }
                 "stopDetection" -> {
+                    getSharedPreferences(PowerButtonService.PREFS, MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(PowerButtonService.KEY_ENABLED, false)
+                        .apply()
                     stopPowerService()
+                    result.success(true)
+                }
+                // Ubicación en vivo del SOS de pantalla (ver LiveTrackingService).
+                "startLiveTracking" -> {
+                    val id = call.argument<String>("alertaId")
+                    if (id.isNullOrBlank()) {
+                        result.success(false)
+                    } else {
+                        LiveTrackingService.iniciar(this, id)
+                        result.success(true)
+                    }
+                }
+                "stopLiveTracking" -> {
+                    LiveTrackingService.detener(this)
                     result.success(true)
                 }
                 "isIgnoringBatteryOptimizations" ->

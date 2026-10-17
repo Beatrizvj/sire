@@ -1,7 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +16,8 @@ import '../../../alerts/presentation/widgets/alert_status_chip.dart';
 import '../../../alerts/presentation/widgets/new_alert_alarm.dart';
 import '../../../audit/data/audit_repository.dart';
 import '../../../audit/domain/audit_entry.dart';
+import '../../../audit/presentation/bitacora.dart';
+import '../../../alerts/presentation/widgets/ubicacion_en_vivo.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../communities/aldeas_providers.dart';
 import '../../../identity/data/identity_repository.dart';
@@ -26,6 +27,9 @@ import '../../../users/domain/entities/app_user.dart';
 import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
 import '../../../users/presentation/providers/users_providers.dart';
+import '../../../users/domain/permisos.dart';
+import '../../../maps/presentation/pages/map_page.dart' show mediana;
+import '../widgets/aviso_version_nueva.dart';
 
 // Paleta del panel (según el prototipo): barra lateral oscura, contenido claro.
 const _side = Color(0xFF2B1917);
@@ -52,22 +56,33 @@ const _secciones = <(IconData, String)>[
   (Icons.map_outlined, 'Mapa en vivo'),
   (Icons.insights_outlined, 'Reportes'),
   (Icons.settings_outlined, 'Configuración'),
+  (Icons.account_circle_outlined, 'Mi perfil'),
+  (Icons.history, 'Bitácora'),
 ];
 
 // Índices de sección (para badges y ruteo legible).
 const _ixAlertas = 1;
 const _ixAprobaciones = 3;
+const _ixBitacora = 9;
 
-// Secciones SOLO municipales (vistas de todo el municipio). El COCODE no las ve:
-// Comunidades (4) y Configuración (7).
+// Secciones SOLO municipales (vistas de todo el municipio): Comunidades (4) y
+// Configuración (7).
 const _seccionesSoloMunicipalidad = {4, 7};
 
-/// Índices de sección visibles según el rol. La Municipalidad ve todas; el
-/// COCODE, todas menos las municipales (Comunidades y Configuración).
-List<int> _seccionesVisibles(UserRole? rol) => [
-      for (var i = 0; i < _secciones.length; i++)
-        if (rol == UserRole.municipalidad ||
-            !_seccionesSoloMunicipalidad.contains(i))
+/// Índices de sección visibles según el usuario. La Municipalidad ve todas; las
+/// autoridades de aldea, todas menos las municipales, y Aprobaciones solo si
+/// son coordinadoras o tienen la aprobación delegada. "Mi perfil" lo ven todos.
+/// Orden del menú (índices de [_secciones]): operación, gestión de personas,
+/// administración y, al final, lo personal.
+const _ordenMenu = [0, 1, 5, 6, 2, 3, 4, 9, 7, 8];
+
+List<int> _seccionesVisibles(AppUser? actor) => [
+      for (final i in _ordenMenu)
+        if (actor?.rol == UserRole.municipalidad ||
+            (!_seccionesSoloMunicipalidad.contains(i) &&
+                (i != _ixAprobaciones || (actor?.puedeAprobarCuentas ?? false)) &&
+                // Bitácora: Municipalidad y coordinadores de aldea.
+                (i != _ixBitacora || puedeVerBitacora(actor))))
           i,
     ];
 
@@ -95,7 +110,9 @@ class _WebPanelState extends ConsumerState<WebPanel> {
         4 => const _ComunidadesBody(),
         5 => const _MapaEnVivoBody(),
         6 => const ReportesBody(),
-        _ => const _ConfiguracionBody(),
+        7 => const _ConfiguracionBody(),
+        _ixBitacora => const BitacoraLista(),
+        _ => const _ConfiguracionBody(miPerfil: true),
       };
 
   @override
@@ -114,7 +131,7 @@ class _WebPanelState extends ConsumerState<WebPanel> {
 
     // Panel por rol: la Municipalidad ve todas las secciones; el COCODE, solo
     // las de su aldea (sin Comunidades ni Configuración, que son municipales).
-    final visibles = _seccionesVisibles(actor?.rol);
+    final visibles = _seccionesVisibles(actor);
     final seccionActual = visibles.contains(_seccion)
         ? _seccion
         : (visibles.isEmpty ? 0 : visibles.first);
@@ -139,7 +156,17 @@ class _WebPanelState extends ConsumerState<WebPanel> {
             ColorScheme.fromSeed(seedColor: _brand, brightness: Brightness.light),
         scaffoldBackgroundColor: _bg,
       ),
-      child: Container(color: _bg, child: _cuerpo(seccionActual)),
+      // Material (no Container) para que el texto sin color explícito tome el
+      // estilo del tema claro aunque el navegador esté en modo oscuro.
+      child: Material(
+        color: _bg,
+        child: Column(
+          children: [
+            const AvisoVersionNueva(),
+            Expanded(child: _cuerpo(seccionActual)),
+          ],
+        ),
+      ),
     );
 
     final Widget scaffold = compacto
@@ -369,7 +396,10 @@ class _TopBar extends StatelessWidget {
         children: [
           Text(titulo,
               style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1F1A1A))),
           const Spacer(),
           _BotonActivarSonido(
               activado: sonidoActivado, onActivar: onActivarSonido),
@@ -951,6 +981,10 @@ class _AlertaCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _CampoAlerta(icono: Icons.place_outlined, texto: ubic),
+          if (alerta.tieneUbicacionEnVivo) ...[
+            const SizedBox(height: 4),
+            IndicadorEnVivo(alerta: alerta, compacto: true),
+          ],
           const SizedBox(height: 4),
           _CampoAlerta(
             icono: Icons.sensors_outlined,
@@ -1151,7 +1185,7 @@ class _UsuariosBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(currentUserProfileProvider).asData?.value;
-    final esVerificador = actor?.puedeVerIdentidad ?? false;
+    final esVerificador = actor?.puedeVerDpi ?? false;
     return ref.watch(allUsersProvider).when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => _Error(
@@ -1162,18 +1196,53 @@ class _UsuariosBody extends ConsumerWidget {
             if (users.isEmpty) {
               return const Center(child: Text('No hay usuarios.'));
             }
-            return SingleChildScrollView(
+            Widget acciones(AppUser u) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (esVerificador && actor != null)
+                      TextButton(
+                        onPressed: () =>
+                            verDpi(context, ref, objetivo: u, actor: actor),
+                        child: const Text('Ver DPI'),
+                      ),
+                    if (actor != null && actor.puedeEditar(u))
+                      TextButton(
+                        onPressed: () => showDialog<void>(
+                          context: context,
+                          builder: (_) => _EditarUsuario(usuario: u),
+                        ),
+                        child: const Text('Editar'),
+                      ),
+                  ],
+                );
+            return LayoutBuilder(builder: (context, cons) {
+              // En teléfono la tabla no cabe (se cortaban teléfono, rol y
+              // acciones): cada usuario se muestra como tarjeta.
+              if (cons.maxWidth < 720) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _Card(
+                    titulo: '${users.length} usuarios registrados',
+                    child: Column(children: [
+                      for (final u in users)
+                        _UsuarioCard(usuario: u, acciones: acciones(u)),
+                    ]),
+                  ),
+                );
+              }
+              return SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: _Card(
                 titulo: '${users.length} usuarios registrados',
                 child: _FillTable(
-                  minWidth: 900,
+                  minWidth: 980,
                   columns: const [
-                    (22, 'Nombre'),
-                    (20, 'Correo'),
-                    (16, 'Comunidad'),
-                    (14, 'Rol'),
-                    (26, 'Acción'),
+                    (20, 'Nombre'),
+                    (18, 'Correo'),
+                    (15, 'Teléfono'),
+                    (13, 'Comunidad'),
+                    (12, 'Rol'),
+                    (22, 'Acción'),
                   ],
                   rows: [
                     for (final u in users)
@@ -1187,6 +1256,7 @@ class _UsuariosBody extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13)),
+                        _TelefonoCelda(telefono: u.telefono),
                         Text(u.aldea.isEmpty ? '—' : u.aldea,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1197,32 +1267,108 @@ class _UsuariosBody extends ConsumerWidget {
                         ),
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (esVerificador && actor != null)
-                                TextButton(
-                                  onPressed: () => verDpi(context, ref,
-                                      objetivo: u, actor: actor),
-                                  child: const Text('Ver DPI'),
-                                ),
-                              TextButton(
-                                onPressed: () => showDialog<void>(
-                                  context: context,
-                                  builder: (_) => _EditarUsuario(usuario: u),
-                                ),
-                                child: const Text('Editar'),
-                              ),
-                            ],
-                          ),
+                          child: acciones(u),
                         ),
                       ],
                   ],
                 ),
               ),
             );
+            });
           },
         );
+  }
+}
+
+/// Usuario en formato tarjeta (pantallas angostas).
+class _UsuarioCard extends StatelessWidget {
+  const _UsuarioCard({required this.usuario, required this.acciones});
+
+  final AppUser usuario;
+  final Widget acciones;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = usuario;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFEAD9D6)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(u.nombre,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+              _RolChip(rol: u.rol),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if ((u.email ?? '').isNotEmpty)
+            Text(u.email!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5)),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Flexible(child: _TelefonoCelda(telefono: u.telefono)),
+              const Text('  ·  ', style: TextStyle(fontSize: 12.5)),
+              Text(u.aldea.isEmpty ? 'Sin comunidad' : u.aldea,
+                  style: const TextStyle(fontSize: 12.5)),
+            ],
+          ),
+          Align(alignment: Alignment.centerRight, child: acciones),
+        ],
+      ),
+    );
+  }
+}
+
+/// Celda de teléfono para la tabla de usuarios: muestra el número con un botón
+/// para copiarlo (útil en la consola de escritorio para llamar/pegar).
+class _TelefonoCelda extends StatelessWidget {
+  const _TelefonoCelda({required this.telefono});
+
+  final String telefono;
+
+  @override
+  Widget build(BuildContext context) {
+    final tel = telefono.trim();
+    if (tel.isEmpty) {
+      return const Text('—', style: TextStyle(fontSize: 13));
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(tel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13)),
+        ),
+        InkWell(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: tel));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Teléfono copiado')),
+            );
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child: Icon(Icons.copy, size: 15, color: Color(0xFF6B5A57)),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1239,11 +1385,21 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
   late UserRole _rol = widget.usuario.rol;
   late String _comunidad = widget.usuario.aldea;
   late bool _verIdentidad = widget.usuario.puedeVerIdentidad;
+  late bool _responsable = widget.usuario.esResponsable;
   late final Set<String> _contactos = widget.usuario.contactosConfianza.toSet();
+  late final _nombreCtrl = TextEditingController(text: widget.usuario.nombre);
   bool _guardando = false;
 
   @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final actor = ref.watch(currentUserProfileProvider).asData?.value;
+    final esMuni = actor?.rol == UserRole.municipalidad;
     final comunidades = ref.watch(aldeasProvider).asData?.value ?? aldeasBase;
     // RF-11: candidatos = ciudadanos aprobados de la MISMA comunidad (vecinos),
     // sin el propio usuario. El grupo es mutuo; lo arma la autoridad.
@@ -1257,6 +1413,19 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
                 u.aldea == _comunidad)
             .toList()
         : const <AppUser>[];
+    // Delegación (máx. [maxDelegados]): el coordinador solo la otorga a
+    // integrantes de su propio cuerpo; la Municipalidad, a cualquiera.
+    final delegados = delegadosEn(
+        todos.where((u) => u.id != widget.usuario.id).toList(),
+        _comunidad,
+        _rol);
+    final puedeDelegar = esMuni ||
+        (actor != null &&
+            actor.esCoordinador &&
+            _rol == actor.rol &&
+            (_verIdentidad || delegados < maxDelegados));
+    final cuerpo =
+        _rol == UserRole.cocode ? 'del COCODE' : 'de la Alcaldía Auxiliar';
     return AlertDialog(
       scrollable: true,
       title: Text(widget.usuario.nombre),
@@ -1264,12 +1433,22 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          TextField(
+            controller: _nombreCtrl,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Nombre (según DPI)',
+              prefixIcon: Icon(Icons.person_outline),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
           const Text('Rol', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
             children: [
-              for (final r in UserRole.values)
+              for (final r in actor?.rolesEditables ?? const <UserRole>[])
                 ChoiceChip(
                   label: Text(r.label),
                   selected: _rol == r,
@@ -1277,44 +1456,75 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Text('Comunidad',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('Sin asignar'),
-                selected: _comunidad.isEmpty,
-                onSelected: (_) => setState(() => _comunidad = ''),
-              ),
-              for (final c in comunidades)
+          if (esMuni) ...[
+            const SizedBox(height: 16),
+            const Text('Comunidad',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: [
                 ChoiceChip(
-                  label: Text(c),
-                  selected: _comunidad == c,
-                  onSelected: (_) => setState(() => _comunidad = c),
+                  label: const Text('Sin asignar'),
+                  selected: _comunidad.isEmpty,
+                  onSelected: (_) => setState(() => _comunidad = ''),
                 ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            activeThumbColor: _brand,
-            value: _verIdentidad,
-            onChanged: (v) => setState(() => _verIdentidad = v),
-            title: const Text('Puede ver fotos del DPI',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: const Text(
-                'Autoriza a esta persona a ver las fotos de identidad de otros '
-                'usuarios (verificador).',
-                style: TextStyle(fontSize: 12)),
-          ),
+                for (final c in comunidades)
+                  ChoiceChip(
+                    label: Text(c),
+                    selected: _comunidad == c,
+                    onSelected: (_) => setState(() => _comunidad = c),
+                  ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            Text('Comunidad: ${_comunidad.isEmpty ? '—' : _comunidad}',
+                style: const TextStyle(fontSize: 13)),
+          ],
+          // Solo la Municipalidad designa al coordinador de cada aldea.
+          if (esMuni && _rol.esAutoridadDeAldea) ...[
+            const SizedBox(height: 12),
+            const Divider(),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              activeThumbColor: _brand,
+              value: _responsable,
+              onChanged: (v) => setState(() => _responsable = v),
+              title: Text('Coordinador $cuerpo',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: Text(
+                  'Aprueba las cuentas de su aldea, gestiona a sus integrantes y '
+                  'puede delegar la aprobación hasta en $maxDelegados '
+                  'integrantes más.'
+                  '${_rol == UserRole.auxiliatura ? ' Recibe además el WhatsApp de cada alerta.' : ''}',
+                  style: const TextStyle(fontSize: 12)),
+            ),
+          ],
+          if (_rol != UserRole.ciudadano &&
+              !(_rol.esAutoridadDeAldea && _responsable))
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              activeThumbColor: _brand,
+              value: _verIdentidad,
+              onChanged: puedeDelegar
+                  ? (v) => setState(() => _verIdentidad = v)
+                  : null,
+              title: const Text('Puede aprobar cuentas (ver DPI)',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: Text(
+                  esMuni
+                      ? 'Autoriza a revisar el DPI y aprobar las solicitudes '
+                          'de su aldea.'
+                      : 'Delegados en tu aldea: $delegados de $maxDelegados.'
+                          '${puedeDelegar ? '' : ' Ya se alcanzó el máximo.'}',
+                  style: const TextStyle(fontSize: 12)),
+            ),
           if (_rol == UserRole.ciudadano) ...[
             const SizedBox(height: 12),
             const Divider(),
-            const Text('Contactos de confianza (RF-11)',
+            const Text('Contactos de confianza',
                 style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text(
@@ -1385,9 +1595,9 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
       builder: (dctx) => AlertDialog(
         title: Text('¿Eliminar a ${widget.usuario.nombre}?'),
         content: const Text(
-          'Se borrará su perfil y sus fotos de DPI de la base de datos. '
-          'Su cuenta de acceso (Authentication) debe borrarse aparte desde la '
-          'consola de Firebase. Esta acción no se puede deshacer.',
+          'Se borrará su perfil, sus fotos de DPI y su cuenta de acceso; con '
+          'el mismo correo podrá registrarse de nuevo. Esta acción no se puede '
+          'deshacer.',
         ),
         actions: [
           TextButton(
@@ -1414,7 +1624,10 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
         await ref.read(auditRepositoryProvider).registrar(AuditEntry(
               accion: 'eliminar_usuario',
               actorUid: actor.id,
+              actorNombre: actor.nombre,
               actorRol: actor.rol.value,
+              actorCoordinador: actor.esCoordinador,
+              aldea: widget.usuario.aldea,
               objetivoUid: widget.usuario.id,
               objetivoNombre: widget.usuario.nombre,
             ));
@@ -1430,6 +1643,12 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
   }
 
   Future<void> _guardar() async {
+    final errorNombre = NameValidator.validar(_nombreCtrl.text);
+    if (errorNombre != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(errorNombre)));
+      return;
+    }
     setState(() => _guardando = true);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -1437,12 +1656,17 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
     final yo = widget.usuario.id;
     final nuevos = _rol == UserRole.ciudadano ? _contactos : <String>{};
     final viejos = widget.usuario.contactosConfianza.toSet();
+    final esCoord = _rol.esAutoridadDeAldea && _responsable;
     try {
       await repo.saveUser(
         widget.usuario.copyWith(
+          nombre: NameValidator.normalizar(_nombreCtrl.text),
           rol: _rol,
           aldea: _comunidad,
-          puedeVerIdentidad: _verIdentidad,
+          // Un ciudadano no aprueba cuentas; el coordinador ya puede hacerlo.
+          puedeVerIdentidad:
+              _rol != UserRole.ciudadano && !esCoord && _verIdentidad,
+          esResponsable: esCoord,
           contactosConfianza: nuevos.toList(),
         ),
       );
@@ -1490,11 +1714,16 @@ class _ComunidadesBody extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          // Wrap: en teléfono el botón baja a otra línea en vez de cortarse.
+          // Ancho completo para que en PC quede a la derecha.
+          SizedBox(width: double.infinity, child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               const Text('Comunidades del municipio',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              const Spacer(),
               FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: _brand),
                 onPressed: () => _agregarAldea(context, ref),
@@ -1502,7 +1731,7 @@ class _ComunidadesBody extends ConsumerWidget {
                 label: const Text('Agregar aldea'),
               ),
             ],
-          ),
+          )),
           const SizedBox(height: 6),
           const Text(
             'Las cuatro localidades base siempre están disponibles. Agrega nuevas '
@@ -1531,6 +1760,10 @@ class _ComunidadesBody extends ConsumerWidget {
                           .where(
                               (u) => u.aldea == c && u.rol == UserRole.cocode)
                           .length,
+                      auxiliatura: users
+                          .where((u) =>
+                              u.aldea == c && u.rol == UserRole.auxiliatura)
+                          .length,
                       // Las 4 aldeas base no se pueden eliminar; las agregadas sí.
                       onEliminar: aldeasBase.contains(c)
                           ? null
@@ -1542,6 +1775,7 @@ class _ComunidadesBody extends ConsumerWidget {
                     ancho: cardW,
                     usuarios: users.where((u) => u.aldea.isEmpty).length,
                     cocode: 0,
+                    auxiliatura: 0,
                   ),
                 ],
               );
@@ -1635,6 +1869,7 @@ class _ComunidadCard extends StatelessWidget {
     required this.nombre,
     required this.usuarios,
     required this.cocode,
+    required this.auxiliatura,
     this.ancho = 240,
     this.onEliminar,
   });
@@ -1642,6 +1877,7 @@ class _ComunidadCard extends StatelessWidget {
   final String nombre;
   final int usuarios;
   final int cocode;
+  final int auxiliatura;
   final double ancho;
 
   /// Acción de eliminar; `null` en las aldeas base y en "Sin asignar" (sin botón).
@@ -1689,7 +1925,7 @@ class _ComunidadCard extends StatelessWidget {
           const Text('usuarios registrados',
               style: TextStyle(fontSize: 11, color: Color(0xFF6B5A57))),
           const SizedBox(height: 6),
-          Text('$cocode COCODE asignado(s)',
+          Text('$cocode COCODE · $auxiliatura Alcaldía Auxiliar',
               style: const TextStyle(fontSize: 11, color: Color(0xFF6B5A57))),
         ],
       ),
@@ -1779,7 +2015,7 @@ class _SolicitudTile extends ConsumerWidget {
       ],
     );
     final botones = <Widget>[
-      if (actor.puedeVerIdentidad)
+      if (actor.puedeVerDpi)
         OutlinedButton.icon(
           onPressed: () =>
               verDpi(context, ref, objetivo: objetivo, actor: actor),
@@ -1839,10 +2075,9 @@ class _SolicitudTile extends ConsumerWidget {
 
   Future<void> _aprobar(BuildContext context, WidgetRef ref) async {
     final comunidades = ref.read(aldeasProvider).asData?.value ?? aldeasBase;
-    // La Municipalidad puede asignar cualquier rol; el COCODE solo Ciudadano.
-    final rolesPermitidos = actor.rol == UserRole.municipalidad
-        ? [UserRole.ciudadano, UserRole.cocode, UserRole.municipalidad]
-        : [UserRole.ciudadano];
+    // La Municipalidad asigna cualquier rol; el responsable de la Alcaldía
+    // Auxiliar, integrante o ciudadano; el COCODE, solo Ciudadano.
+    final rolesPermitidos = rolesAsignablesPor(actor);
     var rol = rolesPermitidos.first;
     var aldea = objetivo.aldeaSolicitada.isEmpty
         ? (actor.aldea.isEmpty ? comunidades.first : actor.aldea)
@@ -1916,13 +2151,26 @@ class _SolicitudTile extends ConsumerWidget {
       context: context,
       builder: (dctx) => AlertDialog(
         title: Text('Rechazar a ${objetivo.nombre}'),
-        content: TextField(
-          controller: motivoCtrl,
-          decoration: const InputDecoration(
-            labelText: 'Motivo (opcional)',
-            border: OutlineInputBorder(),
-          ),
-          maxLines: 2,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Se le avisará en su teléfono y se borrará su solicitud (perfil, '
+              'fotos del DPI y cuenta de acceso), para que pueda registrarse de '
+              'nuevo con datos correctos. El rechazo queda en la auditoría.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: motivoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Motivo (opcional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -1967,7 +2215,10 @@ Future<void> verDpi(
   await ref.read(auditRepositoryProvider).registrar(AuditEntry(
         accion: 'ver_foto_id',
         actorUid: actor.id,
+        actorNombre: actor.nombre,
         actorRol: actor.rol.value,
+        actorCoordinador: actor.esCoordinador,
+        aldea: objetivo.aldea.isNotEmpty ? objetivo.aldea : objetivo.aldeaSolicitada,
         objetivoUid: objetivo.id,
         objetivoNombre: objetivo.nombre,
       ));
@@ -2190,8 +2441,12 @@ class _CategoriasIncidenteCardState
 
 // ─────────────────────────── Configuración ───────────────────────────
 
+/// Sección "Configuración" (solo Municipalidad: categorías y sistema) o, con
+/// [miPerfil], sección "Mi perfil" (todos los roles: datos y contraseña).
 class _ConfiguracionBody extends ConsumerStatefulWidget {
-  const _ConfiguracionBody();
+  const _ConfiguracionBody({this.miPerfil = false});
+
+  final bool miPerfil;
 
   @override
   ConsumerState<_ConfiguracionBody> createState() => _ConfiguracionBodyState();
@@ -2253,8 +2508,12 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
     FocusScope.of(context).unfocus();
     setState(() => _guardando = true);
     try {
+      // Solo la Municipalidad corrige su propio nombre; para las demás cuentas
+      // el nombre quedó verificado con el DPI.
       final actualizado = perfil.copyWith(
-        nombre: NameValidator.normalizar(_nombreCtrl.text),
+        nombre: perfil.rol == UserRole.municipalidad
+            ? NameValidator.normalizar(_nombreCtrl.text)
+            : perfil.nombre,
         telefono: _telefonoCtrl.text.trim(),
       );
       await ref.read(userRepositoryProvider).saveUser(actualizado);
@@ -2286,13 +2545,49 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
       _telefonoCtrl.text = perfil.telefono;
     }
 
+    if (!widget.miPerfil) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _CategoriasIncidenteCard(),
+            const SizedBox(height: 16),
+            _Card(
+              titulo: 'Sistema',
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fila('Proyecto', 'sire-app-179d3'),
+                    _fila('Fuente de datos', 'Cloud Firestore (tiempo real)'),
+                    _fila('Acceso al panel',
+                        'Municipalidad · COCODE · Alcaldía Auxiliar'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final esMuni = perfil.rol == UserRole.municipalidad;
+    final permiso = perfil.esCoordinador
+        ? 'Coordinador ${perfil.rol == UserRole.cocode ? 'del COCODE' : 'de la Alcaldía Auxiliar'}'
+        : perfil.esDelegado
+            ? 'Aprueba cuentas (delegado)'
+            : esMuni
+                ? 'Administración municipal'
+                : 'Atención de alertas';
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Card(
-            titulo: 'Editar mi perfil',
+            titulo: 'Mi perfil',
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Form(
@@ -2300,31 +2595,42 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _campo(
-                      controlador: _nombreCtrl,
-                      etiqueta: 'Nombre',
-                      icono: Icons.person_outline,
-                      validador: (v) => NameValidator.validar(v),
-                    ),
-                    const SizedBox(height: 14),
+                    if (esMuni) ...[
+                      _campo(
+                        controlador: _nombreCtrl,
+                        etiqueta: 'Nombre',
+                        icono: Icons.person_outline,
+                        validador: (v) => NameValidator.validar(v),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     _campo(
                       controlador: _telefonoCtrl,
                       etiqueta: 'Teléfono',
                       icono: Icons.phone_outlined,
                       teclado: TextInputType.phone,
-                      validador: (v) {
-                        final t = v?.trim() ?? '';
-                        if (t.isEmpty) return 'Escribe tu teléfono.';
-                        if (t.length < 8) return 'Teléfono muy corto.';
-                        return null;
-                      },
+                      validador: (v) => RegExp(r'^[0-9]{8}$')
+                              .hasMatch(v?.trim() ?? '')
+                          ? null
+                          : 'El teléfono debe tener 8 dígitos.',
                     ),
                     const SizedBox(height: 18),
-                    // Campos de identidad: solo lectura (los asigna la autoridad).
+                    // Campos de identidad: solo lectura (verificados con el
+                    // DPI o asignados por la Municipalidad).
+                    if (!esMuni) _fila('Nombre', perfil.nombre),
                     _fila('Correo', perfil.email ?? '—'),
                     _fila('Rol', perfil.rol.label),
                     _fila('Comunidad',
                         perfil.aldea.isEmpty ? '—' : perfil.aldea),
+                    _fila('Permisos', permiso),
+                    if (!esMuni) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'El nombre, el rol y la comunidad los asigna la '
+                        'Municipalidad. Para corregirlos, comunícate con ella.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Align(
                       alignment: Alignment.centerRight,
@@ -2431,25 +2737,6 @@ class _ConfiguracionBodyState extends ConsumerState<_ConfiguracionBody> {
               ),
             ),
           ),
-          if (perfil.rol == UserRole.municipalidad) ...[
-            const SizedBox(height: 16),
-            const _CategoriasIncidenteCard(),
-          ],
-          const SizedBox(height: 16),
-          _Card(
-            titulo: 'Sistema',
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _fila('Proyecto', 'sire-app-179d3'),
-                  _fila('Fuente de datos', 'Cloud Firestore (tiempo real)'),
-                  _fila('Acceso', 'COCODE · Municipalidad'),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -2517,7 +2804,7 @@ class _RolChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (fg, bg) = switch (rol) {
       UserRole.ciudadano => _neut,
-      UserRole.cocode => _warn,
+      UserRole.cocode || UserRole.auxiliatura => _warn,
       UserRole.municipalidad => _crit,
     };
     return _pill(rol.label, fg, bg);
@@ -2625,7 +2912,8 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
             .where((a) => !(a.latitude == 0 && a.longitude == 0))
             .toList();
         // Alertas activas (pendientes o en atención): marcadores del mapa en vivo.
-        final activas = conCoords
+        final activas = alerts
+            .where((a) => a.tieneUbicacionParaLlegar)
             .where((a) =>
                 a.status == AlertStatus.pendiente ||
                 a.status == AlertStatus.atendida)
@@ -2698,23 +2986,96 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
   List<Marker> _marcadores(List<SosAlert> activas) => [
         for (final a in activas.take(120))
           Marker(
-            point: LatLng(a.latitude, a.longitude),
-            width: 44,
-            height: 44,
+            // Donde está la persona AHORA (ubicación en vivo si la hay): el
+            // marcador se mueve solo cuando llega una nueva posición.
+            point: LatLng(a.latitudParaLlegar, a.longitudParaLlegar),
+            width: 56,
+            height: 56,
             child: Tooltip(
               message:
                   '${a.userName ?? 'Ciudadano'} · ${a.categoria ?? 'Sin especificar'}'
-                  '\n${a.address ?? ''}',
-              child: Icon(
-                Icons.location_on,
-                size: 40,
-                color: a.status == AlertStatus.pendiente
-                    ? AppColors.statusPendiente
-                    : AppColors.statusAtendida,
+                  '${a.ubicacionEnVivoActiva() ? '\nUbicación en vivo' : a.tieneUbicacionEnVivo ? '\nÚltima ubicación conocida' : ''}'
+                  '\nToque para ver el detalle',
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => _detalleMapa(context, a),
+                  child: a.tieneUbicacionEnVivo
+                      ? _PinEnVivo(alerta: a)
+                      : Icon(
+                          Icons.location_on,
+                          size: 40,
+                          color: a.status == AlertStatus.pendiente
+                              ? AppColors.statusPendiente
+                              : AppColors.statusAtendida,
+                        ),
+                ),
               ),
             ),
           ),
       ];
+
+  /// Detalle de la alerta al tocar su marcador, con la ubicación en vivo y
+  /// "Cómo llegar" hacia donde está la persona ahora.
+  void _detalleMapa(BuildContext context, SosAlert alerta) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => Consumer(
+        builder: (context, ref, _) {
+          final a = alertaVigente(ref, alerta);
+          final nombre = (a.userName != null && a.userName!.isNotEmpty)
+              ? a.userName!
+              : 'Ciudadano';
+          final coords = '${a.latitudParaLlegar.toStringAsFixed(5)}, '
+              '${a.longitudParaLlegar.toStringAsFixed(5)}';
+          return AlertDialog(
+            title: Text(nombre),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CampoAlerta(
+                      icono: Icons.report_gmailerrorred_outlined,
+                      texto:
+                          'Incidente: ${a.categoria ?? 'Sin especificar'}'),
+                  const SizedBox(height: 6),
+                  _CampoAlerta(
+                      icono: Icons.flag_outlined,
+                      texto: 'Estado: ${a.status.label}'),
+                  const SizedBox(height: 6),
+                  _CampoAlerta(
+                      icono: Icons.place_outlined,
+                      texto: a.address ?? 'Sin dirección'),
+                  const SizedBox(height: 6),
+                  _CampoAlerta(icono: Icons.my_location, texto: coords),
+                  if (a.tieneUbicacionEnVivo) ...[
+                    const SizedBox(height: 10),
+                    IndicadorEnVivo(alerta: a),
+                  ] else ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Sin ubicación en vivo: se muestra la del momento del SOS '
+                      '(versión anterior de la app o sin señal).',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar'),
+              ),
+              BotonComoLlegar(alerta: a),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   /// Construye los círculos del mapa de calor: la densidad geográfica de los
   /// incidentes. Cada incidente aporta un círculo translúcido cuyo color va de
@@ -2765,16 +3126,11 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
   }
 }
 
-/// Promedio de las coordenadas, para centrar el mapa en la nube de incidentes.
-LatLng _centroide(List<SosAlert> alertas) {
-  var lat = 0.0;
-  var lng = 0.0;
-  for (final a in alertas) {
-    lat += a.latitude;
-    lng += a.longitude;
-  }
-  return LatLng(lat / alertas.length, lng / alertas.length);
-}
+/// Mediana de las coordenadas, para centrar el mapa en la nube de incidentes
+/// sin que una alerta lejana lo desplace.
+LatLng _centroide(List<SosAlert> alertas) => LatLng(
+    mediana(alertas.map((a) => a.latitude)),
+    mediana(alertas.map((a) => a.longitude)));
 
 /// Conmutador entre "Alertas activas" (marcadores) y "Mapa de calor" (densidad).
 class _SelectorModoMapa extends StatelessWidget {
@@ -2894,6 +3250,86 @@ class _TarjetaSinAlertasMapa extends StatelessWidget {
       );
 }
 
+/// Marcador de una alerta con ubicación EN VIVO: pin verde con un halo que
+/// late, para distinguir a quien se está moviendo.
+class _PinEnVivo extends StatefulWidget {
+  const _PinEnVivo({required this.alerta});
+
+  final SosAlert alerta;
+
+  @override
+  State<_PinEnVivo> createState() => _PinEnVivoState();
+}
+
+class _PinEnVivoState extends State<_PinEnVivo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _latido = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _latido.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const verde = Color(0xFF2E7D32);
+    const gris = Color(0xFF8D8480);
+    // Se evalúa en cada cuadro: si deja de llegar ubicación (el ciudadano la
+    // cortó, venció o se cerró la alerta) pasa a gris sin esperar otro dato.
+    return AnimatedBuilder(
+      animation: _latido,
+      // Center: el Marker impone su tamaño (56) y sin él el pin gris se
+      // estiraba al doble que el verde.
+      builder: (_, child) => !widget.alerta.ubicacionEnVivoActiva()
+          ? Center(
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: gris,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: const [
+                    BoxShadow(blurRadius: 4, color: Colors.black26)
+                  ],
+                ),
+                child:
+                    const Icon(Icons.person, size: 14, color: Colors.white),
+              ),
+            )
+          : Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 20 + 34 * _latido.value,
+            height: 20 + 34 * _latido.value,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: verde.withValues(alpha: 0.35 * (1 - _latido.value)),
+            ),
+          ),
+          child!,
+        ],
+      ),
+      child: Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          color: verde,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3),
+          boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
+        ),
+        child: const Icon(Icons.person, size: 14, color: Colors.white),
+      ),
+    );
+  }
+}
+
 class _LeyendaMapa extends StatelessWidget {
   const _LeyendaMapa();
 
@@ -2911,6 +3347,11 @@ class _LeyendaMapa extends StatelessWidget {
               SizedBox(height: 4),
               _LeyendaItemMapa(
                   color: AppColors.statusAtendida, texto: 'En atención'),
+              SizedBox(height: 4),
+              _LeyendaItemMapa(
+                  color: Color(0xFF2E7D32), texto: 'En vivo (se mueve)'),
+              _LeyendaItemMapa(
+                  color: Color(0xFF8D8480), texto: 'Última ubicación (ya no en vivo)'),
             ],
           ),
         ),

@@ -1,9 +1,10 @@
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -13,9 +14,12 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../../core/validation/password_validator.dart';
 import '../../../communities/aldeas_providers.dart';
+import '../../../identity/data/dpi_watermark.dart';
 import '../../../identity/data/identity_repository.dart';
 import '../providers/auth_providers.dart';
 import '../widgets/auth_form_styles.dart';
+// Selector de archivo del DPI para WEB (input del DOM); en móvil, stub no-op.
+import 'dpi_web_picker_stub.dart' if (dart.library.html) 'dpi_web_picker.dart';
 
 /// Ancho a partir del cual, **solo en web**, el registro pasa a pantalla
 /// dividida (hero institucional + formulario), igual que el login.
@@ -56,67 +60,97 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _tomarFoto(String lado) async {
-    final fuente = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: kAuthSurface,
-      showDragHandle: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading:
-                  const Icon(Icons.photo_camera_outlined, color: Colors.white70),
-              title: const Text('Tomar foto',
-                  style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
-                  color: Colors.white70),
-              title: const Text('Elegir de la galería',
-                  style: TextStyle(color: Colors.white)),
-              onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
+    final Uint8List bytes;
+    if (kIsWeb) {
+      // WEB: se abre un <input type=file> REAL del DOM (elegirImagenWeb), porque
+      // image_picker dispara el selector con un click sintético desde el lienzo
+      // de Flutter que el navegador BLOQUEA (no se abría nada). Luego se
+      // reduce/comprime la foto en Dart (image_picker no lo hace en web) para
+      // que —guardada como base64 en Firestore— quede muy por debajo de 1 MB.
+      final original = await elegirImagenWeb();
+      if (original == null) return; // canceló o no eligió archivo
+      bytes = _reducirParaWeb(original);
+    } else {
+      // MÓVIL: menú cámara/galería + pantalla de recorte para ajustar el DPI.
+      final fuente = await showModalBottomSheet<ImageSource>(
+        context: context,
+        backgroundColor: kAuthSurface,
+        showDragHandle: true,
+        builder: (sheetCtx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: Colors.white70),
+                title: const Text('Tomar foto',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: Colors.white70),
+                title: const Text('Elegir de la galería',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
-      ),
-    );
-    if (fuente == null) return;
-    // Achica la imagen al capturarla para que la foto (guardada como base64 en
-    // Firestore) NUNCA supere el límite de 1 MB por documento.
-    final foto = await _picker.pickImage(
-        source: fuente, maxWidth: 1000, maxHeight: 1000, imageQuality: 70);
-    if (foto == null) return;
-
-    // Pantalla de recorte para ajustar bien el DPI. La compresión fuerte deja
-    // la imagen liviana para Firestore (muy por debajo de 1 MB por documento).
-    final recortada = await ImageCropper().cropImage(
-      sourcePath: foto.path,
-      compressFormat: ImageCompressFormat.jpg,
-      compressQuality: 40,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Ajustar foto del DPI',
-          toolbarColor: const Color(0xFFC62828),
-          toolbarWidgetColor: Colors.white,
-          activeControlsWidgetColor: const Color(0xFFC62828),
-          lockAspectRatio: false,
-        ),
-        IOSUiSettings(title: 'Ajustar foto del DPI'),
-      ],
-    );
-    if (recortada == null) return; // canceló el recorte
-    final bytes = await recortada.readAsBytes();
+      );
+      if (fuente == null) return;
+      final foto = await _picker.pickImage(
+          source: fuente, maxWidth: 1000, maxHeight: 1000, imageQuality: 70);
+      if (foto == null) return;
+      final recortada = await ImageCropper().cropImage(
+        sourcePath: foto.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 40,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Ajustar foto del DPI',
+            toolbarColor: const Color(0xFFC62828),
+            toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: const Color(0xFFC62828),
+            lockAspectRatio: false,
+          ),
+          IOSUiSettings(title: 'Ajustar foto del DPI'),
+        ],
+      );
+      if (recortada == null) return; // canceló el recorte
+      bytes = await recortada.readAsBytes();
+    }
     if (!mounted) return;
+    // Recomendación post-Beta: se hornea la marca de agua ANTES de guardar y
+    // subir la foto, para que el servidor nunca almacene una copia limpia del
+    // DPI (ni la Municipalidad ni el COCODE pueden reutilizarla).
+    final marcada = marcarDpiConAguaSire(bytes);
     setState(() {
       if (lado == IdentityRepository.anverso) {
-        _anverso = bytes;
+        _anverso = marcada;
       } else {
-        _reverso = bytes;
+        _reverso = marcada;
       }
     });
+  }
+
+  /// Reduce y comprime una imagen para la WEB (donde no hay recorte y donde
+  /// image_picker no redimensiona), de modo que la foto del DPI quepa holgada
+  /// como base64 en un documento de Firestore (muy por debajo de 1 MB).
+  Uint8List _reducirParaWeb(Uint8List original) {
+    final decoded = img.decodeImage(original);
+    if (decoded == null) return original;
+    final necesitaResize = decoded.width > 1000 || decoded.height > 1000;
+    final anchoMayor = decoded.width >= decoded.height;
+    final redim = necesitaResize
+        ? img.copyResize(
+            decoded,
+            width: anchoMayor ? 1000 : null,
+            height: anchoMayor ? null : 1000,
+          )
+        : decoded;
+    return Uint8List.fromList(img.encodeJpg(redim, quality: 50));
   }
 
   void _descartar(String lado) {
@@ -163,7 +197,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         ..showSnackBar(const SnackBar(
           content: Text(
             'Cuenta creada. Queda en revisión hasta que una autoridad '
-            '(COCODE o Municipalidad) valide tu identidad y la apruebe.',
+            '(COCODE, Alcaldía Auxiliar o Municipalidad) valide tu identidad '
+            'y la apruebe.',
           ),
         ));
     }
@@ -191,6 +226,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             backgroundColor: kAuthBackground,
             body: SafeArea(
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Expanded(flex: 6, child: AuthHeroPanel()),
                   Expanded(flex: 5, child: _formScroll(state, compact: true)),
@@ -296,15 +332,20 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           TextFormField(
             controller: _telefono,
             keyboardType: TextInputType.phone,
+            // Solo dígitos y como máximo 8 (número de Guatemala sin +502).
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(8),
+            ],
             style: const TextStyle(color: Colors.white),
             cursorColor: AppColors.emergency,
             decoration: authFieldDecoration(
-              label: 'Teléfono',
+              label: 'Teléfono (8 dígitos)',
               icon: Icons.phone_outlined,
             ),
-            validator: (v) => (v == null || v.trim().length < 8)
-                ? 'Teléfono inválido'
-                : null,
+            validator: (v) => RegExp(r'^[0-9]{8}$').hasMatch(v?.trim() ?? '')
+                ? null
+                : 'El número de teléfono debe tener exactamente 8 dígitos',
           ),
           const SizedBox(height: 16),
           TextFormField(
@@ -364,7 +405,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Tu rol lo asignará una autoridad (COCODE o Municipalidad) al '
+            'Tu rol lo asignará una autoridad (COCODE, Alcaldía Auxiliar o '
+            'Municipalidad) al '
             'revisar tu cuenta. No se asigna automáticamente.',
             style: TextStyle(
               color: Colors.white54,
@@ -390,9 +432,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ],
           ),
           const SizedBox(height: 4),
+          // En la web (computadora) se abre el explorador de archivos, no la
+          // cámara: el texto lo dice para no confundir.
           const Text(
-            'Toma una foto de cada lado de tu DPI. Solo se usan para validar '
-            'tu identidad; se guardan de forma privada.',
+            kIsWeb
+                ? 'Sube una foto o escaneo de cada lado de tu DPI (JPG o PNG). '
+                    'Solo se usan para validar tu identidad; se guardan de '
+                    'forma privada.'
+                : 'Toma una foto de cada lado de tu DPI. Solo se usan para '
+                    'validar tu identidad; se guardan de forma privada.',
             style: TextStyle(
               color: Colors.white54,
               fontSize: 12.5,
@@ -550,7 +598,10 @@ class _FotoDpi extends StatelessWidget {
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.add_a_photo_outlined,
+                      const Icon(
+                          kIsWeb
+                              ? Icons.upload_file_outlined
+                              : Icons.add_a_photo_outlined,
                           color: Colors.white54),
                       const SizedBox(height: 6),
                       Text(etiqueta,

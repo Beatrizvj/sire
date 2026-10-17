@@ -1,7 +1,8 @@
 rules_version = '2';
 
 // Reglas de seguridad de SIRE — acceso por rol CON aprobación (R1).
-// Roles: ciudadano · cocode · municipalidad (campo `rol` en usuarios/{uid}).
+// Roles: ciudadano · cocode · auxiliatura · municipalidad (campo `rol` en
+// usuarios/{uid}). La Alcaldía Auxiliar tiene los permisos del COCODE en su aldea.
 // Estado de cuenta: pendiente_revision · aprobado · rechazado · suspendido
 //   (campo `estadoCuenta`). Los documentos ANTIGUOS sin ese campo se consideran
 //   'aprobado' para no bloquear a los usuarios que ya existían antes de R1.
@@ -27,16 +28,58 @@ service cloud.firestore {
     function esMunicipalidad() {
       return aprobado() && perfil().rol == 'municipalidad';
     }
+    // Autoridad de aldea: COCODE o Alcaldía Auxiliar (mismos permisos, solo en
+    // SU aldea).
     function esCocode() {
-      return aprobado() && perfil().rol == 'cocode';
+      return aprobado() && perfil().rol in ['cocode', 'auxiliatura'];
     }
     function miAldea() {
       return perfil().get('aldea', '');
     }
+    // Coordinador del COCODE o de la Alcaldía Auxiliar de SU aldea (campo
+    // `esResponsable`). Solo la Municipalidad lo designa. Aprueba cuentas,
+    // gestiona a los integrantes de su aldea y delega la aprobación.
+    function esCoordinador() {
+      return esCocode() && perfil().get('esResponsable', false) == true;
+    }
+    // Aprueba cuentas de su aldea: el coordinador o un integrante con la
+    // aprobación delegada (`puedeVerIdentidad`).
+    function esAprobador() {
+      return esCoordinador()
+             || (esCocode() && perfil().get('puedeVerIdentidad', false) == true);
+    }
+    // Ni el dueño ni una autoridad de aldea pueden tocar estas capacidades:
+    // solo la Municipalidad las otorga.
+    function capacidadesIntactas() {
+      return request.resource.data.get('puedeVerIdentidad', false)
+               == resource.data.get('puedeVerIdentidad', false)
+             && request.resource.data.get('esResponsable', false)
+               == resource.data.get('esResponsable', false);
+    }
     // R2: verificador de identidad = autoridad aprobada con la capacidad
     // `puedeVerIdentidad` que otorga la Municipalidad.
     function esVerificador() {
-      return aprobado() && perfil().get('puedeVerIdentidad', false) == true;
+      return (aprobado() && perfil().get('puedeVerIdentidad', false) == true)
+             || esCoordinador();
+    }
+    // Campos de identidad y de cuenta que el coordinador NO cambia al
+    // gestionar a un integrante (la aldea y la coordinación son municipales).
+    function identidadIntacta() {
+      return request.resource.data.get('aldea', '') == resource.data.get('aldea', '')
+             && request.resource.data.get('aldeaSolicitada', '') == resource.data.get('aldeaSolicitada', '')
+             && request.resource.data.get('telefono', '') == resource.data.get('telefono', '')
+             && request.resource.data.get('estadoCuenta', 'aprobado') == resource.data.get('estadoCuenta', 'aprobado')
+             && request.resource.data.get('esResponsable', false) == resource.data.get('esResponsable', false);
+    }
+    // Bitácora: quien cambia un documento se identifica con `modificadoPor`
+    // (su propio uid) y `modificadoEn` (hora del servidor), o deja ambos
+    // intactos (versiones anteriores de la app; la bitácora lo registra como
+    // actor desconocido). Nadie puede firmar a nombre de otro.
+    function marcaActorValida() {
+      return (request.resource.data.get('modificadoPor', '') == request.auth.uid
+              && request.resource.data.get('modificadoEn', null) == request.time)
+             || (request.resource.data.get('modificadoPor', '') == resource.data.get('modificadoPor', '')
+                 && request.resource.data.get('modificadoEn', null) == resource.data.get('modificadoEn', null));
     }
     // R4 (capa servidor): nombre 2-60 caracteres, solo letras (Unicode),
     // espacios, apóstrofo y guion. La lista negra se aplica en el cliente.
@@ -52,44 +95,91 @@ service cloud.firestore {
       // 'pendiente_revision'. Nadie puede auto-crearse ya aprobado.
       allow create: if signedIn() && request.auth.uid == userId
                        && request.resource.data.get('estadoCuenta', '') == 'pendiente_revision'
-                       && nombreValido(request.resource.data.nombre);
+                       && nombreValido(request.resource.data.nombre)
+                       // Teléfono: exactamente 8 dígitos (Guatemala, sin +502).
+                       && request.resource.data.get('telefono', '').matches('^[0-9]{8}$');
 
       // Lo lee su dueño; COCODE y Municipalidad (aprobados) pueden consultarlo.
+      // Además, cualquier usuario aprobado puede leer el perfil del COCODE de SU
+      // propia aldea (para tener su teléfono de contacto de emergencia); esto
+      // NO expone a otros ciudadanos, solo al COCODE de la aldea del solicitante.
       allow read:   if signedIn() && (request.auth.uid == userId
-                       || esMunicipalidad() || esCocode());
+                       || esMunicipalidad() || esCocode()
+                       || (aprobado()
+                           && resource.data.get('rol', 'ciudadano') == 'cocode'
+                           && resource.data.get('aldea', '') == miAldea())
+                       // ...y el coordinador de la Alcaldía Auxiliar de su aldea
+                       // (para indicarle a quién acudir).
+                       || (aprobado()
+                           && resource.data.get('rol', 'ciudadano') == 'auxiliatura'
+                           && resource.data.get('esResponsable', false) == true
+                           && resource.data.get('aldea', '') == miAldea()));
 
       // El dueño edita SUS datos, pero NO su rol, su estado, la capacidad de
       // ver identidad ni sus contactos de confianza (RF-11): esos grupos solo
       // los arma una autoridad, no el propio ciudadano.
       allow update: if request.auth.uid == userId
+                       && marcaActorValida()
                        && request.resource.data.get('rol', 'ciudadano')
                             == resource.data.get('rol', 'ciudadano')
                        && request.resource.data.get('estadoCuenta', 'aprobado')
                             == resource.data.get('estadoCuenta', 'aprobado')
-                       && request.resource.data.get('puedeVerIdentidad', false)
-                            == resource.data.get('puedeVerIdentidad', false)
+                       && capacidadesIntactas()
                        && request.resource.data.get('contactosConfianza', [])
                             == resource.data.get('contactosConfianza', [])
-                       && nombreValido(request.resource.data.nombre);
+                       // Identidad verificada contra el DPI: el dueño NO cambia
+                       // su nombre ni su aldea (la aldea define a qué autoridad
+                       // llegan sus alertas). Solo la Municipalidad los corrige.
+                       && request.resource.data.get('nombre', '')
+                            == resource.data.get('nombre', '')
+                       && request.resource.data.get('aldea', '')
+                            == resource.data.get('aldea', '')
+                       && request.resource.data.get('aldeaSolicitada', '')
+                            == resource.data.get('aldeaSolicitada', '')
+                       // El teléfono sí es editable, siempre con 8 dígitos (si no
+                       // cambia, no se revalida: otras escrituras del dueño, como
+                       // el token de notificaciones, no deben fallar).
+                       && (request.resource.data.get('telefono', '')
+                             == resource.data.get('telefono', '')
+                           || request.resource.data.get('telefono', '').matches('^[0-9]{8}$'));
 
       // La Municipalidad puede aprobar/editar cualquier cuenta y asignar rol.
-      allow update: if esMunicipalidad();
+      allow update: if esMunicipalidad() && marcaActorValida();
 
-      // El COCODE solo aprueba/rechaza CIUDADANOS de su misma aldea declarada.
-      allow update: if esCocode()
+      // APROBACIÓN de solicitudes de SU aldea: coordinador o aprobador
+      // delegado. El delegado solo aprueba ciudadanos; el coordinador también
+      // a integrantes de su propio cuerpo (COCODE o Alcaldía Auxiliar). Al
+      // rechazar, la aldea no cambia.
+      allow update: if esAprobador()
+                       && marcaActorValida()
+                       && resource.data.get('estadoCuenta', 'aprobado') == 'pendiente_revision'
                        && resource.data.get('aldeaSolicitada', '') == miAldea()
-                       && request.resource.data.get('rol', 'ciudadano') == 'ciudadano';
+                       && (request.resource.data.get('rol', 'ciudadano') == 'ciudadano'
+                           || (esCoordinador()
+                               && request.resource.data.get('rol', '') == perfil().rol))
+                       && (request.resource.data.get('aldea', '') == miAldea()
+                           || request.resource.data.get('estadoCuenta', '') == 'rechazado')
+                       && capacidadesIntactas();
 
-      // RF-11: el COCODE arma los grupos de "contactos de confianza" de los
-      // CIUDADANOS aprobados de SU aldea. Mínimo privilegio: SOLO puede cambiar
-      // el campo `contactosConfianza` (ni rol, ni estado, ni aldea, ni nada más).
-      allow update: if esCocode()
+      // GESTIÓN por el coordinador de los integrantes YA aprobados de su aldea
+      // (nunca de sí mismo ni de otro coordinador): cambia el rol entre
+      // ciudadano y su propio cuerpo, corrige el nombre, arma los contactos de
+      // confianza (RF-11) y delega la aprobación solo a integrantes de su cuerpo.
+      allow update: if esCoordinador()
+                       && marcaActorValida()
+                       && userId != request.auth.uid
                        && resource.data.get('aldea', '') == miAldea()
-                       && resource.data.get('rol', 'ciudadano') == 'ciudadano'
-                       && request.resource.data.diff(resource.data)
-                            .affectedKeys().hasOnly(['contactosConfianza']);
+                       && resource.data.get('esResponsable', false) == false
+                       && resource.data.get('rol', 'ciudadano') in ['ciudadano', perfil().rol]
+                       && request.resource.data.get('rol', 'ciudadano') in ['ciudadano', perfil().rol]
+                       && identidadIntacta()
+                       && nombreValido(request.resource.data.nombre)
+                       && (request.resource.data.get('puedeVerIdentidad', false) == false
+                           || request.resource.data.get('rol', '') == perfil().rol);
 
-      allow delete: if esMunicipalidad();
+      // El propio usuario puede borrar su cuenta (requisito de Google Play);
+      // una Cloud Function elimina además su acceso y sus fotos del DPI.
+      allow delete: if esMunicipalidad() || request.auth.uid == userId;
     }
 
     // ── Auditoría (R1): bitácora inmutable ──
@@ -97,8 +187,16 @@ service cloud.firestore {
       // Solo autoridades aprobadas registran acciones; el actor debe ser quien firma.
       allow create: if (esMunicipalidad() || esCocode())
                        && request.resource.data.actorUid == request.auth.uid;
-      // Solo la Municipalidad puede leer la bitácora.
-      allow read:   if esMunicipalidad();
+      // La Municipalidad lee toda la bitácora; el coordinador del COCODE o de
+      // la Alcaldía Auxiliar, la de SU aldea; los demás integrantes, solo el
+      // historial de las alertas de su aldea (sus consultas DEBEN filtrar por
+      // aldea y, los integrantes, por objetivoTipo == 'alerta').
+      allow read:   if esMunicipalidad()
+                       || (esCoordinador()
+                           && resource.data.get('aldea', '') == miAldea())
+                       || (esCocode()
+                           && resource.data.get('aldea', '') == miAldea()
+                           && resource.data.get('objetivoTipo', '') == 'alerta');
       // Inmutable: nunca se edita ni se borra.
       allow update, delete: if false;
     }
@@ -149,11 +247,34 @@ service cloud.firestore {
       // las de SU aldea. Además, el ciudadano puede CANCELAR su propia alerta
       // (marcarla 'falsa_alarma') mientras siga abierta: basta con que sea SU
       // alerta y que el cambio sea SOLO a 'falsa_alarma'.
-      allow update: if esMunicipalidad()
+      allow update: if marcaActorValida() && (
+                       esMunicipalidad()
                        || (esCocode()
                            && resource.data.get('aldea', '') == miAldea())
                        || (resource.data.idUsuario == request.auth.uid
-                           && request.resource.data.estado == 'falsa_alarma');
+                           && request.resource.data.estado == 'falsa_alarma'));
+      // Ubicación EN VIVO: el teléfono del dueño actualiza SOLO su posición
+      // actual, mientras la alerta siga abierta, el ciudadano no haya dejado de
+      // compartir y no hayan pasado 2 h desde la alerta (límite real: el del
+      // teléfono puede fallar si Android congela o reinicia el servicio).
+      allow update: if resource.data.idUsuario == request.auth.uid
+                       && resource.data.estado in ['pendiente', 'atendida']
+                       && !('seguimientoDetenidoEn' in resource.data)
+                       && request.time < resource.data.fecha + duration.value(2, 'h')
+                       && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['latitudActual', 'longitudActual',
+                                      'precisionActual', 'ubicacionActualEn'])
+                       && request.resource.data.latitudActual is number
+                       && request.resource.data.longitudActual is number
+                       && request.resource.data.ubicacionActualEn == request.time;
+      // "Dejar de compartir": el dueño marca SOLO la hora en que cortó el
+      // seguimiento en vivo (una vez). La alerta sigue abierta para la autoridad.
+      allow update: if resource.data.idUsuario == request.auth.uid
+                       && resource.data.estado in ['pendiente', 'atendida']
+                       && !('seguimientoDetenidoEn' in resource.data)
+                       && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['seguimientoDetenidoEn'])
+                       && request.resource.data.seguimientoDetenidoEn == request.time;
       allow delete: if esMunicipalidad();
     }
 

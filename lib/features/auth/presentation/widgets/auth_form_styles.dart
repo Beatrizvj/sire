@@ -65,15 +65,18 @@ class MunicipioChip extends StatelessWidget {
         children: [
           Icon(Icons.location_on, size: 15, color: kAuthLightRed),
           SizedBox(width: 6),
-          Text(
+          // Flexible: con letra grande en teléfonos pequeños se recorta en vez
+          // de desbordarse.
+          Flexible(child: Text(
             'San Miguel Sigüilá',
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: kAuthLightRed,
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,
             ),
-          ),
+          )),
         ],
       ),
     );
@@ -211,15 +214,15 @@ class AuthHeroPanel extends StatelessWidget {
                   const _HeroFeature(
                     icon: Icons.how_to_reg_outlined,
                     titulo: 'Validación de cuentas',
-                    detalle: 'Aprueba a los ciudadanos por COCODE o '
-                        'Municipalidad.',
+                    detalle: 'Aprueba a los ciudadanos por el COCODE, la '
+                        'Alcaldía Auxiliar o la Municipalidad.',
                   ),
                   const SizedBox(height: 22),
                   const _HeroFeature(
-                    icon: Icons.map_outlined,
-                    titulo: 'Mapa en vivo del municipio',
-                    detalle: 'Ubica cada incidente en el territorio a medida '
-                        'que ocurre.',
+                    icon: Icons.my_location,
+                    titulo: 'Ubicación en vivo',
+                    detalle: 'Sigue en el mapa a quien pide ayuda, aunque se '
+                        'desplace.',
                   ),
                   const SizedBox(height: 52),
 

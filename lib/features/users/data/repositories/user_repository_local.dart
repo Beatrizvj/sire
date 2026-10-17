@@ -39,4 +39,12 @@ class UserRepositoryLocal implements UserRepository {
   Stream<List<AppUser>> watchAllUsers() async* {
     yield const [];
   }
+
+  @override
+  Stream<List<AppUser>> watchCocodesDeAldea(String aldea) async* {
+    yield const [];
+  }
+
+  @override
+  Future<List<AppUser>> coordinadoresDeAldea(String aldea) async => const [];
 }

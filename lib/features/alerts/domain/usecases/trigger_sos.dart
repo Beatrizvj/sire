@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math';
 
+import '../../../location/domain/entities/location_reading.dart';
 import '../../../location/domain/repositories/location_repository.dart';
 import '../entities/alert_status.dart';
 import '../entities/sos_alert.dart';
@@ -44,16 +46,27 @@ class TriggerSos {
     String? categoria,
     String? aldea,
   }) async {
-    final reading = await locationRepository.getCurrentLocation();
+    // La ubicación es "mejor esfuerzo": si el GPS está apagado y no hay última
+    // ubicación conocida, la alerta se envía IGUAL, sin ubicación (lat/long en
+    // 0,0), para que llegue sí o sí. Lo mismo hace el servicio nativo del botón
+    // de encendido.
+    LocationReading? reading;
+    try {
+      reading = await locationRepository.getCurrentLocation();
+    } catch (_) {
+      reading = null;
+    }
 
     final alert = SosAlert(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      // Id del documento definido aquí para poder seguir la alerta en vivo
+      // aunque la escritura quede en cola sin señal.
+      id: idDeAlerta(DateTime.now()),
       userId: userId,
       aldea: aldea,
-      latitude: reading.latitude,
-      longitude: reading.longitude,
-      accuracy: reading.accuracy,
-      address: reading.address,
+      latitude: reading?.latitude ?? 0,
+      longitude: reading?.longitude ?? 0,
+      accuracy: reading?.accuracy,
+      address: reading?.address,
       timestamp: DateTime.now(),
       source: source,
       status: AlertStatus.pendiente,
@@ -71,4 +84,13 @@ class TriggerSos {
     }
     return SosResult(alert, enCola: enCola);
   }
+}
+
+/// Id legible y ordenable por fecha, p. ej. `20260722-065701-3f2a` (el mismo
+/// formato que usa el SOS del botón de encendido).
+String idDeAlerta(DateTime t, {Random? azar}) {
+  String dos(int n) => n.toString().padLeft(2, '0');
+  final sufijo = (azar ?? Random()).nextInt(9000) + 1000;
+  return '${t.year}${dos(t.month)}${dos(t.day)}-'
+      '${dos(t.hour)}${dos(t.minute)}${dos(t.second)}-$sufijo';
 }

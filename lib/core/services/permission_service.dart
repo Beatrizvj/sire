@@ -28,10 +28,15 @@ class PermissionService {
     return status.isGranted;
   }
 
-  /// Ubicación en segundo plano (para capturar GPS con la pantalla bloqueada;
-  /// se usará al endurecer el botón físico).
+  /// Ubicación en segundo plano ("Permitir todo el tiempo"). Sin ella, cuando
+  /// Android reinicia el servicio del botón de encendido, este pierde el acceso
+  /// al GPS y el SOS llega sin ubicación. En Android 11+ el sistema lleva al
+  /// usuario a los ajustes de la app para elegir esa opción.
   Future<bool> ensureBackgroundLocation() async {
     final status = await Permission.locationAlways.request();
     return status.isGranted;
   }
+
+  /// true si ya está concedido "Permitir todo el tiempo".
+  Future<bool> hasBackgroundLocation() => Permission.locationAlways.isGranted;
 }

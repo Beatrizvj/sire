@@ -116,7 +116,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   // ── Layout web escritorio: hero institucional + formulario ───────────────
   Widget _wideLayout(AuthState state) {
+    // stretch: el hero ocupa todo el alto (sin franjas arriba y abajo).
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Expanded(flex: 6, child: AuthHeroPanel()),
         Expanded(
@@ -156,7 +158,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             ),
             const SizedBox(height: 10),
             const Text(
-              'Bienvenido de nuevo',
+              'Te damos la bienvenida',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 26,
@@ -342,8 +344,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Las cuentas nuevas son validadas por el COCODE de tu aldea '
-                'o la Municipalidad.',
+                'Las cuentas nuevas son validadas por el COCODE o la Alcaldía '
+                'Auxiliar de tu aldea, o por la Municipalidad.',
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 12.5,
@@ -354,6 +356,68 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ],
         ),
       ),
+
+      // ── QR de descarga de la app móvil (solo panel web) ────────────────
+      // Provisional mientras la app no esté publicada en Play Store: apunta a
+      // descargar.html, que sirve el APK desde este mismo hosting.
+      if (kIsWeb) ...[
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(4),
+                  child: Image.network(
+                    'qr-descarga-sire.png',
+                    width: 110,
+                    height: 110,
+                    errorBuilder: (_, _, _) => const SizedBox(
+                      width: 110,
+                      height: 110,
+                      child: Icon(Icons.qr_code_2, color: Colors.black54),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Descarga la app móvil',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Escanea el código con tu teléfono Android para '
+                      'instalar SIRE.',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
 
       // Nota de modo demo local (solo si Firebase está apagado).
       if (!AppConfig.firebaseEnabled) ...[

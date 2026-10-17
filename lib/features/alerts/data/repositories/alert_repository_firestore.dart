@@ -1,8 +1,6 @@
-import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/config/firestore_collections.dart';
 import '../../domain/entities/alert_status.dart';
@@ -25,29 +23,46 @@ class AlertRepositoryFirestore implements AlertRepository {
 
   String? get _uid => _auth.currentUser?.uid;
 
-  Map<String, dynamic> _toFirestore(SosAlert alert) => {
-        'idUsuario': alert.userId ?? _uid,
-        'nombreUsuario': _auth.currentUser?.displayName ?? '',
-        // Aldea registrada del ciudadano: rutea la alerta a su COCODE (la
-        // Municipalidad ve todas; cada COCODE, solo su aldea).
-        'aldea': alert.aldea ?? '',
-        'fecha': Timestamp.fromDate(alert.timestamp),
-        'latitud': alert.latitude,
-        'longitud': alert.longitude,
-        'estado': alert.status.value,
-        'tipo': alert.type,
-        'origen': alert.source.name,
-        'direccion': alert.address,
-        'precision': alert.accuracy,
-        'categoria': alert.categoria,
-        'atendidaEn': alert.atendidaEn == null
-            ? null
-            : Timestamp.fromDate(alert.atendidaEn!),
-        'resueltaEn': alert.resueltaEn == null
-            ? null
-            : Timestamp.fromDate(alert.resueltaEn!),
-        'creadoEn': FieldValue.serverTimestamp(),
+  /// Quién hace el cambio y cuándo (hora del servidor). La bitácora (Cloud
+  /// Function) lo registra; las reglas exigen que sea el usuario autenticado.
+  Map<String, dynamic> _marcaActor() => {
+        'modificadoPor': _uid,
+        'modificadoEn': FieldValue.serverTimestamp(),
       };
+
+  Map<String, dynamic> _toFirestore(SosAlert alert) {
+    final data = <String, dynamic>{
+      'idUsuario': alert.userId ?? _uid,
+      'nombreUsuario': _auth.currentUser?.displayName ?? '',
+      // Aldea registrada del ciudadano: rutea la alerta a su COCODE (la
+      // Municipalidad ve todas; cada COCODE, solo su aldea).
+      'aldea': alert.aldea ?? '',
+      'fecha': Timestamp.fromDate(alert.timestamp),
+      'estado': alert.status.value,
+      'tipo': alert.type,
+      'origen': alert.source.name,
+      'direccion': alert.address,
+      'categoria': alert.categoria,
+      'atendidaEn': alert.atendidaEn == null
+          ? null
+          : Timestamp.fromDate(alert.atendidaEn!),
+      'resueltaEn': alert.resueltaEn == null
+          ? null
+          : Timestamp.fromDate(alert.resueltaEn!),
+      'atendidaPor': alert.atendidaPor,
+      'atendidaPorNombre': alert.atendidaPorNombre,
+      'creadoEn': FieldValue.serverTimestamp(),
+    };
+    // Las coordenadas solo se guardan si existen. Sin ubicación (0,0) se OMITEN,
+    // igual que el servicio nativo del botón de encendido, para que el panel
+    // muestre "Sin ubicación" en vez de un punto falso en el mar.
+    if (alert.tieneUbicacion) {
+      data['latitud'] = alert.latitude;
+      data['longitud'] = alert.longitude;
+      data['precision'] = alert.accuracy;
+    }
+    return data;
+  }
 
   SosAlert _fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
@@ -71,6 +86,14 @@ class AlertRepositoryFirestore implements AlertRepository {
       categoria: data['categoria'] as String?,
       atendidaEn: (data['atendidaEn'] as Timestamp?)?.toDate(),
       resueltaEn: (data['resueltaEn'] as Timestamp?)?.toDate(),
+      atendidaPor: data['atendidaPor'] as String?,
+      atendidaPorNombre: data['atendidaPorNombre'] as String?,
+      latitudActual: (data['latitudActual'] as num?)?.toDouble(),
+      longitudActual: (data['longitudActual'] as num?)?.toDouble(),
+      precisionActual: (data['precisionActual'] as num?)?.toDouble(),
+      ubicacionActualEn: (data['ubicacionActualEn'] as Timestamp?)?.toDate(),
+      seguimientoDetenidoEn:
+          (data['seguimientoDetenidoEn'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -89,14 +112,8 @@ class AlertRepositoryFirestore implements AlertRepository {
 
   @override
   Future<void> saveAlert(SosAlert alert) =>
-      _alertas.doc(_buildDocId(alert.timestamp)).set(_toFirestore(alert));
-
-  /// ID legible y ordenable por fecha: p. ej. 20260722-065701-3f2a.
-  String _buildDocId(DateTime when) {
-    final stamp = DateFormat('yyyyMMdd-HHmmss').format(when);
-    final suffix = (Random().nextInt(9000) + 1000).toString();
-    return '$stamp-$suffix';
-  }
+      // El id lo define TriggerSos (formato 20260722-065701-3f2a).
+      _alertas.doc(alert.id).set(_toFirestore(alert));
 
   @override
   Future<void> clear() async {
@@ -133,11 +150,23 @@ class AlertRepositoryFirestore implements AlertRepository {
       });
 
   @override
-  Future<void> updateStatus(String id, AlertStatus status) {
-    final data = <String, dynamic>{'estado': status.value};
-    // Marca de tiempo para medir el tiempo de respuesta (la fija el servidor).
+  Future<void> updateStatus(
+    String id,
+    AlertStatus status, {
+    String? atendidaPor,
+    String? atendidaPorNombre,
+  }) {
+    final data = <String, dynamic>{'estado': status.value, ..._marcaActor()};
+    // Marca de tiempo para medir el tiempo de respuesta (la fija el servidor)
+    // y trazabilidad de quién atendió la alerta.
     if (status == AlertStatus.atendida) {
       data['atendidaEn'] = FieldValue.serverTimestamp();
+      if (atendidaPor != null && atendidaPor.isNotEmpty) {
+        data['atendidaPor'] = atendidaPor;
+      }
+      if (atendidaPorNombre != null && atendidaPorNombre.isNotEmpty) {
+        data['atendidaPorNombre'] = atendidaPorNombre;
+      }
     } else if (status == AlertStatus.resuelta) {
       data['resueltaEn'] = FieldValue.serverTimestamp();
     }
@@ -146,5 +175,11 @@ class AlertRepositoryFirestore implements AlertRepository {
 
   @override
   Future<void> updateCategoria(String id, String categoria) =>
-      _alertas.doc(id).update({'categoria': categoria});
+      _alertas.doc(id).update({'categoria': categoria, ..._marcaActor()});
+
+  // Sin marca de actor: la regla solo admite este campo (lo escribe el dueño).
+  @override
+  Future<void> detenerSeguimiento(String id) => _alertas
+      .doc(id)
+      .update({'seguimientoDetenidoEn': FieldValue.serverTimestamp()});
 }

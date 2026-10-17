@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../audit/presentation/bitacora.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../users/domain/entities/app_user.dart';
 import '../../../users/presentation/pages/approvals_page.dart';
@@ -14,11 +15,16 @@ import '../../domain/entities/sos_alert.dart';
 import '../../domain/entities/sos_source.dart';
 import '../providers/alerts_providers.dart';
 import '../widgets/alert_status_chip.dart';
+import '../widgets/ubicacion_en_vivo.dart';
+import '../../../../core/utils/whatsapp_link.dart';
+import '../../../users/domain/permisos.dart';
 
 /// Coordenadas legibles; "Ubicación no registrada" si la alerta se guardó sin GPS.
-String _coords(SosAlert alert) => (alert.latitude == 0 && alert.longitude == 0)
+/// Usa la ubicación EN VIVO si el teléfono la está compartiendo.
+String _coords(SosAlert alert) => !alert.tieneUbicacionParaLlegar
     ? 'Ubicación no registrada'
-    : '${alert.latitude.toStringAsFixed(5)}, ${alert.longitude.toStringAsFixed(5)}';
+    : '${alert.latitudParaLlegar.toStringAsFixed(5)}, '
+        '${alert.longitudParaLlegar.toStringAsFixed(5)}';
 
 /// Bandeja de emergencias para COCODE / Municipalidad.
 ///
@@ -42,6 +48,7 @@ class BandejaPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Bandeja de emergencias'),
         actions: [
+          if (autoridad?.puedeAprobarCuentas ?? false)
           IconButton(
             tooltip: 'Aprobaciones',
             icon: Badge(
@@ -55,6 +62,14 @@ class BandejaPage extends ConsumerWidget {
               ),
             ),
           ),
+          if (puedeVerBitacora(autoridad))
+            IconButton(
+              tooltip: 'Bitácora de acciones',
+              icon: const Icon(Icons.history),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const BitacoraPage()),
+              ),
+            ),
           IconButton(
             tooltip: 'Gestión de usuarios',
             icon: const Icon(Icons.manage_accounts),
@@ -106,7 +121,7 @@ class _AlertsList extends StatelessWidget {
               context: context,
               showDragHandle: true,
               isScrollControlled: true,
-              builder: (_) => _AccionesSheet(alert: alert),
+              builder: (_) => _AccionesSheet(alerta: alert),
             ),
           ),
       ],
@@ -159,12 +174,15 @@ class _EmergencyTile extends StatelessWidget {
 }
 
 class _AccionesSheet extends ConsumerWidget {
-  const _AccionesSheet({required this.alert});
+  const _AccionesSheet({required this.alerta});
 
-  final SosAlert alert;
+  final SosAlert alerta;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Versión en tiempo real: la ubicación en vivo se actualiza con la hoja
+    // abierta.
+    final alert = alertaVigente(ref, alerta);
     final theme = Theme.of(context);
     final df = DateFormat('dd/MM/yyyy · HH:mm');
     final coords = _coords(alert);
@@ -173,7 +191,7 @@ class _AccionesSheet extends ConsumerWidget {
         : 'Ciudadano';
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -205,11 +223,33 @@ class _AccionesSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             _InfoRow(icon: Icons.my_location, text: coords),
+            if (alert.tieneUbicacionEnVivo) ...[
+              const SizedBox(height: 6),
+              IndicadorEnVivo(alerta: alert),
+            ],
+            if (alert.tieneUbicacionParaLlegar) ...[
+              const SizedBox(height: 12),
+              BotonComoLlegar(alerta: alert),
+            ],
+            if (alert.atendidaPorNombre != null &&
+                alert.atendidaPorNombre!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _InfoRow(
+                icon: Icons.verified_user_outlined,
+                text: 'Atendida por: ${alert.atendidaPorNombre}',
+              ),
+            ],
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => _llamarCiudadano(context, ref),
               icon: const Icon(Icons.call),
               label: const Text('Llamar al ciudadano'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => _whatsappCiudadano(context, ref),
+              icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+              label: const Text('Escribir por WhatsApp'),
             ),
             const Divider(height: 32),
             Text('Cambiar estado', style: theme.textTheme.titleSmall),
@@ -241,6 +281,9 @@ class _AccionesSheet extends ConsumerWidget {
               icon: const Icon(Icons.cancel_outlined),
               label: const Text('Marcar como falsa alarma'),
             ),
+            const Divider(height: 24),
+            // Quién atendió, resolvió o clasificó la alerta (bitácora).
+            HistorialAlerta(alertaId: alert.id),
           ],
         ),
       ),
@@ -257,7 +300,7 @@ class _AccionesSheet extends ConsumerWidget {
     try {
       await ref
           .read(alertsControllerProvider.notifier)
-          .updateStatus(alert.id, status);
+          .updateStatus(alerta.id, status);
       navigator.pop();
       messenger.showSnackBar(
         SnackBar(content: Text('Alerta marcada como ${status.label}.')),
@@ -278,7 +321,7 @@ class _AccionesSheet extends ConsumerWidget {
         ref.read(allUsersProvider).asData?.value ?? const <AppUser>[];
     var telefono = '';
     for (final u in usuarios) {
-      if (u.id == alert.userId) {
+      if (u.id == alerta.userId) {
         telefono = u.telefono;
         break;
       }
@@ -293,6 +336,33 @@ class _AccionesSheet extends ConsumerWidget {
     if (!ok) {
       messenger.showSnackBar(SnackBar(
           content: Text('No se pudo abrir el marcador para $limpio.')));
+    }
+  }
+
+  /// La autoridad que escribe, para presentarse en el mensaje.
+  String _remitente(WidgetRef ref) {
+    final yo = ref.read(currentUserProfileProvider).asData?.value;
+    return remitenteSire(yo?.rol, yo?.aldea ?? '');
+  }
+
+  /// Abre el chat de WhatsApp con el ciudadano que envió la alerta (wa.me).
+  Future<void> _whatsappCiudadano(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final usuarios =
+        ref.read(allUsersProvider).asData?.value ?? const <AppUser>[];
+    AppUser? ciudadano;
+    for (final u in usuarios) {
+      if (u.id == alerta.userId) {
+        ciudadano = u;
+        break;
+      }
+    }
+    final ok = ciudadano != null &&
+        await abrirWhatsApp(ciudadano.telefono, ciudadano.nombre,
+            remitente: _remitente(ref));
+    if (!ok) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('No se pudo abrir WhatsApp para este ciudadano.')));
     }
   }
 }
