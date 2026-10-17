@@ -1715,7 +1715,8 @@ class _ComunidadesBody extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Wrap: en teléfono el botón baja a otra línea en vez de cortarse.
-          Wrap(
+          // Ancho completo para que en PC quede a la derecha.
+          SizedBox(width: double.infinity, child: Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 12,
@@ -1730,7 +1731,7 @@ class _ComunidadesBody extends ConsumerWidget {
                 label: const Text('Agregar aldea'),
               ),
             ],
-          ),
+          )),
           const SizedBox(height: 6),
           const Text(
             'Las cuatro localidades base siempre están disponibles. Agrega nuevas '
@@ -1759,6 +1760,10 @@ class _ComunidadesBody extends ConsumerWidget {
                           .where(
                               (u) => u.aldea == c && u.rol == UserRole.cocode)
                           .length,
+                      auxiliatura: users
+                          .where((u) =>
+                              u.aldea == c && u.rol == UserRole.auxiliatura)
+                          .length,
                       // Las 4 aldeas base no se pueden eliminar; las agregadas sí.
                       onEliminar: aldeasBase.contains(c)
                           ? null
@@ -1770,6 +1775,7 @@ class _ComunidadesBody extends ConsumerWidget {
                     ancho: cardW,
                     usuarios: users.where((u) => u.aldea.isEmpty).length,
                     cocode: 0,
+                    auxiliatura: 0,
                   ),
                 ],
               );
@@ -1863,6 +1869,7 @@ class _ComunidadCard extends StatelessWidget {
     required this.nombre,
     required this.usuarios,
     required this.cocode,
+    required this.auxiliatura,
     this.ancho = 240,
     this.onEliminar,
   });
@@ -1870,6 +1877,7 @@ class _ComunidadCard extends StatelessWidget {
   final String nombre;
   final int usuarios;
   final int cocode;
+  final int auxiliatura;
   final double ancho;
 
   /// Acción de eliminar; `null` en las aldeas base y en "Sin asignar" (sin botón).
@@ -1917,7 +1925,7 @@ class _ComunidadCard extends StatelessWidget {
           const Text('usuarios registrados',
               style: TextStyle(fontSize: 11, color: Color(0xFF6B5A57))),
           const SizedBox(height: 6),
-          Text('$cocode COCODE asignado(s)',
+          Text('$cocode COCODE · $auxiliatura Alcaldía Auxiliar',
               style: const TextStyle(fontSize: 11, color: Color(0xFF6B5A57))),
         ],
       ),
