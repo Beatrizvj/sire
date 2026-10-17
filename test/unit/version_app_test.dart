@@ -8,9 +8,10 @@ import 'package:sire/core/config/version_app.dart';
 void main() {
   test('kNumeroCompilacion coincide con el +N de pubspec.yaml', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    final m = RegExp(r'^version:\s*[\d.]+\+(\d+)', multiLine: true)
+    final m = RegExp(r'^version:\s*([\d.]+)\+(\d+)', multiLine: true)
         .firstMatch(pubspec);
     expect(m, isNotNull);
-    expect(kNumeroCompilacion, int.parse(m!.group(1)!));
+    expect(kVersionNombre, m!.group(1));
+    expect(kNumeroCompilacion, int.parse(m.group(2)!));
   });
 }

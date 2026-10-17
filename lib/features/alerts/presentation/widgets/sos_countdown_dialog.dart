@@ -62,7 +62,9 @@ class _SosCountdownDialogState extends State<_SosCountdownDialog> {
     final progreso = widget.segundos == 0 ? 0.0 : _restante / widget.segundos;
     return AlertDialog(
       title: const Text('Enviando SOS…'),
-      content: Column(
+      // Desplazable: con letra grande en teléfonos pequeños no cabe entero.
+      content: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
@@ -113,6 +115,7 @@ class _SosCountdownDialogState extends State<_SosCountdownDialog> {
           ),
         ],
       ),
+      )
     );
   }
 }

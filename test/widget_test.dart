@@ -11,7 +11,7 @@ import 'package:sire/features/auth/domain/repositories/auth_repository.dart';
 import 'package:sire/features/auth/presentation/pages/login_page.dart';
 import 'package:sire/features/auth/presentation/providers/auth_providers.dart';
 
-class _FakeAuthRepository implements AuthRepository {
+class FakeAuthRepository implements AuthRepository {
   @override
   AuthUser? get currentUser => null;
 
@@ -52,7 +52,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         ],
         child: const MaterialApp(home: LoginPage()),
       ),

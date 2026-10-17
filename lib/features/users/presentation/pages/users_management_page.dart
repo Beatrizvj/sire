@@ -362,7 +362,7 @@ class _EditSheetState extends ConsumerState<_EditSheet> {
                 ),
               if (_rol == UserRole.ciudadano) ...[
                 const SizedBox(height: 20),
-                _Label(text: 'Contactos de confianza (RF-11)'),
+                _Label(text: 'Contactos de confianza'),
                 const SizedBox(height: 4),
                 Text(
                   'Grupo de confianza de ${widget.user.nombre}: a todos les suena '

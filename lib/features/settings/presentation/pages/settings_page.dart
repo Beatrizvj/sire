@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/config/version_app.dart';
 import '../../../../core/services/power_button_bridge.dart';
 import '../../../../core/theme/theme_mode_controller.dart';
 import '../../../../core/validation/password_validator.dart';
@@ -111,7 +112,7 @@ void _showAcercaDe(BuildContext context) {
   showAboutDialog(
     context: context,
     applicationName: AppConfig.appName,
-    applicationVersion: 'v1',
+    applicationVersion: 'Versión $kVersionNombre ($kNumeroCompilacion)',
     applicationIcon: Icon(
       Icons.shield,
       size: 40,
@@ -125,7 +126,7 @@ void _showAcercaDe(BuildContext context) {
       SizedBox(height: 8),
       Text(
         'Las alertas SOS enviadas por la ciudadanía las reciben y atienden '
-        'los COCODE de cada aldea y la Municipalidad.',
+        'el COCODE y la Alcaldía Auxiliar de cada aldea, y la Municipalidad.',
       ),
     ],
   );

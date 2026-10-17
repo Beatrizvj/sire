@@ -12,6 +12,13 @@ import '../../../alerts/presentation/widgets/ubicacion_en_vivo.dart';
 
 /// Centro aproximado del municipio de San Miguel Sigüilá (Quetzaltenango).
 /// Encuadre inicial del mapa cuando aún no hay alertas con ubicación.
+/// Mediana de [valores] (no vacío).
+double mediana(Iterable<double> valores) {
+  final v = valores.toList()..sort();
+  final m = v.length ~/ 2;
+  return v.length.isOdd ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+
 const LatLng _centroMunicipio = LatLng(14.8726, -91.6009);
 
 /// Máximo de marcadores dibujados a la vez, para que el mapa no se sature cuando
@@ -43,13 +50,12 @@ class _MapPageState extends ConsumerState<MapPage> {
 
   bool _conUbicacion(SosAlert a) => !(a.latitude == 0 && a.longitude == 0);
 
+  // Mediana (no promedio): una alerta lejana (p. ej. enviada desde
+  // Quetzaltenango) ya no aleja el mapa de las aldeas del municipio.
   LatLng _centro(List<SosAlert> puntos) {
     if (puntos.isEmpty) return _centroMunicipio;
-    final lat =
-        puntos.map((a) => a.latitude).reduce((x, y) => x + y) / puntos.length;
-    final lng =
-        puntos.map((a) => a.longitude).reduce((x, y) => x + y) / puntos.length;
-    return LatLng(lat, lng);
+    return LatLng(mediana(puntos.map((a) => a.latitude)),
+        mediana(puntos.map((a) => a.longitude)));
   }
 
   @override

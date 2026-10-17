@@ -28,6 +28,7 @@ import '../../../users/domain/entities/user_role.dart';
 import '../../../users/presentation/providers/approvals_providers.dart';
 import '../../../users/presentation/providers/users_providers.dart';
 import '../../../users/domain/permisos.dart';
+import '../../../maps/presentation/pages/map_page.dart' show mediana;
 import '../widgets/aviso_version_nueva.dart';
 
 // Paleta del panel (según el prototipo): barra lateral oscura, contenido claro.
@@ -1195,7 +1196,41 @@ class _UsuariosBody extends ConsumerWidget {
             if (users.isEmpty) {
               return const Center(child: Text('No hay usuarios.'));
             }
-            return SingleChildScrollView(
+            Widget acciones(AppUser u) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (esVerificador && actor != null)
+                      TextButton(
+                        onPressed: () =>
+                            verDpi(context, ref, objetivo: u, actor: actor),
+                        child: const Text('Ver DPI'),
+                      ),
+                    if (actor != null && actor.puedeEditar(u))
+                      TextButton(
+                        onPressed: () => showDialog<void>(
+                          context: context,
+                          builder: (_) => _EditarUsuario(usuario: u),
+                        ),
+                        child: const Text('Editar'),
+                      ),
+                  ],
+                );
+            return LayoutBuilder(builder: (context, cons) {
+              // En teléfono la tabla no cabe (se cortaban teléfono, rol y
+              // acciones): cada usuario se muestra como tarjeta.
+              if (cons.maxWidth < 720) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _Card(
+                    titulo: '${users.length} usuarios registrados',
+                    child: Column(children: [
+                      for (final u in users)
+                        _UsuarioCard(usuario: u, acciones: acciones(u)),
+                    ]),
+                  ),
+                );
+              }
+              return SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: _Card(
                 titulo: '${users.length} usuarios registrados',
@@ -1232,33 +1267,68 @@ class _UsuariosBody extends ConsumerWidget {
                         ),
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (esVerificador && actor != null)
-                                TextButton(
-                                  onPressed: () => verDpi(context, ref,
-                                      objetivo: u, actor: actor),
-                                  child: const Text('Ver DPI'),
-                                ),
-                              if (actor != null && actor.puedeEditar(u))
-                                TextButton(
-                                  onPressed: () => showDialog<void>(
-                                    context: context,
-                                    builder: (_) => _EditarUsuario(usuario: u),
-                                  ),
-                                  child: const Text('Editar'),
-                                ),
-                            ],
-                          ),
+                          child: acciones(u),
                         ),
                       ],
                   ],
                 ),
               ),
             );
+            });
           },
         );
+  }
+}
+
+/// Usuario en formato tarjeta (pantallas angostas).
+class _UsuarioCard extends StatelessWidget {
+  const _UsuarioCard({required this.usuario, required this.acciones});
+
+  final AppUser usuario;
+  final Widget acciones;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = usuario;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFEAD9D6)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(u.nombre,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+              _RolChip(rol: u.rol),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if ((u.email ?? '').isNotEmpty)
+            Text(u.email!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5)),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Flexible(child: _TelefonoCelda(telefono: u.telefono)),
+              const Text('  ·  ', style: TextStyle(fontSize: 12.5)),
+              Text(u.aldea.isEmpty ? 'Sin comunidad' : u.aldea,
+                  style: const TextStyle(fontSize: 12.5)),
+            ],
+          ),
+          Align(alignment: Alignment.centerRight, child: acciones),
+        ],
+      ),
+    );
   }
 }
 
@@ -1454,7 +1524,7 @@ class _EditarUsuarioState extends ConsumerState<_EditarUsuario> {
           if (_rol == UserRole.ciudadano) ...[
             const SizedBox(height: 12),
             const Divider(),
-            const Text('Contactos de confianza (RF-11)',
+            const Text('Contactos de confianza',
                 style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text(
@@ -1644,11 +1714,15 @@ class _ComunidadesBody extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          // Wrap: en teléfono el botón baja a otra línea en vez de cortarse.
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               const Text('Comunidades del municipio',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              const Spacer(),
               FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: _brand),
                 onPressed: () => _agregarAldea(context, ref),
@@ -3044,16 +3118,11 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
   }
 }
 
-/// Promedio de las coordenadas, para centrar el mapa en la nube de incidentes.
-LatLng _centroide(List<SosAlert> alertas) {
-  var lat = 0.0;
-  var lng = 0.0;
-  for (final a in alertas) {
-    lat += a.latitude;
-    lng += a.longitude;
-  }
-  return LatLng(lat / alertas.length, lng / alertas.length);
-}
+/// Mediana de las coordenadas, para centrar el mapa en la nube de incidentes
+/// sin que una alerta lejana lo desplace.
+LatLng _centroide(List<SosAlert> alertas) => LatLng(
+    mediana(alertas.map((a) => a.latitude)),
+    mediana(alertas.map((a) => a.longitude)));
 
 /// Conmutador entre "Alertas activas" (marcadores) y "Mapa de calor" (densidad).
 class _SelectorModoMapa extends StatelessWidget {

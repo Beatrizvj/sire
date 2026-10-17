@@ -65,15 +65,18 @@ class MunicipioChip extends StatelessWidget {
         children: [
           Icon(Icons.location_on, size: 15, color: kAuthLightRed),
           SizedBox(width: 6),
-          Text(
+          // Flexible: con letra grande en teléfonos pequeños se recorta en vez
+          // de desbordarse.
+          Flexible(child: Text(
             'San Miguel Sigüilá',
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: kAuthLightRed,
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,
             ),
-          ),
+          )),
         ],
       ),
     );
