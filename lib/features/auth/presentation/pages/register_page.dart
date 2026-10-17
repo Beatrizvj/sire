@@ -197,7 +197,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         ..showSnackBar(const SnackBar(
           content: Text(
             'Cuenta creada. Queda en revisión hasta que una autoridad '
-            '(COCODE o Municipalidad) valide tu identidad y la apruebe.',
+            '(COCODE, Alcaldía Auxiliar o Municipalidad) valide tu identidad '
+            'y la apruebe.',
           ),
         ));
     }
@@ -404,7 +405,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Tu rol lo asignará una autoridad (COCODE o Municipalidad) al '
+            'Tu rol lo asignará una autoridad (COCODE, Alcaldía Auxiliar o '
+            'Municipalidad) al '
             'revisar tu cuenta. No se asigna automáticamente.',
             style: TextStyle(
               color: Colors.white54,
@@ -430,9 +432,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ],
           ),
           const SizedBox(height: 4),
+          // En la web (computadora) se abre el explorador de archivos, no la
+          // cámara: el texto lo dice para no confundir.
           const Text(
-            'Toma una foto de cada lado de tu DPI. Solo se usan para validar '
-            'tu identidad; se guardan de forma privada.',
+            kIsWeb
+                ? 'Sube una foto o escaneo de cada lado de tu DPI (JPG o PNG). '
+                    'Solo se usan para validar tu identidad; se guardan de '
+                    'forma privada.'
+                : 'Toma una foto de cada lado de tu DPI. Solo se usan para '
+                    'validar tu identidad; se guardan de forma privada.',
             style: TextStyle(
               color: Colors.white54,
               fontSize: 12.5,
@@ -590,7 +598,10 @@ class _FotoDpi extends StatelessWidget {
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.add_a_photo_outlined,
+                      const Icon(
+                          kIsWeb
+                              ? Icons.upload_file_outlined
+                              : Icons.add_a_photo_outlined,
                           color: Colors.white54),
                       const SizedBox(height: 6),
                       Text(etiqueta,
