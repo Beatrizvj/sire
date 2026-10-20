@@ -80,10 +80,12 @@ Notas técnicas para la defensa:
       código ya soporta la plantilla (`TWILIO_CONTENT_SID`): al aprobarse solo
       cambia la configuración, sin modificar el software.
 
-- [ ] La sesión de prueba del 9-oct-2026 se convocó con los COCODE de las 4
+- [x] La sesión de prueba del 9-oct-2026 se convocó con los COCODE de las 4
       aldeas y la Alcaldía Auxiliar; **asistió solo la Alcaldía Auxiliar** (3
-      integrantes). La prueba con los COCODE se reprograma (a distancia, con el
-      guion y el enlace de descarga) antes de la entrega del 24-oct-2026.
+      integrantes). **Decisión (18-oct-2026):** no se reprograma; la entrega
+      oficial es a la Municipalidad y a la Alcaldía Auxiliar de La Emboscada. El
+      rol COCODE queda habilitado: la Municipalidad otorga el acceso a solicitud
+      de cada consejo comunitario.
 
 ## Seguimiento en vivo (v1.0.0+12, 16-oct-2026) — por probar en campo
 
