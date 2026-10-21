@@ -42,6 +42,10 @@
           }
         },
         {
+          "source": "/app",
+          "destination": "/descargar.html"
+        },
+        {
           "source": "**",
           "destination": "/index.html"
         }
@@ -113,6 +117,19 @@
               "value": "attachment; filename=\"SIRE.apk\""
             }
           ]
+        },
+        {
+          "source": "/SIRE.apk",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/vnd.android.package-archive"
+            },
+            {
+              "key": "Content-Disposition",
+              "value": "attachment; filename=\"SIRE.apk\""
+            }
+          ]
         }
       ],
       "target": "principal"
@@ -131,6 +148,10 @@
             "functionId": "ubicacionEnVivo",
             "region": "us-central1"
           }
+        },
+        {
+          "source": "/app",
+          "destination": "/descargar.html"
         },
         {
           "source": "**",
@@ -194,6 +215,19 @@
         },
         {
           "source": "/sire-android.zip",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/vnd.android.package-archive"
+            },
+            {
+              "key": "Content-Disposition",
+              "value": "attachment; filename=\"SIRE.apk\""
+            }
+          ]
+        },
+        {
+          "source": "/SIRE.apk",
           "headers": [
             {
               "key": "Content-Type",

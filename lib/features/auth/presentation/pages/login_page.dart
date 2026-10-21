@@ -411,6 +411,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         height: 1.35,
                       ),
                     ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Sin lector de QR, abre en el navegador del teléfono:',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    SizedBox(height: 2),
+                    SelectableText(
+                      'siresanmiguel.com/app',
+                      style: TextStyle(
+                        color: Color(0xFFEF5350),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
