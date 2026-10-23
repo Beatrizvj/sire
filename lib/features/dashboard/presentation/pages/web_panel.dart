@@ -574,10 +574,14 @@ class _TendenciaDias extends StatelessWidget {
             style: TextStyle(color: Color(0xFF6B5A57))),
       );
     }
+    // Son conteos: el eje Y solo muestra enteros, con un paso de ~5 marcas.
+    final tope = (maxV * 1.2).ceilToDouble();
+    final paso = (tope / 5).ceilToDouble();
+    final maxY = (tope / paso).ceilToDouble() * paso;
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: (maxV * 1.2).ceilToDouble(),
+        maxY: maxY,
         barGroups: [
           for (var i = 0; i < entradas.length; i++)
             BarChartGroupData(x: i, barRods: [
@@ -595,8 +599,15 @@ class _TendenciaDias extends StatelessWidget {
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: paso,
+              getTitlesWidget: (v, meta) => Text('${v.round()}',
+                  style: const TextStyle(fontSize: 10)),
+            ),
+          ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -613,7 +624,8 @@ class _TendenciaDias extends StatelessWidget {
             ),
           ),
         ),
-        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        gridData: FlGridData(
+            show: true, drawVerticalLine: false, horizontalInterval: paso),
         borderData: FlBorderData(show: false),
       ),
     );
@@ -778,6 +790,7 @@ class _FillTable extends StatelessWidget {
     required this.columns,
     required this.rows,
     this.minWidth = 1000,
+    this.onTapFila,
   });
 
   /// (flex, encabezado) por columna.
@@ -787,6 +800,9 @@ class _FillTable extends StatelessWidget {
   final List<List<Widget>> rows;
 
   final double minWidth;
+
+  /// Si se indica, cada fila es clicable y recibe su índice.
+  final void Function(int fila)? onTapFila;
 
   @override
   Widget build(BuildContext context) {
@@ -821,17 +837,20 @@ class _FillTable extends StatelessWidget {
                   ),
                 ),
                 const Divider(height: 1),
-                for (final cells in rows)
-                  Container(
-                    decoration: const BoxDecoration(
-                      border: Border(bottom: BorderSide(color: _line)),
-                    ),
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < columns.length; i++)
-                          Expanded(flex: columns[i].$1, child: cells[i]),
-                      ],
+                for (var f = 0; f < rows.length; f++)
+                  InkWell(
+                    onTap: onTapFila == null ? null : () => onTapFila!(f),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        border: Border(bottom: BorderSide(color: _line)),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < columns.length; i++)
+                            Expanded(flex: columns[i].$1, child: rows[f][i]),
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -868,16 +887,17 @@ class _TablaAlertas extends ConsumerWidget {
             ),
           );
         }
-        return _tabla(ref);
+        return _tabla(context, ref);
       },
     );
   }
 
-  Widget _tabla(WidgetRef ref) {
+  Widget _tabla(BuildContext context, WidgetRef ref) {
     final df = DateFormat('dd/MM/yyyy HH:mm');
     const cell = TextStyle(fontSize: 13);
     return _FillTable(
       minWidth: conAcciones ? 1180 : 980,
+      onTapFila: (i) => _mostrarDetalleAlerta(context, alertas[i]),
       columns: [
         (16, 'Ciudadano'),
         (19, 'Ubicación'),
@@ -960,55 +980,61 @@ class _AlertaCard extends StatelessWidget {
             : '${alerta.latitude.toStringAsFixed(5)}, ${alerta.longitude.toStringAsFixed(5)}');
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _line),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _mostrarDetalleAlerta(context, alerta),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(nombre,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(nombre,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                  _EstadoChip(status: alerta.status),
+                ],
               ),
-              _EstadoChip(status: alerta.status),
+              const SizedBox(height: 8),
+              _CampoAlerta(icono: Icons.place_outlined, texto: ubic),
+              if (alerta.tieneUbicacionEnVivo) ...[
+                const SizedBox(height: 4),
+                IndicadorEnVivo(alerta: alerta, compacto: true),
+              ],
+              const SizedBox(height: 4),
+              _CampoAlerta(
+                icono: Icons.sensors_outlined,
+                texto: '${alerta.source.label} · ${df.format(alerta.timestamp)}',
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _CategoriaChip(categoria: alerta.categoria),
+                  const Spacer(),
+                  if (alerta.tiempoRespuesta != null)
+                    Text(formatearDuracion(alerta.tiempoRespuesta!),
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF6B5A57))),
+                ],
+              ),
+              if (conAcciones) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _AccionesAlerta(alerta: alerta, ref: ref),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 8),
-          _CampoAlerta(icono: Icons.place_outlined, texto: ubic),
-          if (alerta.tieneUbicacionEnVivo) ...[
-            const SizedBox(height: 4),
-            IndicadorEnVivo(alerta: alerta, compacto: true),
-          ],
-          const SizedBox(height: 4),
-          _CampoAlerta(
-            icono: Icons.sensors_outlined,
-            texto: '${alerta.source.label} · ${df.format(alerta.timestamp)}',
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _CategoriaChip(categoria: alerta.categoria),
-              const Spacer(),
-              if (alerta.tiempoRespuesta != null)
-                Text(formatearDuracion(alerta.tiempoRespuesta!),
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF6B5A57))),
-            ],
-          ),
-          if (conAcciones) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _AccionesAlerta(alerta: alerta, ref: ref),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -1032,6 +1058,126 @@ class _CampoAlerta extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Detalle de una alerta (al tocar su fila en la tabla o su marcador en el
+/// mapa): datos, mapa con su ubicación, "Cómo llegar" e Historial de acciones.
+/// Sirve también para alertas ya cerradas, que no salen en el mapa en vivo.
+void _mostrarDetalleAlerta(BuildContext context, SosAlert alerta) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => Consumer(
+      builder: (context, ref, _) {
+        final a = alertaVigente(ref, alerta);
+        final df = DateFormat('dd/MM/yyyy HH:mm');
+        final nombre = (a.userName != null && a.userName!.isNotEmpty)
+            ? a.userName!
+            : 'Ciudadano';
+        final punto = LatLng(a.latitudParaLlegar, a.longitudParaLlegar);
+        final colorPin = switch (a.status) {
+          AlertStatus.pendiente => AppColors.statusPendiente,
+          AlertStatus.atendida => AppColors.statusAtendida,
+          _ => Colors.grey,
+        };
+        return AlertDialog(
+          title: Row(
+            children: [
+              Expanded(child: Text(nombre)),
+              _EstadoChip(status: a.status),
+            ],
+          ),
+          content: SizedBox(
+            width: 460,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CampoAlerta(
+                      icono: Icons.report_gmailerrorred_outlined,
+                      texto:
+                          'Incidente: ${a.categoria ?? 'Sin especificar'}'),
+                  const SizedBox(height: 6),
+                  _CampoAlerta(
+                      icono: Icons.sensors_outlined,
+                      texto: '${a.source.label} · ${df.format(a.timestamp)}'),
+                  if (a.tiempoRespuesta != null) ...[
+                    const SizedBox(height: 6),
+                    _CampoAlerta(
+                        icono: Icons.timer_outlined,
+                        texto: 'Respuesta: '
+                            '${formatearDuracion(a.tiempoRespuesta!)}'),
+                  ],
+                  const SizedBox(height: 6),
+                  _CampoAlerta(
+                      icono: Icons.place_outlined,
+                      texto: a.address ?? 'Sin dirección'),
+                  if (a.tieneUbicacionParaLlegar) ...[
+                    const SizedBox(height: 6),
+                    _CampoAlerta(
+                        icono: Icons.my_location,
+                        texto: '${punto.latitude.toStringAsFixed(5)}, '
+                            '${punto.longitude.toStringAsFixed(5)}'),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        height: 200,
+                        child: FlutterMap(
+                          options:
+                              MapOptions(initialCenter: punto, initialZoom: 16),
+                          children: [
+                            TileLayer(
+                              urlTemplate:
+                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'gt.edu.miumg.sire',
+                            ),
+                            MarkerLayer(markers: [
+                              Marker(
+                                point: punto,
+                                width: 40,
+                                height: 40,
+                                alignment: Alignment.topCenter,
+                                child: Icon(Icons.location_on,
+                                    size: 40, color: colorPin),
+                              ),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (a.tieneUbicacionEnVivo) ...[
+                      const SizedBox(height: 10),
+                      IndicadorEnVivo(alerta: a),
+                    ] else ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Sin ubicación en vivo: se muestra la del momento del '
+                        'SOS (versión anterior de la app o sin señal).',
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
+                      ),
+                    ],
+                  ],
+                  const SizedBox(height: 14),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  HistorialAlerta(alertaId: a.id),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+            BotonComoLlegar(alerta: a),
+          ],
+        );
+      },
+    ),
+  );
 }
 
 class _AccionesAlerta extends StatelessWidget {
@@ -1069,6 +1215,10 @@ class _AccionesAlerta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categorias = ref.watch(categoriasActivasProvider);
+    // Solo los cambios de estado que tienen sentido: una alerta cerrada
+    // (resuelta o falsa alarma) no se reabre desde aquí por error.
+    final pendiente = alerta.status == AlertStatus.pendiente;
+    final abierta = pendiente || alerta.status == AlertStatus.atendida;
     // Un único botón compacto: su menú agrupa "cambiar estado" y "clasificar".
     // Así la columna Acción ocupa poco y la tabla cabe sin scroll horizontal.
     return Align(
@@ -1077,27 +1227,33 @@ class _AccionesAlerta extends StatelessWidget {
         tooltip: 'Gestionar alerta',
         position: PopupMenuPosition.under,
         itemBuilder: (_) => [
-          const PopupMenuItem<void>(
+          PopupMenuItem<void>(
             enabled: false,
             height: 30,
-            child: Text('Cambiar estado',
-                style: TextStyle(
+            child: Text(
+                abierta
+                    ? 'Cambiar estado'
+                    : 'Alerta cerrada (${alerta.status.label})',
+                style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF6B5A57))),
           ),
-          PopupMenuItem<void>(
-            onTap: () => _set(context, AlertStatus.atendida),
-            child: const Text('Atender'),
-          ),
-          PopupMenuItem<void>(
-            onTap: () => _set(context, AlertStatus.resuelta),
-            child: const Text('Resolver'),
-          ),
-          PopupMenuItem<void>(
-            onTap: () => _set(context, AlertStatus.falsaAlarma),
-            child: const Text('Falsa alarma'),
-          ),
+          if (pendiente)
+            PopupMenuItem<void>(
+              onTap: () => _set(context, AlertStatus.atendida),
+              child: const Text('Atender'),
+            ),
+          if (abierta)
+            PopupMenuItem<void>(
+              onTap: () => _set(context, AlertStatus.resuelta),
+              child: const Text('Resolver'),
+            ),
+          if (abierta)
+            PopupMenuItem<void>(
+              onTap: () => _set(context, AlertStatus.falsaAlarma),
+              child: const Text('Falsa alarma'),
+            ),
           if (categorias.isNotEmpty) const PopupMenuDivider(),
           if (categorias.isNotEmpty)
             const PopupMenuItem<void>(
@@ -2999,7 +3155,7 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
-                  onTap: () => _detalleMapa(context, a),
+                  onTap: () => _mostrarDetalleAlerta(context, a),
                   child: a.tieneUbicacionEnVivo
                       ? _PinEnVivo(alerta: a)
                       : Icon(
@@ -3014,68 +3170,6 @@ class _MapaEnVivoBodyState extends ConsumerState<_MapaEnVivoBody> {
             ),
           ),
       ];
-
-  /// Detalle de la alerta al tocar su marcador, con la ubicación en vivo y
-  /// "Cómo llegar" hacia donde está la persona ahora.
-  void _detalleMapa(BuildContext context, SosAlert alerta) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => Consumer(
-        builder: (context, ref, _) {
-          final a = alertaVigente(ref, alerta);
-          final nombre = (a.userName != null && a.userName!.isNotEmpty)
-              ? a.userName!
-              : 'Ciudadano';
-          final coords = '${a.latitudParaLlegar.toStringAsFixed(5)}, '
-              '${a.longitudParaLlegar.toStringAsFixed(5)}';
-          return AlertDialog(
-            title: Text(nombre),
-            content: SizedBox(
-              width: 380,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _CampoAlerta(
-                      icono: Icons.report_gmailerrorred_outlined,
-                      texto:
-                          'Incidente: ${a.categoria ?? 'Sin especificar'}'),
-                  const SizedBox(height: 6),
-                  _CampoAlerta(
-                      icono: Icons.flag_outlined,
-                      texto: 'Estado: ${a.status.label}'),
-                  const SizedBox(height: 6),
-                  _CampoAlerta(
-                      icono: Icons.place_outlined,
-                      texto: a.address ?? 'Sin dirección'),
-                  const SizedBox(height: 6),
-                  _CampoAlerta(icono: Icons.my_location, texto: coords),
-                  if (a.tieneUbicacionEnVivo) ...[
-                    const SizedBox(height: 10),
-                    IndicadorEnVivo(alerta: a),
-                  ] else ...[
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Sin ubicación en vivo: se muestra la del momento del SOS '
-                      '(versión anterior de la app o sin señal).',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6B5A57)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cerrar'),
-              ),
-              BotonComoLlegar(alerta: a),
-            ],
-          );
-        },
-      ),
-    );
-  }
 
   /// Construye los círculos del mapa de calor: la densidad geográfica de los
   /// incidentes. Cada incidente aporta un círculo translúcido cuyo color va de

@@ -1,11 +1,11 @@
 {
-    "name": "sire",
-    "short_name": "sire",
+    "name": "SIRE — Panel Web",
+    "short_name": "SIRE",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Sistema Integral de Respuesta ante Emergencias — San Miguel Sigüilá",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

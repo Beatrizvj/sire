@@ -94,9 +94,13 @@ class BotonComoLlegar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!alerta.tieneUbicacionParaLlegar) return const SizedBox.shrink();
-    final etiqueta = Text(alerta.tieneUbicacionEnVivo
+    // "Actual" solo mientras el seguimiento sigue vivo; si se detuvo o la
+    // alerta se cerró, el destino es la última posición conocida.
+    final etiqueta = Text(alerta.ubicacionEnVivoActiva()
         ? 'Cómo llegar (ubicación actual)'
-        : 'Cómo llegar');
+        : alerta.tieneUbicacionEnVivo
+            ? 'Cómo llegar (última ubicación)'
+            : 'Cómo llegar');
     // Web: se abre la pestaña DIRECTO en el clic (window.open sin await). El
     // widget Link no recibía el clic dentro de los diálogos del panel, y
     // launchUrl tras un await el navegador lo bloquea como ventana emergente.

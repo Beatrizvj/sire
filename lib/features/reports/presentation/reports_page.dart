@@ -562,10 +562,14 @@ class _Barras extends StatelessWidget {
           child: Text('Sin datos', style: TextStyle(color: Color(0xFF6B5A57))));
     }
     final maxV = datos.values.reduce((a, b) => a > b ? a : b).toDouble();
+    // Son conteos: el eje Y solo muestra enteros, con un paso de ~5 marcas.
+    final tope = (maxV * 1.2).ceilToDouble().clamp(1.0, double.infinity);
+    final paso = (tope / 5).ceilToDouble();
+    final maxY = (tope / paso).ceilToDouble() * paso;
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: (maxV * 1.2).ceilToDouble().clamp(1, double.infinity),
+        maxY: maxY,
         barGroups: [
           for (var i = 0; i < entradas.length; i++)
             BarChartGroupData(x: i, barRods: [
@@ -582,8 +586,15 @@ class _Barras extends StatelessWidget {
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              interval: paso,
+              getTitlesWidget: (v, meta) => Text('${v.round()}',
+                  style: const TextStyle(fontSize: 10)),
+            ),
+          ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -606,7 +617,8 @@ class _Barras extends StatelessWidget {
             ),
           ),
         ),
-        gridData: const FlGridData(show: true, drawVerticalLine: false),
+        gridData: FlGridData(
+            show: true, drawVerticalLine: false, horizontalInterval: paso),
         borderData: FlBorderData(show: false),
       ),
     );
