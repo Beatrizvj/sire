@@ -419,6 +419,9 @@ class PowerButtonService : Service() {
             "estado" to "pendiente",
             "tipo" to "SOS",
             "origen" to "powerButton",
+            // Mismo formato que el SOS de pantalla (x.y.z+N), para saber desde
+            // qué versión de la app se envió.
+            "versionApp" to versionApp(),
             "creadoEn" to FieldValue.serverTimestamp(),
         )
         if (location != null) {
@@ -462,6 +465,18 @@ class PowerButtonService : Service() {
         val suffix = (1000..9999).random()
         return "$stamp-$suffix"
     }
+
+    /** Versión instalada como "x.y.z+N" (versionName + versionCode del APK). */
+    private fun versionApp(): String = runCatching {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        val codigo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode.toLong()
+        }
+        "${info.versionName}+$codigo"
+    }.getOrDefault("desconocida")
 
     private fun reverseGeocode(lat: Double, lng: Double): String? = try {
         @Suppress("DEPRECATION")

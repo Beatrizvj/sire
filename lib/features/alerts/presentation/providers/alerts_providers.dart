@@ -122,15 +122,17 @@ class AlertsController extends Notifier<AlertsState> {
       final userId = ref.read(authControllerProvider).user?.uid;
       // Aldea registrada del ciudadano: viaja con la alerta para rutearla a su
       // COCODE (la Municipalidad ve todas; cada COCODE, solo su aldea).
-      final aldea = ref.read(currentUserProfileProvider).asData?.value?.aldea;
+      final perfil = ref.read(currentUserProfileProvider).asData?.value;
       final result = await ref.read(triggerSosProvider).call(
             source,
             userId: userId,
             categoria: categoria,
-            aldea: aldea,
+            aldea: perfil?.aldea,
+            simular: perfil?.cuentaRevision ?? false,
           );
       state = state.copyWith(
           isSending: false, alerts: [result.alert, ...state.alerts]);
+      if (result.simulada) return result;
       // Ubicación en vivo mientras la alerta siga abierta (solo Android).
       unawaited(
           ref.read(powerButtonBridgeProvider).startLiveTracking(result.alert.id));

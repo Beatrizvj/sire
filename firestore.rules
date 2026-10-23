@@ -54,7 +54,9 @@ service cloud.firestore {
       return request.resource.data.get('puedeVerIdentidad', false)
                == resource.data.get('puedeVerIdentidad', false)
              && request.resource.data.get('esResponsable', false)
-               == resource.data.get('esResponsable', false);
+               == resource.data.get('esResponsable', false)
+             && request.resource.data.get('cuentaRevision', false)
+               == resource.data.get('cuentaRevision', false);
     }
     // R2: verificador de identidad = autoridad aprobada con la capacidad
     // `puedeVerIdentidad` que otorga la Municipalidad.

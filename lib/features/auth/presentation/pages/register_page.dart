@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/politica_privacidad.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../../core/validation/password_validator.dart';
 import '../../../communities/aldeas_providers.dart';
@@ -504,7 +505,35 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   : const Text('Crear cuenta'),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
+
+          // ── Política de privacidad (requisito de Google Play) ────────────
+          Center(
+            child: TextButton(
+              onPressed: abrirPoliticaPrivacidad,
+              style: TextButton.styleFrom(foregroundColor: kAuthLightRed),
+              child: const Text.rich(
+                TextSpan(
+                  text: 'Al crear tu cuenta aceptas la  ',
+                  style: TextStyle(color: Colors.white60, fontSize: 13),
+                  children: [
+                    TextSpan(
+                      text: 'Política de privacidad',
+                      style: TextStyle(
+                        color: kAuthLightRed,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: kAuthLightRed,
+                      ),
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
 
           // ── Enlace a login ───────────────────────────────────────────────
           Center(

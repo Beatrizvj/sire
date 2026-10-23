@@ -20,6 +20,7 @@ class AppUser extends Equatable {
     this.puedeVerIdentidad = false,
     this.esResponsable = false,
     this.contactosConfianza = const [],
+    this.cuentaRevision = false,
   });
 
   final String id;
@@ -57,6 +58,11 @@ class AppUser extends Equatable {
   /// (COCODE/Municipalidad), no el propio ciudadano.
   final List<String> contactosConfianza;
 
+  /// Cuenta de revisión (p. ej. la que usa el revisor de Google Play): sus SOS
+  /// se simulan en el teléfono y NUNCA llegan a las autoridades. Solo la
+  /// Municipalidad (o la consola de Firebase) la marca.
+  final bool cuentaRevision;
+
   /// Solo las cuentas aprobadas y activas acceden a funciones sensibles.
   bool get puedeAcceder => activo && estadoCuenta.puedeAcceder;
 
@@ -74,6 +80,7 @@ class AppUser extends Equatable {
     bool? puedeVerIdentidad,
     bool? esResponsable,
     List<String>? contactosConfianza,
+    bool? cuentaRevision,
   }) =>
       AppUser(
         id: id,
@@ -90,6 +97,7 @@ class AppUser extends Equatable {
         puedeVerIdentidad: puedeVerIdentidad ?? this.puedeVerIdentidad,
         esResponsable: esResponsable ?? this.esResponsable,
         contactosConfianza: contactosConfianza ?? this.contactosConfianza,
+        cuentaRevision: cuentaRevision ?? this.cuentaRevision,
       );
 
   @override
@@ -108,5 +116,6 @@ class AppUser extends Equatable {
         puedeVerIdentidad,
         esResponsable,
         contactosConfianza,
+        cuentaRevision,
       ];
 }

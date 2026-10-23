@@ -25,6 +25,7 @@ class AppUserModel {
         'puedeVerIdentidad': user.puedeVerIdentidad,
         'esResponsable': user.esResponsable,
         'contactosConfianza': user.contactosConfianza,
+        'cuentaRevision': user.cuentaRevision,
       };
 
   /// [id] se pasa aparte porque en Firestore es el id del documento.
@@ -47,6 +48,7 @@ class AppUserModel {
         contactosConfianza:
             (map['contactosConfianza'] as List<dynamic>?)?.cast<String>() ??
                 const [],
+        cuentaRevision: map['cuentaRevision'] as bool? ?? false,
       );
 
   static DateTime? _toDate(Object? raw) {

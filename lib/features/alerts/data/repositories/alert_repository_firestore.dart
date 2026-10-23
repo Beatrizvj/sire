@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../core/config/firestore_collections.dart';
+import '../../../../core/config/version_app.dart';
 import '../../domain/entities/alert_status.dart';
 import '../../domain/entities/sos_alert.dart';
 import '../../domain/entities/sos_source.dart';
@@ -51,6 +52,9 @@ class AlertRepositoryFirestore implements AlertRepository {
           : Timestamp.fromDate(alert.resueltaEn!),
       'atendidaPor': alert.atendidaPor,
       'atendidaPorNombre': alert.atendidaPorNombre,
+      // Versión de la app que envió la alerta (para diagnosticar, p. ej., si
+      // tenía seguimiento en vivo).
+      'versionApp': kVersionCompleta,
       'creadoEn': FieldValue.serverTimestamp(),
     };
     // Las coordenadas solo se guardan si existen. Sin ubicación (0,0) se OMITEN,

@@ -14,6 +14,7 @@ const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
 const {getMessaging} = require("firebase-admin/messaging");
+const {esDeCuentaRevision} = require("./revision");
 
 initializeApp();
 
@@ -25,6 +26,11 @@ exports.notificarNuevaAlerta = onDocumentCreated(
 
       const aldea = alerta.aldea || "";
       const db = getFirestore();
+
+      if (await esDeCuentaRevision(db, alerta)) {
+        console.log(`Alerta de cuenta de revisión: sin push (${event.params.alertaId}).`);
+        return;
+      }
 
       // Autoridades a notificar: municipalidad (todas) + autoridades de la
       // aldea (COCODE y Alcaldía Auxiliar).

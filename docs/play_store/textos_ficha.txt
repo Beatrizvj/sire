@@ -1,0 +1,33 @@
+NOMBRE DE LA APP (máx. 30)
+SIRE - Alertas Comunitarias
+
+DESCRIPCIÓN BREVE (máx. 80)
+Envía una alerta SOS con tu ubicación a las autoridades de tu comunidad.
+
+DESCRIPCIÓN COMPLETA (máx. 4000)
+SIRE (Sistema Integral de Respuesta ante Emergencias) es una herramienta de alertas comunitarias para el municipio de San Miguel Sigüilá, Quetzaltenango, Guatemala.
+
+Con un solo botón puedes enviar una alerta SOS con tu ubicación a las autoridades locales que atienden emergencias en tu aldea: COCODE, Alcaldía Auxiliar y Municipalidad.
+
+FUNCIONES PRINCIPALES
+• Botón SOS: envía una alerta con tu ubicación GPS y la categoría del incidente, con una cuenta regresiva para cancelar si lo presionaste por error.
+• SOS con el botón de encendido: activa la alerta presionando varias veces el botón de encendido del teléfono, incluso con la pantalla bloqueada (opcional).
+• Ubicación en vivo: mientras tu alerta está abierta, las autoridades pueden seguir tu ubicación; puedes dejar de compartirla cuando quieras.
+• Sin señal: si no hay conexión, la alerta se guarda y se envía automáticamente al recuperar la señal.
+• Historial: consulta tus alertas enviadas y su estado (pendiente, atendida, resuelta).
+• Contacto de tu COCODE: llama directamente a las autoridades de tu aldea.
+
+CUENTAS VERIFICADAS
+Para evitar alertas falsas, cada cuenta se verifica con fotos del DPI y debe ser aprobada por las autoridades del municipio antes de poder enviar alertas.
+
+PRIVACIDAD
+Tu ubicación solo se usa cuando envías una alerta. Tus datos solo los ven las autoridades autorizadas del municipio y no se venden ni se comparten con fines publicitarios. Puedes eliminar tu cuenta en cualquier momento desde la app.
+
+SIRE es un proyecto de graduación de la Universidad Mariano Gálvez de Guatemala. No sustituye a los números de emergencia nacionales (110 PNC, 122 Bomberos Voluntarios, 123 Bomberos Municipales).
+
+CATEGORÍA
+Tipo: App · Categoría: Herramientas
+
+DETALLES DE CONTACTO
+Correo: vicentebeatriz372@gmail.com
+Sitio web: https://sire-app-179d3.web.app

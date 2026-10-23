@@ -36,6 +36,7 @@ const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {getFirestore} = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 const {crearTokenSeguimiento} = require("./seguimiento");
+const {esDeCuentaRevision} = require("./revision");
 
 // Dominio público del panel (para el enlace de seguimiento en vivo).
 const URL_BASE = process.env.SIRE_URL_BASE || "https://siresanmiguel.com";
@@ -178,6 +179,11 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
 
       const aldea = alerta.aldea || "";
       const db = getFirestore();
+
+      if (await esDeCuentaRevision(db, alerta)) {
+        logger.info(`Alerta de cuenta de revisión: sin WhatsApp (${event.params.alertaId}).`);
+        return;
+      }
 
       // ¿La aldea tiene Alcaldía Auxiliar con números para WhatsApp?
       // config/whatsapp_auxiliar = { "La Emboscada": ["+502########", ...] }.

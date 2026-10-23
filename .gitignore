@@ -50,3 +50,7 @@ app.*.map.json
 
 # Firebase deploy cache
 .firebase/
+
+# Capturas originales sin difuminar (datos personales)
+docs/play_store/capturas/
+docs/play_store/prueba_v17/

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/config/version_app.dart';
+import '../../../../core/utils/politica_privacidad.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../users/domain/entities/app_user.dart';
@@ -140,10 +142,15 @@ class ProfilePage extends ConsumerWidget {
             icon: const Icon(Icons.delete_forever_outlined),
             label: const Text('Eliminar mi cuenta'),
           ),
-          const SizedBox(height: 24),
+          TextButton.icon(
+            onPressed: abrirPoliticaPrivacidad,
+            icon: const Icon(Icons.privacy_tip_outlined),
+            label: const Text('Política de privacidad'),
+          ),
+          const SizedBox(height: 16),
           Center(
             child: Text(
-              '${AppConfig.appName} · v1'
+              '${AppConfig.appName} · v$kVersionNombre'
               '${AppConfig.firebaseEnabled ? '' : ' (modo local)'}',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

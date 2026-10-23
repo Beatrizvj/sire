@@ -10,9 +10,13 @@ import '../repositories/alert_repository.dart';
 
 /// Resultado de disparar un SOS.
 class SosResult {
-  const SosResult(this.alert, {this.enCola = false});
+  const SosResult(this.alert, {this.enCola = false, this.simulada = false});
 
   final SosAlert alert;
+
+  /// true si la alerta NO se envió: la generó una cuenta de revisión y solo se
+  /// simuló en el teléfono (no llega a Firestore ni a las autoridades).
+  final bool simulada;
 
   /// true si la alerta se guardó localmente pero el servidor aún no la confirmó
   /// (sin señal). Firestore la sincroniza al recuperar la conexión; la alerta
@@ -45,6 +49,7 @@ class TriggerSos {
     String? userId,
     String? categoria,
     String? aldea,
+    bool simular = false,
   }) async {
     // La ubicación es "mejor esfuerzo": si el GPS está apagado y no hay última
     // ubicación conocida, la alerta se envía IGUAL, sin ubicación (lat/long en
@@ -73,6 +78,15 @@ class TriggerSos {
       type: 'SOS',
       categoria: categoria,
     );
+
+    // Cuenta de revisión: la alerta se arma igual (para mostrarla en pantalla)
+    // pero no se guarda, así nunca llega a las autoridades. Tampoco comparte
+    // ubicación en vivo, así que nace con el seguimiento ya detenido.
+    if (simular) {
+      return SosResult(
+          alert.copyWith(seguimientoDetenidoEn: alert.timestamp),
+          simulada: true);
+    }
 
     var enCola = false;
     try {

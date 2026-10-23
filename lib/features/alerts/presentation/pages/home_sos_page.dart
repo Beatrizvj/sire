@@ -228,7 +228,14 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
           ? 'sin ubicación'
           : (alert.address ??
               '${alert.latitude.toStringAsFixed(5)}, ${alert.longitude.toStringAsFixed(5)}');
-      if (result.enCola) {
+      if (result.simulada) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('🧪 Cuenta de revisión: SOS simulado, NO se envió a '
+                'las autoridades.\n$location'),
+          ),
+        );
+      } else if (result.enCola) {
         // Sin señal: Firestore ya la guardó y la enviará al reconectar.
         messenger.showSnackBar(
           SnackBar(
@@ -260,7 +267,15 @@ class _HomeSosPageState extends ConsumerState<HomeSosPage>
     var enabled = false;
     String? errorMsg;
 
-    if (value) {
+    final esRevision =
+        ref.read(currentUserProfileProvider).asData?.value?.cuentaRevision ??
+            false;
+    if (value && esRevision) {
+      // El SOS nativo del botón de encendido escribe directo en Firestore, así
+      // que en una cuenta de revisión no se activa.
+      errorMsg = 'La detección por botón de encendido no está disponible en '
+          'la cuenta de revisión.';
+    } else if (value) {
       await permisos.ensureNotifications();
       // OBLIGATORIO en Android 14+: el servicio en primer plano es de tipo
       // "location"; sin permiso de ubicación concedido, arrancarlo hace que el
