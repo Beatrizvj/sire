@@ -3,7 +3,7 @@
 /// El panel web lo compara con `/version.json` del servidor para avisar que se
 /// publicó una versión nueva. Debe coincidir con `pubspec.yaml` (lo verifica
 /// `test/unit/version_app_test.dart`).
-const int kNumeroCompilacion = 18;
+const int kNumeroCompilacion = 19;
 
 /// Versión visible (el `x.y.z` de `pubspec.yaml`).
 const String kVersionNombre = '1.0.0';

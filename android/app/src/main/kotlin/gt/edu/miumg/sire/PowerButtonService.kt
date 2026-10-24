@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
@@ -478,12 +479,25 @@ class PowerButtonService : Service() {
         "${info.versionName}+$codigo"
     }.getOrDefault("desconocida")
 
+    // El geocodificador de Android a veces devuelve una dirección de otro país
+    // (p. ej. una de Vietnam para coordenadas de San Miguel Sigüilá). Solo se
+    // acepta una dirección de Guatemala cercana al punto; si no hay, la alerta
+    // va sin dirección y el panel muestra las coordenadas.
     private fun reverseGeocode(lat: Double, lng: Double): String? = try {
         @Suppress("DEPRECATION")
-        Geocoder(this, Locale.getDefault()).getFromLocation(lat, lng, 1)
-            ?.firstOrNull()?.getAddressLine(0)
+        Geocoder(this, Locale.getDefault()).getFromLocation(lat, lng, 3)
+            ?.firstOrNull { direccionValida(it, lat, lng) }
+            ?.getAddressLine(0)
     } catch (e: Exception) {
         null
+    }
+
+    private fun direccionValida(a: Address, lat: Double, lng: Double): Boolean {
+        if (!a.countryCode.equals(PAIS_ESPERADO, ignoreCase = true)) return false
+        if (!a.hasLatitude() || !a.hasLongitude()) return true
+        val distancia = FloatArray(1)
+        Location.distanceBetween(lat, lng, a.latitude, a.longitude, distancia)
+        return distancia[0] <= MAX_DISTANCIA_DIRECCION_M
     }
 
     // --- Notificaciones ---
@@ -545,6 +559,10 @@ class PowerButtonService : Service() {
         private const val MAX_EDAD_UBICACION_MS = 2 * 60 * 1000L
         /** Tiempo máximo que se espera una posición fresca por intento. */
         private const val ESPERA_UBICACION_MS = 20 * 1000L
+        /** Solo se aceptan direcciones de este país (código ISO). */
+        private const val PAIS_ESPERADO = "GT"
+        /** Distancia máxima entre el SOS y la dirección encontrada. */
+        private const val MAX_DISTANCIA_DIRECCION_M = 5_000f
 
         /** true mientras el servicio de detección está vivo. Permite que el switch
          * de la app refleje el estado REAL (se actualiza en onCreate/onDestroy). */

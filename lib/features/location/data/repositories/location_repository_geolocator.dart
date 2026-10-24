@@ -100,20 +100,30 @@ class LocationRepositoryGeolocator implements LocationRepository {
       final placemarks = await Geocoding()
           .placemarkFromCoordinates(lat, lng)
           .timeout(const Duration(seconds: 2));
-      if (placemarks.isEmpty) return null;
-      final p = placemarks.first;
-      final parts = <String?>[
-        p.street,
-        p.subLocality,
-        p.locality,
-        p.administrativeArea,
-        p.country,
-      ].where((e) => e != null && e.trim().isNotEmpty).cast<String>();
-      final joined = parts.join(', ');
-      return joined.isEmpty ? null : joined;
+      return direccionDesdePlacemarks(placemarks);
     } catch (_) {
       // El reverse geocoding puede fallar sin conexión; la alerta igual se envía.
       return null;
     }
   }
+}
+
+/// Dirección legible del primer resultado que sea de Guatemala. El
+/// geocodificador del teléfono a veces devuelve una dirección de otro país
+/// (p. ej. de Vietnam para coordenadas de San Miguel Sigüilá); en ese caso se
+/// devuelve null y la alerta va con las coordenadas.
+String? direccionDesdePlacemarks(List<Placemark> placemarks) {
+  for (final p in placemarks) {
+    if ((p.isoCountryCode ?? '').toUpperCase() != 'GT') continue;
+    final parts = <String?>[
+      p.street,
+      p.subLocality,
+      p.locality,
+      p.administrativeArea,
+      p.country,
+    ].where((e) => e != null && e.trim().isNotEmpty).cast<String>();
+    final joined = parts.join(', ');
+    if (joined.isNotEmpty) return joined;
+  }
+  return null;
 }
