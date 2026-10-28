@@ -12,6 +12,8 @@
  *     Los demás integrantes reciben solo el push (gratis). Caso La Emboscada.
  *   - COCODE de la aldea: solo si la aldea NO tiene Alcaldía Auxiliar (ni por
  *     rol ni por config); si la tiene, el WhatsApp va a la Auxiliatura.
+ * LÍMITE: un ciudadano dispara WhatsApp como máximo 1 vez cada 10 min y 3 al
+ * día (functions/limite.js); las demás alertas llegan solo por push.
  * (El push —functions/index.js— va a la Municipalidad y a TODAS las autoridades
  * de la aldea: COCODE y Alcaldía Auxiliar.)
  *
@@ -37,6 +39,7 @@ const {getFirestore} = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 const {crearTokenSeguimiento} = require("./seguimiento");
 const {esDeCuentaRevision} = require("./revision");
+const {reservarCupoWhatsApp} = require("./limite");
 
 // Dominio público del panel (para el enlace de seguimiento en vivo).
 const URL_BASE = process.env.SIRE_URL_BASE || "https://siresanmiguel.com";
@@ -182,6 +185,17 @@ exports.notificarWhatsAppNuevaAlerta = onDocumentCreated(
 
       if (await esDeCuentaRevision(db, alerta)) {
         logger.info(`Alerta de cuenta de revisión: sin WhatsApp (${event.params.alertaId}).`);
+        return;
+      }
+
+      // Límite por ciudadano (functions/limite.js): la alerta sigue en el
+      // panel y por push; solo se omite el WhatsApp.
+      const cupo = await reservarCupoWhatsApp(db, alerta.idUsuario || "");
+      if (!cupo.permitir) {
+        logger.info(
+            `WhatsApp omitido por límite (${cupo.motivo}): ` +
+            `alerta ${event.params.alertaId}, usuario ${alerta.idUsuario}.`,
+        );
         return;
       }
 
