@@ -6,9 +6,9 @@ el mismo código Flutter**:
 
 - **App móvil (Android):** el ciudadano se registra, inicia sesión y envía un
   **SOS con su ubicación**.
-- **Panel web (COCODE / Municipalidad):** las autoridades reciben las alertas,
-  las gestionan y las ven en el mapa. Publicado en
-  **https://sire-app-179d3.web.app**.
+- **Panel web (COCODE / Alcaldía Auxiliar / Municipalidad):** las autoridades
+  reciben las alertas, las gestionan, las ven en el mapa y consultan reportes.
+  Publicado en **https://siresanmiguel.com**.
 
 El SOS se activa de dos formas:
 
@@ -24,9 +24,11 @@ El SOS se activa de dos formas:
 
 ## Stack
 Flutter · Dart · Riverpod · GoRouter (guard de sesión por rol) · Material 3
-(tema claro/oscuro) · Firebase Auth · Cloud Firestore · geolocator/geocoding ·
-flutter_map (**OpenStreetMap**) · shared_preferences · Dio · Logger ·
-Clean Architecture · Kotlin (servicio nativo del botón de encendido).
+(tema claro/oscuro) · Firebase Auth · Cloud Firestore · Firebase Cloud Messaging
+(notificaciones push) · Cloud Functions (Node.js) · Twilio (WhatsApp) ·
+Firebase Hosting · geolocator/geocoding · flutter_map (**OpenStreetMap**) ·
+fl_chart (gráficas) · pdf/excel (exportar reportes) · shared_preferences · Dio ·
+Logger · Clean Architecture · Kotlin (servicio nativo del botón de encendido).
 
 ## Requisitos
 - Flutter (stable) y Android SDK configurados.
@@ -50,19 +52,22 @@ Publicar el panel web:  `flutter build web && firebase deploy --only hosting --p
 - **Inicio de sesión / recuperación:** Firebase Auth; enlace *"¿Olvidaste tu
   contraseña?"* que envía un correo para restablecerla; bloqueo temporal tras
   varios intentos fallidos.
-- **Roles:** Ciudadano (SOS + Perfil), COCODE y Municipalidad (Bandeja + Mapa +
-  aprobaciones).
+- **Roles:** Ciudadano (SOS + Perfil); COCODE, Alcaldía Auxiliar y
+  Municipalidad (Bandeja + Mapa + aprobaciones + Reportes).
 - **SOS en pantalla:** pestaña **SOS** → botón rojo → concede ubicación → la
   alerta (coordenadas + dirección) llega a la **Bandeja** y al **Mapa** de la
   autoridad.
 - **Botón de encendido:** activa *"Detección por botón de encendido"* → pulsa
   encendido **3 veces en ≤ 4 s** → cuenta regresiva de 8 s para cancelar →
   alerta registrada.
+- **Avisos a la autoridad:** las alertas nuevas llegan como **notificación push**
+  y por **WhatsApp** (con límite por ciudadano para evitar abusos), con el
+  enlace para seguir la ubicación en vivo.
 
 ## Comandos útiles
 ```bash
 flutter analyze          # 0 issues
-flutter test             # prueba de humo
+flutter test             # 107 pruebas (unitarias y de widgets)
 flutter build apk --release
 ```
 
@@ -80,6 +85,12 @@ android/.../    MainActivity.kt · PowerButtonService.kt · PowerButtonEvents.kt
 
 Cada repositorio tiene implementación **local** y **Firebase**, intercambiables
 con `AppConfig.firebaseEnabled` (por defecto, Firebase).
+
+## Versiones
+| Versión | Fecha | Descripción |
+|---------|-------|-------------|
+| `v1.0.0-rc1` (1.0.0+2) | 10-oct-2026 | Versión candidata a liberación |
+| 1.0.0+19 | 24-oct-2026 | Versión en producción (https://siresanmiguel.com) |
 
 ## Hoja de ruta
 | Hito | Contenido | Estado |
