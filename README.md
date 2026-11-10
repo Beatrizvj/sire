@@ -92,5 +92,5 @@ con `AppConfig.firebaseEnabled` (por defecto, Firebase).
 | 5 | Mapa de alertas (OpenStreetMap) | ✅ |
 | 6 | Panel web (Flutter Web) | ✅ desplegado |
 | 7 | Notificaciones push (FCM) | ✅ desplegado y probado |
-| 8 | Bot de WhatsApp (Cloud Functions) | 🔧 código listo (falta activar proveedor Twilio) |
-| 9 | Mapas de calor / analítica | ⏳ |
+| 8 | Bot de WhatsApp (Cloud Functions) | ✅ en producción (número propio y plantilla aprobada) |
+| 9 | Mapas de calor / analítica | ✅ mapa de calor en la app + gráficas en Reportes |
