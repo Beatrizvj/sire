@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/whatsapp_link.dart';
 import '../../../../core/validation/name_validator.dart';
 import '../../../alerts/domain/entities/alert_status.dart';
 import '../../../alerts/domain/entities/sos_alert.dart';
@@ -1172,12 +1173,45 @@ void _mostrarDetalleAlerta(BuildContext context, SosAlert alerta) {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cerrar'),
             ),
+            TextButton.icon(
+              onPressed: () => _whatsappDeAlerta(context, ref, a),
+              icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+              label: const Text('WhatsApp'),
+            ),
             BotonComoLlegar(alerta: a),
           ],
         );
       },
     ),
   );
+}
+
+/// Abre el chat de WhatsApp (wa.me, gratuito) presentándose como la autoridad
+/// que tiene la sesión abierta.
+Future<void> _escribirWhatsApp(
+    BuildContext context, WidgetRef ref, String telefono, String nombre) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final yo = ref.read(currentUserProfileProvider).asData?.value;
+  final ok = await abrirWhatsApp(telefono, nombre,
+      remitente: remitenteSire(yo?.rol, yo?.aldea ?? ''));
+  if (!ok) {
+    messenger.showSnackBar(const SnackBar(
+        content: Text('No se pudo abrir WhatsApp para este número.')));
+  }
+}
+
+/// WhatsApp con el ciudadano que envió la alerta.
+Future<void> _whatsappDeAlerta(
+    BuildContext context, WidgetRef ref, SosAlert alerta) async {
+  final usuarios =
+      ref.read(allUsersProvider).asData?.value ?? const <AppUser>[];
+  final ciudadano = usuarios.where((u) => u.id == alerta.userId).firstOrNull;
+  if (ciudadano == null || ciudadano.telefono.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Este ciudadano no tiene teléfono registrado.')));
+    return;
+  }
+  await _escribirWhatsApp(context, ref, ciudadano.telefono, ciudadano.nombre);
 }
 
 class _AccionesAlerta extends StatelessWidget {
@@ -1412,7 +1446,7 @@ class _UsuariosBody extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13)),
-                        _TelefonoCelda(telefono: u.telefono),
+                        _TelefonoCelda(telefono: u.telefono, nombre: u.nombre),
                         Text(u.aldea.isEmpty ? '—' : u.aldea,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1475,7 +1509,7 @@ class _UsuarioCard extends StatelessWidget {
           const SizedBox(height: 2),
           Row(
             children: [
-              Flexible(child: _TelefonoCelda(telefono: u.telefono)),
+              Flexible(child: _TelefonoCelda(telefono: u.telefono, nombre: u.nombre)),
               const Text('  ·  ', style: TextStyle(fontSize: 12.5)),
               Text(u.aldea.isEmpty ? 'Sin comunidad' : u.aldea,
                   style: const TextStyle(fontSize: 12.5)),
@@ -1490,13 +1524,14 @@ class _UsuarioCard extends StatelessWidget {
 
 /// Celda de teléfono para la tabla de usuarios: muestra el número con un botón
 /// para copiarlo (útil en la consola de escritorio para llamar/pegar).
-class _TelefonoCelda extends StatelessWidget {
-  const _TelefonoCelda({required this.telefono});
+class _TelefonoCelda extends ConsumerWidget {
+  const _TelefonoCelda({required this.telefono, required this.nombre});
 
   final String telefono;
+  final String nombre;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tel = telefono.trim();
     if (tel.isEmpty) {
       return const Text('—', style: TextStyle(fontSize: 13));
@@ -1521,6 +1556,17 @@ class _TelefonoCelda extends StatelessWidget {
           child: const Padding(
             padding: EdgeInsets.all(4),
             child: Icon(Icons.copy, size: 15, color: Color(0xFF6B5A57)),
+          ),
+        ),
+        Tooltip(
+          message: 'Escribir por WhatsApp',
+          child: InkWell(
+            onTap: () => _escribirWhatsApp(context, ref, tel, nombre),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.chat, size: 15, color: Color(0xFF25D366)),
+            ),
           ),
         ),
       ],

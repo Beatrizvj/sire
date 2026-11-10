@@ -27,6 +27,7 @@
   },
   "hosting": [
     {
+      "predeploy": ["node tool/versionar_main_js.js"],
       "public": "build/web",
       "ignore": [
         "firebase.json",
@@ -79,11 +80,11 @@
           ]
         },
         {
-          "source": "/main.dart.js",
+          "source": "/main.*.dart.js",
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache"
+              "value": "public, max-age=31536000, immutable"
             }
           ]
         },
@@ -135,6 +136,7 @@
       "target": "principal"
     },
     {
+      "predeploy": ["node tool/versionar_main_js.js"],
       "public": "build/web",
       "ignore": [
         "firebase.json",
@@ -187,11 +189,11 @@
           ]
         },
         {
-          "source": "/main.dart.js",
+          "source": "/main.*.dart.js",
           "headers": [
             {
               "key": "Cache-Control",
-              "value": "no-cache"
+              "value": "public, max-age=31536000, immutable"
             }
           ]
         },

@@ -41,7 +41,7 @@ flutter run
 ```
 
 Instalable de la app:   `flutter build apk --release`
-Publicar el panel web:  `flutter build web && firebase deploy --only hosting --project sire-app-179d3`
+Publicar el panel web:  `flutter build web && firebase deploy --only hosting --project sire-app-179d3` (el predeploy `tool/versionar_main_js.js` renombra `main.dart.js` con un hash para que el navegador lo guarde en caché)
 
 ## Cómo probar
 - **Registro:** nombre, apellido, teléfono, correo, contraseña, aldea/localidad

@@ -32,12 +32,43 @@
 
   <title>SIRE — Panel Web Municipalidad, COCODE y Alcaldía Auxiliar</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Pantalla de carga: visible hasta que Flutter pinta su primer cuadro. -->
+  <style>
+    #sire-carga {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #fff; color: #555;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px;
+    }
+    #sire-carga svg { width: 72px; height: 72px; }
+    #sire-carga .giro {
+      width: 28px; height: 28px; margin: 20px 0 12px;
+      border: 3px solid rgba(198, 40, 40, .2); border-top-color: #C62828; border-radius: 50%;
+      animation: sire-giro 1s linear infinite;
+    }
+    @keyframes sire-giro { to { transform: rotate(360deg); } }
+    @media (prefers-color-scheme: dark) {
+      #sire-carga { background: #121212; color: #bbb; }
+    }
+  </style>
 </head>
 <body>
-  <!-- Información legal en HTML estático (la lee Meta para verificar el negocio; Flutter la cubre al cargar). -->
-  <div id="sire-legal" style="font-family:sans-serif;font-size:13px;color:#555;padding:16px">
-    <p><b>SIRE</b> — Sistema Integral de Respuesta ante Emergencias, San Miguel Sigüilá, Quetzaltenango.</p>
-    <p>Responsable: <b>Beatríz Vicente Jiménez</b> · Camino Llano, Zona 0, San Miguel Sigüilá, Quetzaltenango 09008, Guatemala · Tel. +502 5366 2007</p>
+  <div id="sire-carga" role="status">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2.5 27.5 6.6V15.2C27.5 22.6 22.4 28.2 16 30.2 9.6 28.2 4.5 22.6 4.5 15.2V6.6Z" fill="#C62828"/><path d="M16 8.6a5 5 0 0 0-5 5c0 3.75 5 8.6 5 8.6s5-4.85 5-8.6a5 5 0 0 0-5-5z" fill="#fff"/><circle cx="16" cy="13.4" r="1.95" fill="#C62828"/></svg>
+    <div class="giro"></div>
+    <div>Cargando SIRE…</div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var carga = document.getElementById('sire-carga');
+      if (carga) carga.remove();
+    });
+  </script>
+  <!-- Información legal en HTML estático para verificadores (Meta/Play); oculta a la vista. Los datos completos están en privacidad.html. -->
+  <div id="sire-legal" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">
+    <p><b>SIRE</b> — Sistema Integral de Respuesta ante Emergencias, San Miguel Sigüilá, Quetzaltenango. Tel. +502 5366 2007.</p>
+    <p><a href="privacidad.html">Contacto y política de privacidad</a></p>
   </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
